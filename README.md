@@ -32,9 +32,7 @@ pip install -e .
 
 ```bash
 # Initialize the database
-python -m music_cluster.cli init
-# Or if music-cluster command is installed:
-# music-cluster init
+music-cluster init
 
 # Analyze your music library
 music-cluster analyze ~/Music/Library --recursive
@@ -48,6 +46,8 @@ music-cluster export --output ~/Music/Playlists
 # Classify new tracks
 music-cluster classify ~/Downloads/NewAlbum --recursive
 ```
+
+**Note:** If the `music-cluster` command isn't found, make sure you've installed the package with `pip install -e .` (see [INSTALL.md](INSTALL.md)). You can also use `python -m music_cluster.cli` instead of `music-cluster`.
 
 ## Usage
 
@@ -198,10 +198,22 @@ performance:
 - **Classification**: < 1 second per track
 - **Storage**: ~1-2 KB per track
 
+## Supported Audio Formats
+
+The tool supports **all audio formats that FFmpeg can decode**, including:
+
+**Compressed formats:**
+- MP3, AAC, M4A, OGG (Vorbis), Opus, WMA
+
+**Lossless formats:**
+- FLAC, WAV, AIFF/AIF, APE (Monkey's Audio), ALAC (Apple Lossless), WavPack (WV)
+
+**Mixed format libraries are fully supported** - you can analyze collections with different file types together.
+
 ## Requirements
 
 - Python 3.9+
-- Audio file formats: MP3, FLAC, WAV, M4A, OGG
+- FFmpeg (for audio decoding)
 
 ## License
 

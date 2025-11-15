@@ -59,11 +59,27 @@ This will install:
 pip install -e .
 ```
 
-The `-e` flag installs in "editable" mode, allowing you to modify the code.
+The `-e` flag installs in "editable" mode, allowing you to modify the code. This also installs the `music-cluster` command so you can run it directly from anywhere.
 
-### 5. Verify Installation
+**What this does:**
+- Installs all required dependencies (librosa, scikit-learn, numpy, etc.)
+- Creates the `music-cluster` command in your PATH
+- Links the code so changes are immediately reflected without reinstalling
 
-Test that all modules load correctly:
+### 5. Verify the Command is Installed
+
+Check that the `music-cluster` command works:
+
+```bash
+music-cluster --version
+```
+
+You should see:
+```
+music-cluster, version 1.0.0
+```
+
+You can also verify imports:
 
 ```bash
 python test_imports.py
@@ -85,13 +101,15 @@ Testing imports...
 
 ### 6. Initialize the Tool
 
-```bash
-python -m music_cluster.cli init
-```
+Now you can use the `music-cluster` command directly:
 
-Or if the `music-cluster` command is available:
 ```bash
 music-cluster init
+```
+
+**Alternative:** If the command isn't in your PATH, you can always use:
+```bash
+python -m music_cluster.cli init
 ```
 
 This creates:
@@ -99,6 +117,38 @@ This creates:
 - Database at `~/.music-cluster/library.db`
 
 ## Troubleshooting
+
+### Command Not Found
+
+If you get `command not found: music-cluster` after installation:
+
+1. **Make sure you're in the virtual environment:**
+   ```bash
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+2. **Check if the package is installed:**
+   ```bash
+   pip list | grep music-cluster
+   ```
+   You should see: `music-cluster 1.0.0`
+
+3. **Verify the script location:**
+   ```bash
+   which music-cluster  # On macOS/Linux
+   where music-cluster  # On Windows
+   ```
+
+4. **If still not found, use the module syntax instead:**
+   ```bash
+   python -m music_cluster.cli --version
+   ```
+
+5. **Try reinstalling:**
+   ```bash
+   pip uninstall music-cluster
+   pip install -e .
+   ```
 
 ### Import Errors
 

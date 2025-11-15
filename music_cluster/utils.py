@@ -7,7 +7,24 @@ from typing import List, Set
 
 
 # Default audio file extensions
-DEFAULT_AUDIO_EXTENSIONS = {".mp3", ".flac", ".wav", ".m4a", ".ogg", ".aac", ".wma"}
+# Supports most common formats that librosa + FFmpeg can decode
+DEFAULT_AUDIO_EXTENSIONS = {
+    # Compressed formats
+    ".mp3",   # MPEG Audio Layer 3
+    ".m4a",   # AAC/ALAC in MP4 container
+    ".aac",   # Advanced Audio Coding
+    ".ogg",   # Ogg Vorbis
+    ".opus",  # Opus codec
+    ".wma",   # Windows Media Audio
+    # Lossless formats
+    ".flac",  # Free Lossless Audio Codec
+    ".wav",   # Waveform Audio
+    ".aiff",  # Audio Interchange File Format
+    ".aif",   # AIFF short form
+    ".ape",   # Monkey's Audio
+    ".alac",  # Apple Lossless (usually in .m4a)
+    ".wv",    # WavPack
+}
 
 
 def compute_file_checksum(filepath: str, chunk_size: int = 8192) -> str:

@@ -57,8 +57,8 @@ def init(db_path):
 @click.argument('path', type=click.Path(exists=True))
 @click.option('-r', '--recursive', is_flag=True, help='Scan subdirectories')
 @click.option('-u', '--update', is_flag=True, help='Re-analyze existing tracks')
-@click.option('--extensions', type=str, default='mp3,flac,wav,m4a,ogg', 
-              help='Comma-separated file extensions')
+@click.option('--extensions', type=str, default='mp3,flac,wav,m4a,ogg,aiff,aif,opus,aac,wma,ape,alac,wv', 
+              help='Comma-separated file extensions (default: all common formats)')
 @click.option('--batch-size', type=int, default=100, help='Batch size for saving')
 @click.option('--workers', type=int, default=-1, help='Number of parallel workers (-1 = all CPUs)')
 @click.option('--skip-errors', is_flag=True, help='Continue on errors')
