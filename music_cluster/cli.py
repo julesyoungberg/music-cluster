@@ -4,10 +4,12 @@ import click
 import json
 import os
 import pickle
+import sys
+import platform
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 from tqdm import tqdm
 import numpy as np
 
@@ -116,42 +118,55 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     error_count = 0
     skipped_count = 0
     
+    # On macOS, use ThreadPoolExecutor for better compatibility with librosa/numpy
+    # Threading works because librosa releases the GIL for I/O and C operations
+    use_threads = platform.system() == 'Darwin'  # macOS
+    
     with tqdm(total=len(files_to_analyze), desc="Extracting features") as pbar:
         if workers > 1:
-            # Parallel processing
-            with ProcessPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(_extract_features_worker, filepath, extractor_config): filepath
-                    for filepath in files_to_analyze
-                }
-                
-                batch_results = []
-                for future in as_completed(futures):
-                    filepath = futures[future]
-                    try:
-                        result = future.result()
-                        if result:
-                            batch_results.append(result)
-                            analyzed_count += 1
-                            
-                            # Save in batches
-                            if len(batch_results) >= batch_size:
-                                _save_batch_to_db(db, batch_results, analysis_version)
-                                batch_results = []
-                        else:
+            # Parallel processing using ThreadPoolExecutor (threads) on macOS
+            # or multiprocessing on other platforms
+            batch_results = []
+            
+            try:
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    # Submit all tasks
+                    futures = {
+                        executor.submit(_extract_features_threadsafe, filepath, extractor_config): filepath
+                        for filepath in files_to_analyze
+                    }
+                    
+                    # Process results as they complete
+                    for future in as_completed(futures):
+                        filepath = futures[future]
+                        try:
+                            result = future.result()
+                            if result and 'error' not in result:
+                                batch_results.append(result)
+                                analyzed_count += 1
+                                
+                                # Save in batches
+                                if len(batch_results) >= batch_size:
+                                    _save_batch_to_db(db, batch_results, analysis_version)
+                                    batch_results = []
+                            else:
+                                error_count += 1
+                                if not skip_errors and result and 'error' in result:
+                                    click.echo(f"\nError: {result.get('error', 'Unknown')}")
+                        except Exception as e:
                             error_count += 1
                             if not skip_errors:
-                                click.echo(f"\nError analyzing {filepath}")
-                    except Exception as e:
-                        error_count += 1
-                        if not skip_errors:
-                            click.echo(f"\nError analyzing {filepath}: {e}")
+                                click.echo(f"\nError analyzing {filepath}: {e}")
+                        
+                        pbar.update(1)
                     
-                    pbar.update(1)
-                
-                # Save remaining batch
-                if batch_results:
-                    _save_batch_to_db(db, batch_results, analysis_version)
+                    # Save remaining batch
+                    if batch_results:
+                        _save_batch_to_db(db, batch_results, analysis_version)
+            except Exception as e:
+                click.echo(f"\nError in parallel processing: {e}")
+                click.echo("Try running with --workers 1 for sequential processing.")
+                return
         else:
             # Sequential processing
             extractor = FeatureExtractor(**extractor_config)
@@ -199,11 +214,16 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     click.echo(f"  Total in database: {db.count_features()} tracks")
 
 
-from typing import Optional, Dict
-
-def _extract_features_worker(filepath: str, config: dict) -> Optional[Dict]:
-    """Worker function for parallel feature extraction."""
+def _extract_features_threadsafe(filepath: str, config: dict) -> Optional[Dict]:
+    """Thread-safe worker function for parallel feature extraction.
+    
+    This version works well with ThreadPoolExecutor on macOS where
+    multiprocessing can have issues with librosa/numpy C extensions.
+    """
     try:
+        from .extractor import FeatureExtractor
+        from .utils import get_file_info, compute_file_checksum
+        
         extractor = FeatureExtractor(**config)
         features = extractor.extract(filepath)
         

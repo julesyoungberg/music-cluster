@@ -5,12 +5,18 @@ import numpy as np
 import soundfile as sf
 from typing import Dict, Optional
 import warnings
+import logging
 
 from .features import aggregate_features
 
 
-# Suppress warnings from librosa
+# Suppress warnings from librosa and audioread
 warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+
+# Suppress mpg123 stderr messages about comments
+logging.getLogger('audioread.ffdec').setLevel(logging.ERROR)
+logging.getLogger('audioread').setLevel(logging.ERROR)
 
 
 class FeatureExtractor:
@@ -149,7 +155,9 @@ class FeatureExtractor:
         try:
             # BPM (tempo)
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            features.append(tempo)
+            # Handle both scalar and array returns (newer librosa versions)
+            tempo_value = float(tempo) if np.isscalar(tempo) else float(tempo[0])
+            features.append(tempo_value)
             
             # Beat strength (onset strength)
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
