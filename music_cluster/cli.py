@@ -3,16 +3,17 @@
 import click
 import json
 import os
+import pickle
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Tuple
 from tqdm import tqdm
+import numpy as np
 
 from .config import Config
 from .database import Database
 from .extractor import FeatureExtractor
-from .features import FeatureNormalizer
 from .clustering import ClusterEngine
 from .classifier import TrackClassifier
 from .exporter import PlaylistExporter
@@ -198,7 +199,9 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     click.echo(f"  Total in database: {db.count_features()} tracks")
 
 
-def _extract_features_worker(filepath: str, config: dict) -> dict | None:
+from typing import Optional, Dict
+
+def _extract_features_worker(filepath: str, config: dict) -> Optional[Dict]:
     """Worker function for parallel feature extraction."""
     try:
         extractor = FeatureExtractor(**config)
@@ -216,8 +219,9 @@ def _extract_features_worker(filepath: str, config: dict) -> dict | None:
                 'checksum': checksum,
                 'features': features
             }
-    except:
-        pass
+    except Exception as e:
+        # Return a marker with error info for optional logging upstream
+        return {'filepath': filepath, 'error': str(e)}
     return None
 
 
@@ -369,10 +373,6 @@ def cluster(name, clusters, granularity, min_size, max_clusters, method, show_me
         click.echo(f"  Mean: {cluster_metrics['mean_cluster_size']:.1f} tracks")
 
 
-# Due to size, continuing with remaining commands...
-import numpy as np
-
-
 @cli.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('-r', '--recursive', is_flag=True, help='Process directory recursively')
@@ -405,7 +405,6 @@ def classify(path, recursive, clustering, threshold, export, show_features):
     cluster_ids = []
     for cluster in clusters:
         if cluster['centroid']:
-            import pickle
             centroid = pickle.loads(cluster['centroid'])
             centroids.append(centroid)
             cluster_ids.append(cluster['id'])

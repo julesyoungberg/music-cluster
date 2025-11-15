@@ -112,9 +112,9 @@ class Database:
     
     # Track operations
     
-    def add_track(self, filepath: str, filename: str, duration: float | None = None,
-                  file_size: int | None = None, checksum: str | None = None,
-                  analysis_version: str | None = None) -> int:
+    def add_track(self, filepath: str, filename: str, duration: Optional[float] = None,
+                  file_size: Optional[int] = None, checksum: Optional[str] = None,
+                  analysis_version: Optional[str] = None) -> int:
         """Add a track to the database.
         
         Args:
@@ -267,9 +267,9 @@ class Database:
     
     # Clustering operations
     
-    def add_clustering(self, name: str | None = None, algorithm: str = "kmeans",
-                      num_clusters: int = 0, parameters: str | None = None,
-                      silhouette_score: float | None = None) -> int:
+    def add_clustering(self, name: Optional[str] = None, algorithm: str = "kmeans",
+                      num_clusters: int = 0, parameters: Optional[str] = None,
+                      silhouette_score: Optional[float] = None) -> int:
         """Add a clustering.
         
         Args:
@@ -292,7 +292,7 @@ class Database:
             conn.commit()
             return cursor.lastrowid
     
-    def get_clustering(self, clustering_id: int | None = None, name: str | None = None) -> Optional[Dict]:
+    def get_clustering(self, clustering_id: Optional[int] = None, name: Optional[str] = None) -> Optional[Dict]:
         """Get clustering by ID or name.
         
         Args:
@@ -327,8 +327,8 @@ class Database:
             return [dict(row) for row in cursor.fetchall()]
     
     def add_cluster(self, clustering_id: int, cluster_index: int, size: int,
-                   representative_track_id: int | None = None,
-                   centroid: np.ndarray | None = None) -> int:
+                   representative_track_id: Optional[int] = None,
+                   centroid: Optional[np.ndarray] = None) -> int:
         """Add a cluster.
         
         Args:

@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import yaml
 
 
@@ -42,7 +42,7 @@ DEFAULT_CONFIG = {
 class Config:
     """Configuration manager for music-cluster."""
     
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: Optional[str] = None):
         """Initialize configuration.
         
         Args:
@@ -127,7 +127,7 @@ class Config:
         return os.path.expanduser(db_path)
     
     @staticmethod
-    def create_default_config(config_path: str | None = None) -> "Config":
+    def create_default_config(config_path: Optional[str] = None) -> "Config":
         """Create and save default configuration file.
         
         Args:
