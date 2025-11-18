@@ -3,10 +3,16 @@
 import json
 import math
 import numpy as np
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering, SpectralClustering
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from typing import Dict, List, Optional, Tuple
 from tqdm import tqdm
+
+try:
+    import hdbscan
+    HDBSCAN_AVAILABLE = True
+except ImportError:
+    HDBSCAN_AVAILABLE = False
 
 
 # Granularity multipliers
@@ -20,20 +26,22 @@ GRANULARITY_MULTIPLIERS = {
 
 
 class ClusterEngine:
-    """K-means clustering engine with auto-detection."""
+    """Multi-algorithm clustering engine with auto-detection."""
     
     def __init__(self, min_clusters: int = 5, max_clusters: int = 100,
-                 detection_method: str = "silhouette"):
+                 detection_method: str = "silhouette", algorithm: str = "kmeans"):
         """Initialize clustering engine.
         
         Args:
             min_clusters: Minimum number of clusters to test
             max_clusters: Maximum number of clusters to test
             detection_method: Method for auto-detection (silhouette, elbow, calinski)
+            algorithm: Clustering algorithm (kmeans, hdbscan, hierarchical, spectral)
         """
         self.min_clusters = min_clusters
         self.max_clusters = max_clusters
         self.detection_method = detection_method
+        self.algorithm = algorithm
     
     def find_optimal_k(self, features: np.ndarray, show_progress: bool = True) -> Tuple[int, Dict]:
         """Find optimal number of clusters using the specified method.
