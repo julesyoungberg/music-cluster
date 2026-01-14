@@ -264,15 +264,19 @@ def _save_batch_to_db(db: Database, batch_results: List[dict], analysis_version:
 
 @cli.command()
 @click.option('--name', type=str, default=None, help='Name for this clustering')
-@click.option('--clusters', type=int, default=None, help='Exact number of clusters')
+@click.option('--clusters', type=int, default=None, help='Exact number of clusters (not used for HDBSCAN)')
 @click.option('--granularity', type=click.Choice(['fewer', 'less', 'normal', 'more', 'finer']),
               default='normal', help='Cluster granularity level')
+@click.option('--algorithm', type=click.Choice(['kmeans', 'hierarchical', 'hdbscan']),
+              default='kmeans', help='Clustering algorithm')
 @click.option('--min-size', type=int, default=3, help='Minimum cluster size')
 @click.option('--max-clusters', type=int, default=100, help='Maximum k to test')
 @click.option('--method', type=click.Choice(['silhouette', 'elbow', 'calinski']),
               default='silhouette', help='Detection method')
+@click.option('--epsilon', type=float, default=0.0, help='HDBSCAN distance threshold (0=auto, higher=fewer clusters)')
+@click.option('--min-samples', type=int, default=None, help='HDBSCAN min samples (defaults to min-size)')
 @click.option('--show-metrics', is_flag=True, help='Display clustering metrics')
-def cluster(name, clusters, granularity, min_size, max_clusters, method, show_metrics):
+def cluster(name, clusters, granularity, algorithm, min_size, max_clusters, method, epsilon, min_samples, show_metrics):
     """Perform clustering on analyzed tracks."""
     # Load config and database
     config = Config()
@@ -302,26 +306,39 @@ def cluster(name, clusters, granularity, min_size, max_clusters, method, show_me
     engine = ClusterEngine(
         min_clusters=min_size,
         max_clusters=max_clusters,
-        detection_method=method
+        detection_method=method,
+        algorithm=algorithm
     )
     
-    # Determine number of clusters
-    if clusters:
-        n_clusters = clusters
-        click.echo(f"Using specified cluster count: {n_clusters}")
+    # HDBSCAN doesn't need optimal k finding
+    if algorithm == 'hdbscan':
+        # Perform HDBSCAN clustering
+        labels, centroids, cluster_metrics = engine.cluster(
+            feature_matrix,
+            show_progress=True,
+            min_cluster_size=min_size,
+            min_samples=min_samples,
+            cluster_selection_epsilon=epsilon
+        )
+        n_clusters = len(centroids)
     else:
-        click.echo(f"Finding optimal number of clusters (method: {method})...")
-        optimal_k, metrics = engine.find_optimal_k(feature_matrix, show_progress=True)
+        # Determine number of clusters
+        if clusters:
+            n_clusters = clusters
+            click.echo(f"Using specified cluster count: {n_clusters}")
+        else:
+            click.echo(f"Finding optimal number of clusters (method: {method})...")
+            optimal_k, metrics = engine.find_optimal_k(feature_matrix, show_progress=True)
+            
+            # Apply granularity
+            n_clusters = engine.apply_granularity(optimal_k, granularity)
+            
+            click.echo(f"Optimal k: {optimal_k}")
+            if granularity != 'normal':
+                click.echo(f"Adjusted for '{granularity}' granularity: {n_clusters}")
         
-        # Apply granularity
-        n_clusters = engine.apply_granularity(optimal_k, granularity)
-        
-        click.echo(f"Optimal k: {optimal_k}")
-        if granularity != 'normal':
-            click.echo(f"Adjusted for '{granularity}' granularity: {n_clusters}")
-    
-    # Perform clustering
-    labels, centroids, cluster_metrics = engine.cluster(feature_matrix, n_clusters, show_progress=True)
+        # Perform clustering
+        labels, centroids, cluster_metrics = engine.cluster(feature_matrix, n_clusters, show_progress=True)
     
     # Find representative tracks
     click.echo("Finding representative tracks...")
@@ -333,21 +350,33 @@ def cluster(name, clusters, granularity, min_size, max_clusters, method, show_me
     # Save to database
     click.echo("Saving clustering to database...")
     
+    # Prepare parameters
+    params = {
+        'granularity': granularity,
+        'method': method,
+        'min_size': min_size
+    }
+    if algorithm == 'hdbscan':
+        params['epsilon'] = epsilon
+        params['min_samples'] = min_samples
+    
     # Create clustering record
     clustering_id = db.add_clustering(
         name=name,
-        algorithm='kmeans',
+        algorithm=algorithm,
         num_clusters=n_clusters,
-        parameters=json.dumps({
-            'granularity': granularity,
-            'method': method,
-            'min_size': min_size
-        }),
+        parameters=json.dumps(params),
         silhouette_score=cluster_metrics.get('silhouette_score')
     )
     
+    # For HDBSCAN, get unique labels (excluding noise)
+    if algorithm == 'hdbscan':
+        unique_labels = np.unique(labels[labels >= 0])
+    else:
+        unique_labels = range(n_clusters)
+    
     # Save clusters and members
-    for cluster_idx in range(n_clusters):
+    for cluster_idx in unique_labels:
         cluster_mask = labels == cluster_idx
         cluster_size = int(np.sum(cluster_mask))
         
@@ -360,10 +389,10 @@ def cluster(name, clusters, granularity, min_size, max_clusters, method, show_me
         # Create cluster
         cluster_id = db.add_cluster(
             clustering_id=clustering_id,
-            cluster_index=cluster_idx,
+            cluster_index=int(cluster_idx),
             size=cluster_size,
             representative_track_id=rep_track_id,
-            centroid=centroids[cluster_idx]
+            centroid=centroids[cluster_idx if algorithm != 'hdbscan' else list(unique_labels).index(cluster_idx)]
         )
         
         # Add members
@@ -377,6 +406,8 @@ def cluster(name, clusters, granularity, min_size, max_clusters, method, show_me
     if name:
         click.echo(f"  Name: {name}")
     click.echo(f"  Number of clusters: {n_clusters}")
+    if algorithm == 'hdbscan' and cluster_metrics.get('n_noise', 0) > 0:
+        click.echo(f"  Noise points: {cluster_metrics['n_noise']} ({cluster_metrics['noise_percentage']:.1f}%)")
     
     if show_metrics and cluster_metrics:
         click.echo("\nQuality Metrics:")
