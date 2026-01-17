@@ -188,7 +188,8 @@ class ClusterNamer:
                 continue
             
             # Extract BPM from features (last rhythmic features section)
-            bpms = cluster_features[:, self.BPM_INDEX] if cluster_features.shape[1] > abs(self.BPM_INDEX) else None
+            # BPM_INDEX is -10, so we need at least 10 columns to access index -10
+            bpms = cluster_features[:, self.BPM_INDEX] if cluster_features.shape[1] >= abs(self.BPM_INDEX) else None
             
             if bpms is not None and len(bpms) > 0:
                 # Filter out outliers (use percentiles to avoid extreme values)
@@ -207,16 +208,47 @@ class ClusterNamer:
                 bpm_mean = bpm_min = bpm_max = bpm_std = 0
             
             # Extract energy (aggregated RMS features are in the middle section)
-            energy_features = centroid[40:60] if len(centroid) > 60 else centroid[20:40]
-            energy = np.mean(np.abs(energy_features))
+            # Slice [40:60] requires at least 60 elements (indices 0-59)
+            # Fallback to [20:40] requires at least 40 elements
+            # If still insufficient, use available elements or default to 0
+            if len(centroid) >= 60:
+                energy_features = centroid[40:60]
+            elif len(centroid) >= 40:
+                energy_features = centroid[20:40]
+            elif len(centroid) >= 20:
+                energy_features = centroid[10:len(centroid)]
+            else:
+                energy_features = np.array([])
+            
+            energy = np.mean(np.abs(energy_features)) if len(energy_features) > 0 else 0.0
             
             # Extract spectral characteristics
-            spectral_features = centroid[20:40] if len(centroid) > 40 else centroid[10:20]
-            brightness = np.mean(spectral_features[:len(spectral_features)//2])
-            spectral_complexity = np.std(spectral_features)
+            # Slice [20:40] requires at least 40 elements (indices 0-39)
+            # Fallback to [10:20] requires at least 20 elements
+            if len(centroid) >= 40:
+                spectral_features = centroid[20:40]
+            elif len(centroid) >= 20:
+                spectral_features = centroid[10:20]
+            elif len(centroid) >= 10:
+                spectral_features = centroid[5:len(centroid)]
+            else:
+                spectral_features = np.array([])
+            
+            if len(spectral_features) > 0:
+                brightness = np.mean(spectral_features[:len(spectral_features)//2]) if len(spectral_features) > 1 else np.mean(spectral_features)
+                spectral_complexity = np.std(spectral_features)
+            else:
+                brightness = 0.0
+                spectral_complexity = 0.0
             
             # Bass presence (low MFCC coefficients typically represent low frequencies)
-            bass_presence = np.mean(np.abs(centroid[2:5])) if len(centroid) > 5 else 0
+            # Slice [2:5] requires at least 5 elements (indices 0-4)
+            if len(centroid) >= 5:
+                bass_presence = np.mean(np.abs(centroid[2:5]))
+            elif len(centroid) >= 3:
+                bass_presence = np.mean(np.abs(centroid[2:len(centroid)]))
+            else:
+                bass_presence = 0.0
             
             cluster_stats[cluster_idx] = {
                 'bpm': bpm_mean,
@@ -251,14 +283,17 @@ class ClusterNamer:
             
             # Get genre classification
             if self.include_genre and stats['bpm'] > 0 and cluster_idx in clusters_dict:
-                genre = self.genre_classifier.classify_genre(
-                    clusters_dict[cluster_idx]['centroid'],
-                    stats['bpm'],
-                    stats['energy'],
-                    stats['bass'],
-                    stats['brightness']
-                )
-                parts.append(genre)
+                cluster_centroid = clusters_dict[cluster_idx].get('centroid')
+                # Only classify if centroid is available and valid
+                if cluster_centroid is not None and isinstance(cluster_centroid, np.ndarray) and len(cluster_centroid) > 0:
+                    genre = self.genre_classifier.classify_genre(
+                        cluster_centroid,
+                        stats['bpm'],
+                        stats['energy'],
+                        stats['bass'],
+                        stats['brightness']
+                    )
+                    parts.append(genre)
             
             # Add BPM
             if self.include_bpm and stats['bpm'] > 0:

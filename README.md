@@ -64,6 +64,62 @@ music-cluster classify ~/Downloads/NewAlbum --recursive
 
 **Note:** If the `music-cluster` command isn't found, make sure you've installed the package with `pip install -e .` (see [INSTALL.md](INSTALL.md)). You can also use `python -m music_cluster.cli` instead of `music-cluster`.
 
+## Desktop UI
+
+Music Cluster includes a modern desktop GUI built with Tauri and Svelte.
+
+### Quick Start (Single Command)
+
+Start both the API server and UI with one command:
+
+**Option 1: Shell script (macOS/Linux)**
+```bash
+./start-dev.sh
+```
+
+**Option 2: Python script (Cross-platform)**
+```bash
+python start-dev.py
+```
+
+**Option 3: npm script (from ui directory)**
+```bash
+cd ui
+npm install  # First time only
+npm run start:all
+```
+
+### Manual Start
+
+1. **Start the API server:**
+   ```bash
+   uvicorn music_cluster.api:app --reload --port 8000
+   ```
+
+2. **In a separate terminal, start the UI:**
+   ```bash
+   cd ui
+   npm install
+   npm run dev
+   ```
+
+3. **Or run as a Tauri desktop app:**
+   ```bash
+   cd ui
+   npm install
+   npm run tauri:dev
+   ```
+
+### Building the Desktop App
+
+```bash
+cd ui
+npm install
+npm run tauri:build
+```
+
+This creates native executables in `src-tauri/target/release/bundle/`.
+
 ## Usage
 
 ### Initialize

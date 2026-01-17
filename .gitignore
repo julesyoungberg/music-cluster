@@ -46,3 +46,16 @@ htmlcov/
 
 # Config (should be user-specific)
 config.yaml
+
+# UI/Frontend
+ui/node_modules/
+ui/.svelte-kit/
+ui/build/
+ui/dist/
+ui/package-lock.json
+ui/yarn.lock
+ui/pnpm-lock.yaml
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock

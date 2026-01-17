@@ -640,10 +640,15 @@ def label_clusters_cmd(clustering_name, dry_run, no_genre, no_bpm, no_descriptor
         click.echo("No clusters found.")
         return
     
-    # Unpickle centroids
+    # Unpickle centroids with error handling
     for cluster in clusters:
         if cluster['centroid']:
-            cluster['centroid'] = pickle.loads(cluster['centroid'])
+            try:
+                cluster['centroid'] = pickle.loads(cluster['centroid'])
+            except (pickle.UnpicklingError, EOFError, ValueError, TypeError) as e:
+                click.echo(f"Warning: Failed to unpickle centroid for cluster {cluster['cluster_index']}: {e}", err=True)
+                click.echo(f"  Skipping this cluster for name generation.", err=True)
+                cluster['centroid'] = None
     
     # Load features and labels
     click.echo("Loading features...")
@@ -870,8 +875,16 @@ def compare(clustering1, clustering2):
         click.echo(f"{'Silhouette Score:':<20} {s1:<30.3f} {s2:<30.3f} {better}")
     
     # Cluster size stats
-    sizes1 = [c['size'] for c in clusters1]
-    sizes2 = [c['size'] for c in clusters2]
+    sizes1 = [c['size'] for c in clusters1 if c['size'] > 0]
+    sizes2 = [c['size'] for c in clusters2 if c['size'] > 0]
+    
+    if not sizes1 or not sizes2:
+        click.echo(f"\nError: Cannot compare clusterings with no valid clusters.")
+        if not sizes1:
+            click.echo(f"  '{clustering1}' has no clusters with tracks.")
+        if not sizes2:
+            click.echo(f"  '{clustering2}' has no clusters with tracks.")
+        return
     
     click.echo(f"\n{'Cluster Size Distribution:'}")
     click.echo(f"{'  Min:':<20} {min(sizes1):<30} {min(sizes2):<30}")
