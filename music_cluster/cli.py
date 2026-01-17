@@ -101,6 +101,9 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
         music-cluster analyze ~/Music/techno -r --update
         music-cluster analyze ~/Music -r --workers 8
     """
+    from .cli_helpers import (determine_worker_count, filter_files_to_analyze, 
+                              process_files_parallel, process_files_sequential)
+    
     # Load config
     config = Config()
     db = Database(config.get_db_path())
@@ -119,13 +122,7 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     click.echo(f"Found {len(audio_files)} audio files")
     
     # Filter files that need analysis
-    files_to_analyze = []
-    for filepath in audio_files:
-        existing = db.get_track_by_filepath(filepath)
-        if existing and not update:
-            # Skip if already analyzed and not updating
-            continue
-        files_to_analyze.append(filepath)
+    files_to_analyze = filter_files_to_analyze(audio_files, db, update)
     
     if not files_to_analyze:
         click.echo("All files already analyzed. Use --update to re-analyze.")
@@ -134,10 +131,7 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     click.echo(f"Analyzing {len(files_to_analyze)} files...")
     
     # Determine number of workers
-    if workers == -1:
-        workers = mp.cpu_count()
-    elif workers <= 0:
-        workers = 1
+    workers = determine_worker_count(workers)
     
     # Initialize extractor config
     extractor_config = {
@@ -149,98 +143,16 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     analysis_version = config.get('feature_extraction', 'analysis_version', default='1.0.0')
     
     # Process files
-    analyzed_count = 0
-    error_count = 0
-    skipped_count = 0
-    
-    # On macOS, use ThreadPoolExecutor for better compatibility with librosa/numpy
-    # Threading works because librosa releases the GIL for I/O and C operations
-    use_threads = platform.system() == 'Darwin'  # macOS
-    
-    with tqdm(total=len(files_to_analyze), desc="Extracting features") as pbar:
-        if workers > 1:
-            # Parallel processing using ThreadPoolExecutor (threads) on macOS
-            # or multiprocessing on other platforms
-            batch_results = []
-            
-            try:
-                with ThreadPoolExecutor(max_workers=workers) as executor:
-                    # Submit all tasks
-                    futures = {
-                        executor.submit(_extract_features_threadsafe, filepath, extractor_config): filepath
-                        for filepath in files_to_analyze
-                    }
-                    
-                    # Process results as they complete
-                    for future in as_completed(futures):
-                        filepath = futures[future]
-                        try:
-                            result = future.result()
-                            if result and 'error' not in result:
-                                batch_results.append(result)
-                                analyzed_count += 1
-                                
-                                # Save in batches
-                                if len(batch_results) >= batch_size:
-                                    _save_batch_to_db(db, batch_results, analysis_version)
-                                    batch_results = []
-                            else:
-                                error_count += 1
-                                if not skip_errors and result and 'error' in result:
-                                    click.echo(f"\nError: {result.get('error', 'Unknown')}")
-                        except Exception as e:
-                            error_count += 1
-                            if not skip_errors:
-                                click.echo(f"\nError analyzing {filepath}: {e}")
-                        
-                        pbar.update(1)
-                    
-                    # Save remaining batch
-                    if batch_results:
-                        _save_batch_to_db(db, batch_results, analysis_version)
-            except Exception as e:
-                click.echo(f"\nError in parallel processing: {e}")
-                click.echo("Try running with --workers 1 for sequential processing.")
-                return
-        else:
-            # Sequential processing
-            extractor = FeatureExtractor(**extractor_config)
-            batch_results = []
-            
-            for filepath in files_to_analyze:
-                try:
-                    # Extract features
-                    features = extractor.extract(filepath)
-                    if features is not None:
-                        duration = extractor.get_audio_duration(filepath)
-                        file_info = get_file_info(filepath)
-                        checksum = compute_file_checksum(filepath)
-                        
-                        batch_results.append({
-                            'filepath': filepath,
-                            'file_info': file_info,
-                            'duration': duration,
-                            'checksum': checksum,
-                            'features': features
-                        })
-                        analyzed_count += 1
-                        
-                        # Save in batches
-                        if len(batch_results) >= batch_size:
-                            _save_batch_to_db(db, batch_results, analysis_version)
-                            batch_results = []
-                    else:
-                        error_count += 1
-                except Exception as e:
-                    error_count += 1
-                    if not skip_errors:
-                        click.echo(f"\nError analyzing {filepath}: {e}")
-                
-                pbar.update(1)
-            
-            # Save remaining batch
-            if batch_results:
-                _save_batch_to_db(db, batch_results, analysis_version)
+    if workers > 1:
+        analyzed_count, error_count = process_files_parallel(
+            files_to_analyze, extractor_config, workers, batch_size,
+            db, analysis_version, skip_errors
+        )
+    else:
+        analyzed_count, error_count = process_files_sequential(
+            files_to_analyze, extractor_config, batch_size,
+            db, analysis_version, skip_errors
+        )
     
     click.echo(f"\n✓ Analysis complete!")
     click.echo(f"  Analyzed: {analyzed_count} tracks")
@@ -249,52 +161,6 @@ def analyze(path, recursive, update, extensions, batch_size, workers, skip_error
     click.echo(f"  Total in database: {db.count_features()} tracks")
 
 
-def _extract_features_threadsafe(filepath: str, config: dict) -> Optional[Dict]:
-    """Thread-safe worker function for parallel feature extraction.
-    
-    This version works well with ThreadPoolExecutor on macOS where
-    multiprocessing can have issues with librosa/numpy C extensions.
-    """
-    try:
-        from .extractor import FeatureExtractor
-        from .utils import get_file_info, compute_file_checksum
-        
-        extractor = FeatureExtractor(**config)
-        features = extractor.extract(filepath)
-        
-        if features is not None:
-            duration = extractor.get_audio_duration(filepath)
-            file_info = get_file_info(filepath)
-            checksum = compute_file_checksum(filepath)
-            
-            return {
-                'filepath': filepath,
-                'file_info': file_info,
-                'duration': duration,
-                'checksum': checksum,
-                'features': features
-            }
-    except Exception as e:
-        # Return a marker with error info for optional logging upstream
-        return {'filepath': filepath, 'error': str(e)}
-    return None
-
-
-def _save_batch_to_db(db: Database, batch_results: List[dict], analysis_version: str):
-    """Save a batch of results to database."""
-    for result in batch_results:
-        # Add track
-        track_id = db.add_track(
-            filepath=result['filepath'],
-            filename=result['file_info']['filename'],
-            duration=result['duration'],
-            file_size=result['file_info']['file_size'],
-            checksum=result['checksum'],
-            analysis_version=analysis_version
-        )
-        
-        # Add features
-        db.add_features(track_id, result['features'])
 
 
 @cli.command()
