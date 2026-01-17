@@ -69,6 +69,7 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     clustering_id INTEGER NOT NULL,
                     cluster_index INTEGER NOT NULL,
+                    name TEXT,
                     size INTEGER,
                     representative_track_id INTEGER,
                     centroid BLOB,
@@ -77,6 +78,12 @@ class Database:
                     UNIQUE(clustering_id, cluster_index)
                 )
             """)
+            
+            # Add name column if it doesn't exist (migration)
+            cursor.execute("PRAGMA table_info(clusters)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'name' not in columns:
+                cursor.execute("ALTER TABLE clusters ADD COLUMN name TEXT")
             
             # Create cluster_members table
             cursor.execute("""
@@ -328,7 +335,7 @@ class Database:
     
     def add_cluster(self, clustering_id: int, cluster_index: int, size: int,
                    representative_track_id: Optional[int] = None,
-                   centroid: Optional[np.ndarray] = None) -> int:
+                   centroid: Optional[np.ndarray] = None, name: Optional[str] = None) -> int:
         """Add a cluster.
         
         Args:
@@ -337,6 +344,7 @@ class Database:
             size: Number of tracks in cluster
             representative_track_id: ID of representative track
             centroid: Centroid vector
+            name: Optional cluster name
             
         Returns:
             Cluster ID
@@ -347,9 +355,9 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO clusters 
-                (clustering_id, cluster_index, size, representative_track_id, centroid)
-                VALUES (?, ?, ?, ?, ?)
-            """, (clustering_id, cluster_index, size, representative_track_id, centroid_blob))
+                (clustering_id, cluster_index, size, representative_track_id, centroid, name)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (clustering_id, cluster_index, size, representative_track_id, centroid_blob, name))
             conn.commit()
             return cursor.lastrowid
     
@@ -448,3 +456,39 @@ class Database:
             """, (track_id, clustering_id))
             row = cursor.fetchone()
             return row[0] if row else None
+    
+    def update_cluster_name(self, cluster_id: int, name: str) -> None:
+        """Update cluster name.
+        
+        Args:
+            cluster_id: Cluster ID
+            name: New cluster name
+        """
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE clusters SET name = ? WHERE id = ?", (name, cluster_id))
+            conn.commit()
+    
+    def get_cluster_by_index(self, clustering_id: int, cluster_index: int) -> Optional[Dict]:
+        """Get cluster by clustering ID and cluster index.
+        
+        Args:
+            clustering_id: Clustering ID
+            cluster_index: Cluster index
+            
+        Returns:
+            Cluster dictionary or None
+        """
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM clusters 
+                WHERE clustering_id = ? AND cluster_index = ?
+            """, (clustering_id, cluster_index))
+            row = cursor.fetchone()
+            if row:
+                cluster = dict(row)
+                if cluster['centroid']:
+                    cluster['centroid'] = pickle.loads(cluster['centroid'])
+                return cluster
+            return None

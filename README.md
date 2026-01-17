@@ -4,11 +4,14 @@ A Python-based CLI tool for analyzing, clustering, and classifying music tracks 
 
 ## Features
 
-- **Comprehensive Audio Analysis**: Extracts timbral, rhythmic, harmonic, and loudness features using Essentia
-- **Intelligent Clustering**: K-means clustering with automatic cluster count detection
+- **Comprehensive Audio Analysis**: Extracts timbral, rhythmic (BPM), harmonic, and loudness features
+- **Multiple Clustering Algorithms**: K-means, Hierarchical (Ward linkage), and HDBSCAN (density-based)
+- **Genre-Aware Naming**: Auto-generates cluster names with genre, BPM, and characteristics
+- **Flexible Naming Schemes**: Configure what to include in names (genre, BPM, descriptors)
+- **Smart Search**: Find tracks and see which clusters they belong to
 - **Fast Classification**: Classify new tracks in < 1 second
 - **Playlist Generation**: Export clusters as M3U playlists with representative tracks
-- **Flexible Control**: Use exact cluster counts or intuitive granularity levels (fewer/less/normal/more/finer)
+- **Detailed Statistics**: View cluster size distributions, quality metrics, and more
 
 ## Installation
 
@@ -31,19 +34,31 @@ pip install -e .
 ## Quick Start
 
 ```bash
-# Initialize the database
+# 1. Initialize the database
 music-cluster init
 
-# Analyze your music library
-music-cluster analyze ~/Music/Library --recursive
+# 2. Analyze your music library (extracts BPM, energy, spectral features, etc.)
+music-cluster analyze ~/Music/techno --recursive
 
-# Create clusters with auto-detection
-music-cluster cluster --name "my_clusters"
+# 3. Create fine-grained clusters
+music-cluster cluster --name techno_detailed --clusters 15 --show-metrics
 
-# Export playlists
-music-cluster export --output ~/Music/Playlists
+# 4. Auto-label clusters with genres and BPM ranges
+music-cluster label-clusters techno_detailed
 
-# Classify new tracks
+# 5. View your organized clusters
+music-cluster show techno_detailed
+
+# 6. Search for specific artists
+music-cluster search "Aphex Twin" --clustering techno_detailed
+
+# 7. View detailed statistics
+music-cluster stats techno_detailed
+
+# 8. Export as playlists
+music-cluster export --output ~/Music/playlists
+
+# 9. Classify new tracks
 music-cluster classify ~/Downloads/NewAlbum --recursive
 ```
 
@@ -82,8 +97,12 @@ music-cluster analyze ~/Music -r --workers 8
 Cluster your music by similarity:
 
 ```bash
-# Auto-detect optimal number of clusters
-music-cluster cluster --name "auto_2024"
+# Auto-detect optimal number of clusters (k-means)
+music-cluster cluster --name "auto_2024" --show-metrics
+
+# Use different algorithms
+music-cluster cluster --name "hierarchical_test" --algorithm hierarchical --clusters 10
+music-cluster cluster --name "density_based" --algorithm hdbscan --min-size 20
 
 # Use granularity control for intuitive adjustment
 music-cluster cluster --granularity fewer    # Broader clusters
@@ -91,10 +110,51 @@ music-cluster cluster --granularity more     # More specific clusters
 music-cluster cluster --granularity finer    # Very fine-grained clusters
 
 # Specify exact number of clusters
-music-cluster cluster --clusters 25
+music-cluster cluster --clusters 25 --show-metrics
+```
 
-# Show clustering quality metrics
-music-cluster cluster --show-metrics
+### Label Clusters
+
+Auto-generate descriptive names with genre classification:
+
+```bash
+# Generate names with genre, BPM ranges, and characteristics
+music-cluster label-clusters my_clustering
+
+# Preview names before applying (dry run)
+music-cluster label-clusters my_clustering --dry-run
+
+# Customize naming scheme
+music-cluster label-clusters my_clustering --no-bpm          # Skip BPM
+music-cluster label-clusters my_clustering --bpm-average     # Use average instead of range
+music-cluster label-clusters my_clustering --no-descriptors  # Just genre + BPM
+
+# Manually rename specific clusters
+music-cluster rename-cluster my_clustering 5 "Deep Minimal Techno"
+```
+
+**Example Generated Names:**
+- `Tech House 95-145 BPM Complex`
+- `Techno 130 BPM Bass-Heavy`
+- `Deep House 120-125 BPM Dark`
+- `Drum & Bass 160-170 BPM Bright`
+
+### Search and Explore
+
+Find tracks and analyze your collection:
+
+```bash
+# Search for tracks by artist or name
+music-cluster search "K-LONE" --clustering my_clustering
+
+# View detailed statistics
+music-cluster stats my_clustering
+
+# Compare two clusterings side-by-side
+music-cluster compare clustering1 clustering2
+
+# View tracks in a specific cluster
+music-cluster describe 42
 ```
 
 ### Export Playlists
@@ -185,10 +245,24 @@ performance:
 
 ## How It Works
 
-1. **Feature Extraction**: Analyzes audio files using Essentia to extract ~100-150 dimensional feature vectors covering timbral, rhythmic, harmonic, and loudness characteristics
-2. **Clustering**: Uses K-means clustering with silhouette analysis to automatically determine the optimal number of clusters
-3. **Classification**: New tracks are classified by finding the nearest cluster centroid in feature space
-4. **Export**: Generates playlists with representative tracks that best represent each cluster
+1. **Feature Extraction**: Analyzes audio files using librosa to extract ~96 dimensional feature vectors including:
+   - Timbral features (MFCCs, spectral centroid, rolloff, contrast, zero-crossing rate)
+   - Rhythmic features (BPM/tempo, onset strength statistics)
+   - Harmonic features (chroma/pitch class profile)
+   - Dynamic features (RMS energy, spectral bandwidth)
+
+2. **Clustering**: Supports multiple algorithms:
+   - **K-means**: Fast, works well with spherical clusters
+   - **Hierarchical (Ward)**: Better for nested/hierarchical structures
+   - **HDBSCAN**: Density-based, finds clusters of varying densities without specifying count
+
+3. **Genre Classification**: Uses BPM, bass presence, energy, and spectral characteristics to classify:
+   - Electronic/Dance: Techno, House, Tech House, Deep House, Drum & Bass, Dubstep, etc.
+   - Auto-generates descriptive names with configurable schemes
+
+4. **Classification**: New tracks are classified by finding the nearest cluster centroid in feature space
+
+5. **Export**: Generates M3U playlists with representative tracks that best represent each cluster
 
 ## Performance
 

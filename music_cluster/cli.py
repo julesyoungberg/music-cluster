@@ -19,6 +19,7 @@ from .extractor import FeatureExtractor
 from .clustering import ClusterEngine
 from .classifier import TrackClassifier
 from .exporter import PlaylistExporter
+from .cluster_namer import ClusterNamer
 from .utils import (
     find_audio_files, get_file_info, compute_file_checksum,
     parse_extensions, DEFAULT_AUDIO_EXTENSIONS
@@ -28,7 +29,29 @@ from .utils import (
 @click.group()
 @click.version_option(version="1.0.0")
 def cli():
-    """Music Cluster - Analyze, cluster, and classify music tracks."""
+    """Music Cluster - Analyze, cluster, and classify music tracks.
+    
+    A comprehensive tool for organizing music libraries using audio analysis,
+    machine learning clustering, and automatic genre classification.
+    
+    Quick Start:
+    
+        1. music-cluster init
+        
+        2. music-cluster analyze ~/Music/techno --recursive
+        
+        3. music-cluster cluster --name techno_detailed --clusters 15
+        
+        4. music-cluster label-clusters techno_detailed
+        
+        5. music-cluster show techno_detailed
+        
+        6. music-cluster export --output ~/Music/playlists
+    
+    For detailed help on any command:
+    
+        music-cluster COMMAND --help
+    """
     pass
 
 
@@ -65,7 +88,19 @@ def init(db_path):
 @click.option('--workers', type=int, default=-1, help='Number of parallel workers (-1 = all CPUs)')
 @click.option('--skip-errors', is_flag=True, help='Continue on errors')
 def analyze(path, recursive, update, extensions, batch_size, workers, skip_errors):
-    """Analyze audio files and extract features."""
+    """Analyze audio files and extract features.
+    
+    Extracts comprehensive audio features from music files including:
+    - Timbral characteristics (MFCCs, spectral features)
+    - Rhythmic features (BPM, onset strength)
+    - Harmonic features (chroma)
+    - Loudness and dynamics
+    
+    Examples:
+        music-cluster analyze ~/Music --recursive
+        music-cluster analyze ~/Music/techno -r --update
+        music-cluster analyze ~/Music -r --workers 8
+    """
     # Load config
     config = Config()
     db = Database(config.get_db_path())
@@ -630,7 +665,11 @@ def show(clustering_name):
     for cluster in clusters:
         rep_track = db.get_track_by_id(cluster['representative_track_id']) if cluster['representative_track_id'] else None
         
-        click.echo(f"Cluster {cluster['cluster_index']}:")
+        cluster_label = f"Cluster {cluster['cluster_index']}"
+        if cluster.get('name'):
+            cluster_label += f": {cluster['name']}"
+        
+        click.echo(cluster_label)
         click.echo(f"  Size: {cluster['size']} tracks")
         if rep_track:
             click.echo(f"  Representative: {rep_track['filename']}")
@@ -664,6 +703,315 @@ def describe(cluster_id):
         click.echo(f"{i:3d}. {track['filename']}")
         if 'distance_to_centroid' in track:
             click.echo(f"     Distance: {track['distance_to_centroid']:.3f}")
+
+
+@cli.command(name='rename-cluster')
+@click.argument('clustering_name', type=str)
+@click.argument('cluster_index', type=int)
+@click.argument('new_name', type=str)
+def rename_cluster_cmd(clustering_name, cluster_index, new_name):
+    """Rename a specific cluster."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    # Get clustering
+    clustering = db.get_clustering(name=clustering_name)
+    if not clustering:
+        click.echo(f"Error: Clustering '{clustering_name}' not found.")
+        return
+    
+    # Get cluster
+    cluster = db.get_cluster_by_index(clustering['id'], cluster_index)
+    if not cluster:
+        click.echo(f"Error: Cluster {cluster_index} not found in clustering '{clustering_name}'.")
+        return
+    
+    # Update name
+    db.update_cluster_name(cluster['id'], new_name)
+    
+    click.echo(f"✓ Renamed Cluster {cluster_index} to '{new_name}'")
+
+
+@cli.command(name='label-clusters')
+@click.argument('clustering_name', type=str)
+@click.option('--dry-run', is_flag=True, help='Show generated names without saving')
+@click.option('--no-genre', is_flag=True, help='Exclude genre classification from names')
+@click.option('--no-bpm', is_flag=True, help='Exclude BPM information from names')
+@click.option('--no-descriptors', is_flag=True, help='Exclude characteristics (Bass-Heavy, Dark, etc.)')
+@click.option('--bpm-average', is_flag=True, help='Use average BPM instead of range')
+def label_clusters_cmd(clustering_name, dry_run, no_genre, no_bpm, no_descriptors, bpm_average):
+    """Auto-generate descriptive names for all clusters.
+    
+    Analyzes audio characteristics to generate meaningful names including:
+    - Genre classification (Techno, House, Drum & Bass, etc.)
+    - BPM information (range or average)
+    - Distinctive characteristics (Bass-Heavy, Bright, Dark, etc.)
+    
+    Naming scheme can be customized with flags:
+        --no-genre: Skip genre classification
+        --no-bpm: Skip BPM information  
+        --no-descriptors: Skip characteristics
+        --bpm-average: Use average BPM instead of range
+    
+    Examples:
+        music-cluster label-clusters my_clustering --dry-run
+        music-cluster label-clusters techno_fine_kmeans
+        music-cluster label-clusters my_clustering --no-bpm
+        music-cluster label-clusters my_clustering --bpm-average
+    """
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    # Get clustering
+    clustering = db.get_clustering(name=clustering_name)
+    if not clustering:
+        click.echo(f"Error: Clustering '{clustering_name}' not found.")
+        return
+    
+    # Get clusters
+    clusters = db.get_clusters_by_clustering(clustering['id'])
+    if not clusters:
+        click.echo("No clusters found.")
+        return
+    
+    # Unpickle centroids
+    for cluster in clusters:
+        if cluster['centroid']:
+            cluster['centroid'] = pickle.loads(cluster['centroid'])
+    
+    # Load features and labels
+    click.echo("Loading features...")
+    feature_matrix, track_ids = db.get_all_features()
+    
+    # Reconstruct labels from cluster membership
+    labels = np.full(len(track_ids), -1, dtype=int)
+    for cluster in clusters:
+        members = db.get_cluster_members(cluster['id'])
+        for member in members:
+            try:
+                # Note: member comes from cluster_members table, use track_id not id
+                track_idx = track_ids.index(member['id']) if 'id' in member else track_ids.index(member.get('track_id', -1))
+                labels[track_idx] = cluster['cluster_index']
+            except (ValueError, KeyError):
+                # Track not in feature list (possibly deleted or not analyzed), skip
+                continue
+    
+    # Generate names
+    click.echo("Generating cluster names...")
+    namer = ClusterNamer(
+        include_genre=not no_genre,
+        include_bpm=not no_bpm,
+        use_bpm_range=not bpm_average,
+        include_descriptors=not no_descriptors
+    )
+    names = namer.generate_names_for_clustering(clusters, feature_matrix, labels)
+    
+    # Display and optionally save
+    click.echo(f"\nGenerated names for {len(names)} clusters:\n")
+    for cluster_idx, name in sorted(names.items()):
+        cluster = next(c for c in clusters if c['cluster_index'] == cluster_idx)
+        click.echo(f"Cluster {cluster_idx}: {name} ({cluster['size']} tracks)")
+        
+        if not dry_run:
+            db.update_cluster_name(cluster['id'], name)
+    
+    if dry_run:
+        click.echo("\n(Dry run - no names were saved. Run without --dry-run to save.)")
+    else:
+        click.echo(f"\n✓ Updated {len(names)} cluster names")
+
+
+@cli.command()
+@click.argument('query', type=str)
+@click.option('--clustering', type=str, default=None, help='Clustering name (default: all tracks)')
+@click.option('--limit', type=int, default=20, help='Maximum results to show')
+def search(query, clustering, limit):
+    """Search for tracks by name or artist.
+    
+    Searches track filenames and paths (case-insensitive). If a clustering
+    is specified, shows which cluster each track belongs to.
+    
+    Examples:
+        music-cluster search "Aphex Twin"
+        music-cluster search "K-LONE" --clustering techno_fine_kmeans
+        music-cluster search "remix" --limit 50
+    """
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    try:
+        # Get all tracks
+        all_tracks = db.get_all_tracks()
+    except Exception as e:
+        click.echo(f"Error accessing database: {e}", err=True)
+        return
+    
+    if not all_tracks:
+        click.echo("No tracks in database.")
+        return
+    
+    # Filter by query (case-insensitive)
+    query_lower = query.lower()
+    matching_tracks = [
+        t for t in all_tracks
+        if query_lower in t['filename'].lower() or query_lower in t['filepath'].lower()
+    ]
+    
+    if not matching_tracks:
+        click.echo(f"No tracks found matching '{query}'")
+        return
+    
+    # If clustering specified, show which clusters they belong to
+    if clustering:
+        clustering_info = db.get_clustering(name=clustering)
+        if not clustering_info:
+            click.echo(f"Error: Clustering '{clustering}' not found.")
+            return
+        
+        click.echo(f"Found {len(matching_tracks)} track(s) matching '{query}' in clustering '{clustering}':\n")
+        
+        for track in matching_tracks[:limit]:
+            cluster_id = db.get_track_cluster(track['id'], clustering_info['id'])
+            if cluster_id:
+                cluster = db.get_cluster(cluster_id)
+                cluster_label = f"Cluster {cluster['cluster_index']}"
+                if cluster.get('name'):
+                    cluster_label += f": {cluster['name']}"
+                click.echo(f"✓ {track['filename']}")
+                click.echo(f"  {cluster_label}")
+                click.echo(f"  {track['filepath']}")
+                click.echo()
+            else:
+                click.echo(f"✗ {track['filename']} (not in clustering)")
+                click.echo(f"  {track['filepath']}")
+                click.echo()
+    else:
+        click.echo(f"Found {len(matching_tracks)} track(s) matching '{query}':\n")
+        for track in matching_tracks[:limit]:
+            click.echo(f"• {track['filename']}")
+            click.echo(f"  {track['filepath']}")
+            click.echo()
+    
+    if len(matching_tracks) > limit:
+        click.echo(f"... and {len(matching_tracks) - limit} more. Use --limit to see more.")
+
+
+@cli.command()
+@click.argument('clustering_name', type=str)
+def stats(clustering_name):
+    """Show detailed statistics for a clustering."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    # Get clustering
+    clustering = db.get_clustering(name=clustering_name)
+    if not clustering:
+        click.echo(f"Error: Clustering '{clustering_name}' not found.")
+        return
+    
+    clusters = db.get_clusters_by_clustering(clustering['id'])
+    
+    if not clusters:
+        click.echo("No clusters found.")
+        return
+    
+    # Compute statistics
+    sizes = [c['size'] for c in clusters if c['size'] > 0]
+    
+    if not sizes:
+        click.echo("Error: No valid clusters with tracks found.")
+        return
+    
+    total_tracks = sum(sizes)
+    
+    click.echo(f"\nStatistics for '{clustering_name}'")
+    click.echo("=" * 60)
+    click.echo(f"Algorithm:        {clustering.get('algorithm', 'kmeans')}")
+    click.echo(f"Total Clusters:   {len(clusters)}")
+    click.echo(f"Total Tracks:     {total_tracks}")
+    
+    if clustering.get('silhouette_score'):
+        click.echo(f"Quality Score:    {clustering['silhouette_score']:.3f}")
+    
+    click.echo(f"\nCluster Size Distribution:")
+    click.echo(f"  Smallest:       {min(sizes)} tracks")
+    click.echo(f"  Largest:        {max(sizes)} tracks")
+    click.echo(f"  Mean:           {np.mean(sizes):.1f} tracks")
+    click.echo(f"  Median:         {np.median(sizes):.0f} tracks")
+    click.echo(f"  Std Dev:        {np.std(sizes):.1f}")
+    
+    # Size buckets
+    small = len([s for s in sizes if s < 50])
+    medium = len([s for s in sizes if 50 <= s < 150])
+    large = len([s for s in sizes if s >= 150])
+    
+    click.echo(f"\nSize Buckets:")
+    click.echo(f"  Small (<50):    {small} clusters")
+    click.echo(f"  Medium (50-149): {medium} clusters")
+    click.echo(f"  Large (≥150):   {large} clusters")
+    
+    # Named clusters
+    named = len([c for c in clusters if c.get('name')])
+    if named > 0:
+        click.echo(f"\nNamed Clusters:   {named} / {len(clusters)}")
+    
+    # Show top 5 largest clusters
+    click.echo(f"\nTop 5 Largest Clusters:")
+    sorted_clusters = sorted(clusters, key=lambda c: c['size'], reverse=True)[:5]
+    for i, cluster in enumerate(sorted_clusters, 1):
+        name = cluster.get('name', '')
+        label = f"Cluster {cluster['cluster_index']}"
+        if name:
+            label += f": {name}"
+        click.echo(f"  {i}. {label} ({cluster['size']} tracks)")
+
+
+@cli.command()
+@click.argument('clustering1', type=str)
+@click.argument('clustering2', type=str)
+def compare(clustering1, clustering2):
+    """Compare two clusterings side-by-side."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    # Get both clusterings
+    c1 = db.get_clustering(name=clustering1)
+    c2 = db.get_clustering(name=clustering2)
+    
+    if not c1:
+        click.echo(f"Error: Clustering '{clustering1}' not found.")
+        return
+    if not c2:
+        click.echo(f"Error: Clustering '{clustering2}' not found.")
+        return
+    
+    clusters1 = db.get_clusters_by_clustering(c1['id'])
+    clusters2 = db.get_clusters_by_clustering(c2['id'])
+    
+    # Display comparison
+    click.echo("\nClustering Comparison")
+    click.echo("=" * 60)
+    click.echo(f"{clustering1:<30} vs {clustering2:<30}")
+    click.echo("=" * 60)
+    
+    click.echo(f"{'Algorithm:':<20} {c1.get('algorithm', 'kmeans'):<30} {c2.get('algorithm', 'kmeans'):<30}")
+    click.echo(f"{'Clusters:':<20} {c1['num_clusters']:<30} {c2['num_clusters']:<30}")
+    
+    if c1.get('silhouette_score') and c2.get('silhouette_score'):
+        s1 = c1['silhouette_score']
+        s2 = c2['silhouette_score']
+        better = "←" if s1 > s2 else "→"
+        click.echo(f"{'Silhouette Score:':<20} {s1:<30.3f} {s2:<30.3f} {better}")
+    
+    # Cluster size stats
+    sizes1 = [c['size'] for c in clusters1]
+    sizes2 = [c['size'] for c in clusters2]
+    
+    click.echo(f"\n{'Cluster Size Distribution:'}")
+    click.echo(f"{'  Min:':<20} {min(sizes1):<30} {min(sizes2):<30}")
+    click.echo(f"{'  Max:':<20} {max(sizes1):<30} {max(sizes2):<30}")
+    click.echo(f"{'  Mean:':<20} {np.mean(sizes1):<30.1f} {np.mean(sizes2):<30.1f}")
+    click.echo(f"{'  Std Dev:':<20} {np.std(sizes1):<30.1f} {np.std(sizes2):<30.1f}")
 
 
 if __name__ == '__main__':
