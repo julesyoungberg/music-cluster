@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { theme } from '$lib/stores/settings';
   import Navigation from '$lib/components/Navigation.svelte';
+  import NotificationToast from '$lib/components/NotificationToast.svelte';
 
   onMount(() => {
     // Apply theme
@@ -22,4 +23,5 @@
   <main>
     <slot />
   </main>
+  <NotificationToast />
 </div>

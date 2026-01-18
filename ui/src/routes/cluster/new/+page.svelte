@@ -2,6 +2,7 @@
   import { api } from '$lib/services/api';
   import { goto } from '$app/navigation';
   import type { ClusterRequest } from '$lib/types';
+  import { Network, AlertCircle, Loader2, Play, ChevronDown } from 'lucide-svelte';
 
   let request: ClusterRequest = {
     name: '',
@@ -37,11 +38,17 @@
 </script>
 
 <div class="container mx-auto p-8">
-  <h1 class="text-4xl font-bold mb-8">Create Clustering</h1>
+  <h1 class="text-4xl font-bold mb-8 flex items-center gap-3">
+    <Network class="w-10 h-10" />
+    Create Clustering
+  </h1>
 
   <div class="max-w-2xl space-y-6">
     {#if error}
-      <div class="bg-destructive/10 text-destructive p-4 rounded-lg">{error}</div>
+      <div class="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2">
+        <AlertCircle class="w-5 h-5" />
+        <span>{error}</span>
+      </div>
     {/if}
 
     <div>
@@ -57,22 +64,28 @@
 
     <div>
       <label for="algorithm" class="block text-sm font-medium mb-2">Algorithm</label>
-      <select id="algorithm" bind:value={request.algorithm} class="w-full p-2 border rounded-lg bg-background">
-        <option value="kmeans">K-Means</option>
-        <option value="hierarchical">Hierarchical</option>
-        <option value="hdbscan">HDBSCAN</option>
-      </select>
+      <div class="relative">
+        <ChevronDown class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <select id="algorithm" bind:value={request.algorithm} class="w-full p-2 pr-10 border rounded-lg bg-background appearance-none">
+          <option value="kmeans">K-Means</option>
+          <option value="hierarchical">Hierarchical</option>
+          <option value="hdbscan">HDBSCAN</option>
+        </select>
+      </div>
     </div>
 
     <div>
       <label for="granularity" class="block text-sm font-medium mb-2">Granularity</label>
-      <select id="granularity" bind:value={request.granularity} class="w-full p-2 border rounded-lg bg-background">
-        <option value="fewer">Fewer (broader clusters)</option>
-        <option value="less">Less</option>
-        <option value="normal">Normal</option>
-        <option value="more">More</option>
-        <option value="finer">Finer (more specific clusters)</option>
-      </select>
+      <div class="relative">
+        <ChevronDown class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <select id="granularity" bind:value={request.granularity} class="w-full p-2 pr-10 border rounded-lg bg-background appearance-none">
+          <option value="fewer">Fewer (broader clusters)</option>
+          <option value="less">Less</option>
+          <option value="normal">Normal</option>
+          <option value="more">More</option>
+          <option value="finer">Finer (more specific clusters)</option>
+        </select>
+      </div>
     </div>
 
     <div>
@@ -108,9 +121,15 @@
     <button
       on:click={createCluster}
       disabled={loading || !request.name}
-      class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50"
+      class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
     >
-      {loading ? 'Creating...' : 'Create Clustering'}
+      {#if loading}
+        <Loader2 class="w-4 h-4 animate-spin" />
+        <span>Creating...</span>
+      {:else}
+        <Play class="w-4 h-4" />
+        <span>Create Clustering</span>
+      {/if}
     </button>
   </div>
 </div>

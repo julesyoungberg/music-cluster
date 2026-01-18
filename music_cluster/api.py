@@ -10,12 +10,22 @@ To run:
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 import numpy as np
 import json
 import pickle
+import base64
+from mutagen import File as MutagenFile
+from mutagen.id3 import ID3NoHeaderError
+try:
+    from umap import UMAP
+    UMAP_AVAILABLE = True
+except ImportError:
+    UMAP_AVAILABLE = False
+from sklearn.manifold import TSNE
 
 from .config import Config
 from .database import Database
@@ -25,6 +35,12 @@ from .classifier import TrackClassifier
 from .exporter import PlaylistExporter
 from .cluster_namer import ClusterNamer
 from .utils import find_audio_files, parse_extensions
+from .cli_helpers import (
+    extract_features_threadsafe, save_batch_to_db,
+    get_file_info, compute_file_checksum
+)
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from .extractor import FeatureExtractor
 
 app = FastAPI(title="Music Cluster API", version="1.0.0")
 
@@ -39,6 +55,7 @@ app.add_middleware(
 
 # In-memory task status (in production, use Redis or database)
 task_status: Dict[str, Dict[str, Any]] = {}
+import time
 
 
 # Pydantic models for request/response
@@ -148,6 +165,79 @@ async def get_track(track_id: int):
     return track
 
 
+@app.get("/api/tracks/{track_id}/artwork")
+async def get_track_artwork(track_id: int):
+    """Get artwork for a specific track."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    track = db.get_track_by_id(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    
+    filepath = track['filepath']
+    
+    try:
+        # Try to extract artwork using mutagen
+        audio_file = MutagenFile(filepath)
+        
+        if audio_file is None:
+            raise HTTPException(status_code=404, detail="Could not read audio file")
+        
+        # Handle different file types
+        artwork_data = None
+        mime_type = None
+        
+        # MP3 files (ID3 tags)
+        if hasattr(audio_file, 'get') and 'APIC:' in audio_file:
+            apic = audio_file['APIC:'].data
+            artwork_data = apic
+            # Try to determine MIME type from APIC
+            if hasattr(audio_file['APIC:'], 'mime'):
+                mime_type = audio_file['APIC:'].mime
+            else:
+                mime_type = 'image/jpeg'  # Default for MP3
+        
+        # FLAC files (Vorbis comments)
+        elif hasattr(audio_file, 'pictures') and audio_file.pictures:
+            picture = audio_file.pictures[0]
+            artwork_data = picture.data
+            mime_type = picture.mime
+        
+        # M4A/MP4 files (MP4 tags)
+        elif hasattr(audio_file, 'get') and 'covr' in audio_file:
+            covr = audio_file['covr']
+            if isinstance(covr, list) and len(covr) > 0:
+                artwork_data = covr[0]
+                mime_type = 'image/jpeg'  # MP4 typically uses JPEG
+        
+        # OGG files
+        elif hasattr(audio_file, 'get') and 'metadata_block_picture' in audio_file:
+            # OGG Vorbis/Opus can have embedded pictures
+            picture_data = audio_file['metadata_block_picture'][0]
+            # This is base64 encoded, need to decode
+            import base64
+            decoded = base64.b64decode(picture_data)
+            # FLAC-style picture block
+            artwork_data = decoded
+            mime_type = 'image/jpeg'
+        
+        if artwork_data:
+            # Return as base64-encoded data URL
+            base64_data = base64.b64encode(artwork_data).decode('utf-8')
+            return {
+                "artwork": f"data:{mime_type or 'image/jpeg'};base64,{base64_data}",
+                "mime_type": mime_type or 'image/jpeg'
+            }
+        else:
+            raise HTTPException(status_code=404, detail="No artwork found in file")
+            
+    except ID3NoHeaderError:
+        raise HTTPException(status_code=404, detail="No ID3 header found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting artwork: {str(e)}")
+
+
 @app.get("/api/clusterings")
 async def get_clusterings():
     """Get all clusterings."""
@@ -241,6 +331,78 @@ async def get_cluster(cluster_id: int):
     }
 
 
+@app.get("/api/clusterings/{clustering_id}/visualization")
+async def get_visualization_data(clustering_id: int, method: str = "umap"):
+    """Get cluster visualization data with 2D coordinates.
+    
+    Args:
+        clustering_id: ID of the clustering
+        method: Dimensionality reduction method ('umap' or 'tsne')
+    """
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    clustering = db.get_clustering(clustering_id=clustering_id)
+    if not clustering:
+        raise HTTPException(status_code=404, detail="Clustering not found")
+    
+    clusters = db.get_clusters_by_clustering(clustering_id)
+    
+    if not clusters:
+        raise HTTPException(status_code=400, detail="No clusters found")
+    
+    # Get centroids for all clusters
+    centroids = []
+    cluster_data = []
+    for cluster in clusters:
+        cluster_dict = dict(cluster)
+        centroid = cluster_dict.get('centroid')
+        if centroid is not None:
+            if isinstance(centroid, bytes):
+                centroid = pickle.loads(centroid)
+            if isinstance(centroid, np.ndarray):
+                centroids.append(centroid)
+                cluster_data.append({
+                    'id': cluster_dict['id'],
+                    'cluster_index': cluster_dict['cluster_index'],
+                    'name': cluster_dict.get('name'),
+                    'size': cluster_dict.get('size', 0)
+                })
+    
+    if not centroids:
+        raise HTTPException(status_code=400, detail="No valid centroids found")
+    
+    centroids_array = np.array(centroids)
+    
+    # Perform dimensionality reduction
+    if method == "umap" and UMAP_AVAILABLE:
+        reducer = UMAP(n_components=2, random_state=42, n_neighbors=min(15, len(centroids) - 1))
+        coordinates_2d = reducer.fit_transform(centroids_array)
+    elif method == "tsne":
+        reducer = TSNE(n_components=2, random_state=42, perplexity=min(30, len(centroids) - 1))
+        coordinates_2d = reducer.fit_transform(centroids_array)
+    else:
+        # Fallback: use first two principal components
+        from sklearn.decomposition import PCA
+        reducer = PCA(n_components=2)
+        coordinates_2d = reducer.fit_transform(centroids_array)
+    
+    # Combine cluster data with coordinates
+    result = []
+    for i, cluster_info in enumerate(cluster_data):
+        result.append({
+            **cluster_info,
+            'x': float(coordinates_2d[i][0]),
+            'y': float(coordinates_2d[i][1])
+        })
+    
+    return {
+        'clustering_id': clustering_id,
+        'method': method,
+        'clusters': result
+    }
+
+
 @app.get("/api/stats/{clustering_id}")
 async def get_stats(clustering_id: int):
     """Get statistics for a clustering."""
@@ -305,7 +467,10 @@ async def analyze_tracks(request: AnalyzeRequest, background_tasks: BackgroundTa
         "total": 0,
         "completed": 0,
         "errors": 0,
-        "current_file": None
+        "current_file": None,
+        "start_time": time.time(),
+        "eta_seconds": None,
+        "rate_per_second": 0
     }
     
     # Run analysis in background
@@ -326,8 +491,7 @@ async def run_analysis(request: AnalyzeRequest, task_id: str):
     """Background task for analysis."""
     try:
         from .cli_helpers import (
-            determine_worker_count, filter_files_to_analyze,
-            process_files_parallel, process_files_sequential
+            determine_worker_count, filter_files_to_analyze
         )
         
         config = Config()
@@ -359,34 +523,163 @@ async def run_analysis(request: AnalyzeRequest, task_id: str):
         }
         analysis_version = config.get('feature_extraction', 'analysis_version', default='1.0.0')
         
-        # Process files
+        # Process files with progress tracking
         workers = determine_worker_count(request.workers)
         batch_size = config.get('performance', 'batch_size', default=100)
         
+        # Create progress callback
+        def update_progress(completed: int, current_file: str = None, errors: int = 0):
+            elapsed = time.time() - task_status[task_id]["start_time"]
+            if completed > 0 and elapsed > 0:
+                rate = completed / elapsed
+                remaining = (task_status[task_id]["total"] - completed) / rate if rate > 0 else 0
+                task_status[task_id].update({
+                    "completed": completed,
+                    "errors": errors,
+                    "current_file": current_file,
+                    "rate_per_second": rate,
+                    "eta_seconds": int(remaining),
+                    "progress": int((completed / task_status[task_id]["total"]) * 100) if task_status[task_id]["total"] > 0 else 0
+                })
+        
         if workers > 1:
-            analyzed_count, error_count = process_files_parallel(
+            analyzed_count, error_count = process_files_parallel_with_progress(
                 files_to_analyze, extractor_config, workers, batch_size,
-                db, analysis_version, request.skip_errors
+                db, analysis_version, request.skip_errors, update_progress, task_id
             )
         else:
-            analyzed_count, error_count = process_files_sequential(
+            analyzed_count, error_count = process_files_sequential_with_progress(
                 files_to_analyze, extractor_config, batch_size,
-                db, analysis_version, request.skip_errors
+                db, analysis_version, request.skip_errors, update_progress, task_id
             )
         
+        elapsed_time = time.time() - task_status[task_id]["start_time"]
         task_status[task_id] = {
             "status": "complete",
             "analyzed": analyzed_count,
             "errors": error_count,
             "total": len(files_to_analyze),
-            "progress": 100
+            "progress": 100,
+            "elapsed_seconds": int(elapsed_time),
+            "message": f"Successfully analyzed {analyzed_count} tracks" + (f" with {error_count} errors" if error_count > 0 else "")
         }
         
     except Exception as e:
         task_status[task_id] = {
             "status": "error",
-            "message": str(e)
+            "message": str(e),
+            "error": str(e)
         }
+
+
+def process_files_parallel_with_progress(
+    files_to_analyze: List[str],
+    extractor_config: dict,
+    workers: int,
+    batch_size: int,
+    db: Database,
+    analysis_version: str,
+    skip_errors: bool,
+    progress_callback,
+    task_id: str
+) -> Tuple[int, int]:
+    """Process files in parallel with progress updates."""
+    analyzed_count = 0
+    error_count = 0
+    batch_results = []
+    
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(extract_features_threadsafe, filepath, extractor_config): filepath
+                for filepath in files_to_analyze
+            }
+            
+            for future in as_completed(futures):
+                filepath = futures[future]
+                try:
+                    result = future.result()
+                    if result and 'error' not in result:
+                        batch_results.append(result)
+                        analyzed_count += 1
+                        
+                        if len(batch_results) >= batch_size:
+                            save_batch_to_db(db, batch_results, analysis_version)
+                            batch_results = []
+                    else:
+                        error_count += 1
+                except Exception as e:
+                    error_count += 1
+                
+                # Update progress
+                progress_callback(analyzed_count + error_count, Path(filepath).name, error_count)
+            
+            # Save remaining batch
+            if batch_results:
+                save_batch_to_db(db, batch_results, analysis_version)
+    except Exception as e:
+        task_status[task_id]["status"] = "error"
+        task_status[task_id]["message"] = f"Error in parallel processing: {str(e)}"
+        raise
+    
+    return analyzed_count, error_count
+
+
+def process_files_sequential_with_progress(
+    files_to_analyze: List[str],
+    extractor_config: dict,
+    batch_size: int,
+    db: Database,
+    analysis_version: str,
+    skip_errors: bool,
+    progress_callback,
+    task_id: str
+) -> Tuple[int, int]:
+    """Process files sequentially with progress updates."""
+    analyzed_count = 0
+    error_count = 0
+    batch_results = []
+    
+    extractor = FeatureExtractor(**extractor_config)
+    
+    try:
+        for filepath in files_to_analyze:
+            try:
+                features = extractor.extract(filepath)
+                if features is not None:
+                    duration = extractor.get_audio_duration(filepath)
+                    file_info = get_file_info(filepath)
+                    checksum = compute_file_checksum(filepath)
+                    
+                    batch_results.append({
+                        'filepath': filepath,
+                        'file_info': file_info,
+                        'duration': duration,
+                        'checksum': checksum,
+                        'features': features
+                    })
+                    analyzed_count += 1
+                    
+                    if len(batch_results) >= batch_size:
+                        save_batch_to_db(db, batch_results, analysis_version)
+                        batch_results = []
+                else:
+                    error_count += 1
+            except Exception as e:
+                error_count += 1
+            
+            # Update progress
+            progress_callback(analyzed_count + error_count, Path(filepath).name, error_count)
+        
+        # Save remaining batch
+        if batch_results:
+            save_batch_to_db(db, batch_results, analysis_version)
+    except Exception as e:
+        task_status[task_id]["status"] = "error"
+        task_status[task_id]["message"] = f"Error in sequential processing: {str(e)}"
+        raise
+    
+    return analyzed_count, error_count
 
 
 @app.get("/api/tasks/{task_id}")
@@ -395,9 +688,37 @@ async def get_task_status(task_id: str):
     if task_id not in task_status:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    status = task_status[task_id]
+    status = task_status[task_id].copy()
+    
+    # Calculate progress if not already set
     if status.get("total", 0) > 0:
         status["progress"] = int((status.get("completed", 0) / status["total"]) * 100)
+    
+    # Format ETA
+    if status.get("eta_seconds"):
+        eta_seconds = status["eta_seconds"]
+        if eta_seconds < 60:
+            status["eta_formatted"] = f"{eta_seconds}s"
+        elif eta_seconds < 3600:
+            status["eta_formatted"] = f"{eta_seconds // 60}m {eta_seconds % 60}s"
+        else:
+            hours = eta_seconds // 3600
+            minutes = (eta_seconds % 3600) // 60
+            status["eta_formatted"] = f"{hours}h {minutes}m"
+    else:
+        status["eta_formatted"] = None
+    
+    # Format elapsed time
+    if status.get("start_time"):
+        elapsed = time.time() - status["start_time"]
+        if elapsed < 60:
+            status["elapsed_formatted"] = f"{int(elapsed)}s"
+        elif elapsed < 3600:
+            status["elapsed_formatted"] = f"{int(elapsed) // 60}m {int(elapsed) % 60}s"
+        else:
+            hours = int(elapsed) // 3600
+            minutes = (int(elapsed) % 3600) // 60
+            status["elapsed_formatted"] = f"{hours}h {minutes}m"
     
     return status
 
@@ -610,6 +931,30 @@ async def classify_tracks(request: ClassifyRequest):
         "clustering_id": clustering_info['id'],
         "clustering_name": clustering_info.get('name'),
         "results": results
+    }
+
+
+@app.put("/api/clusters/{cluster_id}/name")
+async def rename_cluster(cluster_id: int, request: Dict[str, Any]):
+    """Rename a specific cluster."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    name = request.get('name')
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    
+    cluster = db.get_cluster(cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    db.update_cluster_name(cluster_id, name)
+    
+    return {
+        "cluster_id": cluster_id,
+        "cluster_index": cluster['cluster_index'],
+        "name": name,
+        "message": f"Cluster {cluster['cluster_index']} renamed to '{name}'"
     }
 
 
