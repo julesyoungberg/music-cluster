@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
         "analysis_version": "1.0.0"
     },
     "clustering": {
-        "default_algorithm": "kmeans",
+        "default_algorithm": "hdbscan",
         "auto_detect_k": True,
         "default_granularity": "normal",
         "min_clusters": 5,

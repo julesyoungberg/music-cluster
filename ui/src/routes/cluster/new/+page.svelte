@@ -4,11 +4,13 @@
   import type { ClusterRequest } from '$lib/types';
   import { CircleDot, AlertCircle, Loader2, Play, ChevronDown } from 'lucide-svelte';
 
+  import { userPreferences } from '$lib/stores/userPreferences';
+
   let request: ClusterRequest = {
     name: '',
-    granularity: 'normal',
-    algorithm: 'kmeans',
-    min_size: 3,
+    granularity: $userPreferences.defaultGranularity,
+    algorithm: $userPreferences.defaultAlgorithm,
+    min_size: $userPreferences.defaultMinClusterSize,
     max_clusters: 100,
     method: 'silhouette',
     show_metrics: true
