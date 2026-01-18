@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { api } from '$lib/services/api';
   import type { Cluster, Track } from '$lib/types';
-  import { CircleDot, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X } from 'lucide-svelte';
+  import { CircleDot, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
   import { addNotification } from '$lib/stores/notifications';
@@ -15,6 +15,12 @@
   let cluster: Cluster | null = null;
   let loading = true;
   let error: string | null = null;
+  let limit = 50;
+  let offset = 0;
+  let total = 0;
+  let currentTrackId: number | null = null;
+  let audio: HTMLAudioElement | null = null;
+  let playing = false;
 
   $: clusterId = $page.params.id ? parseInt($page.params.id) : 0;
 
@@ -43,14 +49,68 @@
     editedName = '';
   }
 
-  onMount(async () => {
+  async function loadCluster() {
+    loading = true;
     try {
-      cluster = await api.getCluster(clusterId);
+      const result = await api.getCluster(clusterId, limit, offset);
+      cluster = result;
+      total = result.total || (result.tracks?.length || 0);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load cluster';
     } finally {
       loading = false;
     }
+  }
+
+  function playTrack(trackId: number) {
+    if (currentTrackId === trackId && audio) {
+      if (playing) {
+        audio.pause();
+        playing = false;
+      } else {
+        audio.play();
+        playing = true;
+      }
+      return;
+    }
+
+    // Stop current track
+    if (audio) {
+      audio.pause();
+      audio.src = '';
+      audio = null;
+    }
+
+    // Start new track
+    currentTrackId = trackId;
+    audio = new Audio(api.getTrackAudioUrl(trackId));
+    audio.addEventListener('play', () => {
+      playing = true;
+    });
+    audio.addEventListener('pause', () => {
+      playing = false;
+    });
+    audio.addEventListener('ended', () => {
+      playing = false;
+      currentTrackId = null;
+      audio = null;
+    });
+    audio.play().catch(() => {
+      playing = false;
+      currentTrackId = null;
+      audio = null;
+    });
+  }
+
+  onMount(() => {
+    loadCluster();
+    
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+      }
+    };
   });
 </script>
 
@@ -120,7 +180,7 @@
           {/if}
           <p class="text-muted-foreground flex items-center gap-2 mt-1">
             <Music class="w-4 h-4" />
-            {cluster.size} tracks
+            {total || cluster.size} tracks
           </p>
         </div>
       </div>
@@ -140,9 +200,44 @@
                 <p class="font-medium truncate">{track.filename}</p>
                 <p class="text-sm text-muted-foreground truncate">{track.filepath}</p>
               </div>
+              <button
+                on:click={() => playTrack(track.id)}
+                class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center"
+                title={currentTrackId === track.id && playing ? 'Pause' : 'Play'}
+              >
+                {#if currentTrackId === track.id && playing}
+                  <Pause class="w-5 h-5" />
+                {:else}
+                  <Play class="w-5 h-5" />
+                {/if}
+              </button>
             </div>
           </div>
         {/each}
+
+        {#if total > limit}
+          <div class="mt-6 flex justify-between items-center">
+            <button
+              on:click={() => { offset = Math.max(0, offset - limit); loadCluster(); }}
+              disabled={offset === 0}
+              class="px-4 py-2 bg-secondary rounded-lg disabled:opacity-50 flex items-center gap-2 hover:opacity-90 transition-opacity"
+            >
+              <ChevronLeft class="w-4 h-4" />
+              Previous
+            </button>
+            <span class="text-sm text-muted-foreground">
+              Showing {offset + 1} - {Math.min(offset + limit, total)} of {total}
+            </span>
+            <button
+              on:click={() => { offset += limit; loadCluster(); }}
+              disabled={offset + limit >= total}
+              class="px-4 py-2 bg-secondary rounded-lg disabled:opacity-50 flex items-center gap-2 hover:opacity-90 transition-opacity"
+            >
+              Next
+              <ChevronRight class="w-4 h-4" />
+            </button>
+          </div>
+        {/if}
       </div>
     {/if}
   {/if}

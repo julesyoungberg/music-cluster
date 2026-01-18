@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/services/api';
   import type { Track } from '$lib/types';
-  import { Library, Search, ChevronLeft, ChevronRight, Loader2, Music } from 'lucide-svelte';
+  import { Library, Search, ChevronLeft, ChevronRight, Loader2, Music, Play, Pause } from 'lucide-svelte';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
 
   let tracks: Track[] = [];
@@ -11,6 +11,9 @@
   let offset = 0;
   let total = 0;
   let searchQuery = '';
+  let currentTrackId: number | null = null;
+  let audio: HTMLAudioElement | null = null;
+  let playing = false;
 
   async function loadTracks() {
     loading = true;
@@ -42,8 +45,55 @@
     }
   }
 
+  function playTrack(trackId: number) {
+    if (currentTrackId === trackId && audio) {
+      if (playing) {
+        audio.pause();
+        playing = false;
+      } else {
+        audio.play();
+        playing = true;
+      }
+      return;
+    }
+
+    // Stop current track
+    if (audio) {
+      audio.pause();
+      audio.src = '';
+      audio = null;
+    }
+
+    // Start new track
+    currentTrackId = trackId;
+    audio = new Audio(api.getTrackAudioUrl(trackId));
+    audio.addEventListener('play', () => {
+      playing = true;
+    });
+    audio.addEventListener('pause', () => {
+      playing = false;
+    });
+    audio.addEventListener('ended', () => {
+      playing = false;
+      currentTrackId = null;
+      audio = null;
+    });
+    audio.play().catch(() => {
+      playing = false;
+      currentTrackId = null;
+      audio = null;
+    });
+  }
+
   onMount(() => {
     loadTracks();
+    
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+      }
+    };
   });
 </script>
 
@@ -95,6 +145,17 @@
                 </p>
               {/if}
             </div>
+            <button
+              on:click={() => playTrack(track.id)}
+              class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center"
+              title={currentTrackId === track.id && playing ? 'Pause' : 'Play'}
+            >
+              {#if currentTrackId === track.id && playing}
+                <Pause class="w-5 h-5" />
+              {:else}
+                <Play class="w-5 h-5" />
+              {/if}
+            </button>
           </div>
         </div>
       {/each}

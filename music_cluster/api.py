@@ -8,9 +8,9 @@ To run:
     uvicorn music_cluster.api:app --reload --port 8000
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
@@ -177,6 +177,45 @@ async def get_track(track_id: int):
         raise HTTPException(status_code=404, detail="Track not found")
     
     return track
+
+
+@app.get("/api/tracks/{track_id}/audio")
+async def get_track_audio(track_id: int):
+    """Stream audio file for a specific track."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    track = db.get_track_by_id(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    
+    filepath = track['filepath']
+    
+    if not Path(filepath).exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    # Determine media type based on file extension
+    ext = Path(filepath).suffix.lower()
+    media_types = {
+        '.mp3': 'audio/mpeg',
+        '.flac': 'audio/flac',
+        '.wav': 'audio/wav',
+        '.m4a': 'audio/mp4',
+        '.ogg': 'audio/ogg',
+        '.opus': 'audio/opus',
+        '.aac': 'audio/aac',
+    }
+    media_type = media_types.get(ext, 'audio/mpeg')
+    
+    return FileResponse(
+        filepath,
+        media_type=media_type,
+        filename=Path(filepath).name,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'inline; filename="{Path(filepath).name}"'
+        }
+    )
 
 
 @app.get("/api/tracks/{track_id}/artwork")
@@ -361,8 +400,8 @@ async def get_clustering_by_name(name: str):
 
 
 @app.get("/api/clusters/{cluster_id}")
-async def get_cluster(cluster_id: int):
-    """Get a specific cluster with its tracks."""
+async def get_cluster(cluster_id: int, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+    """Get a specific cluster with its tracks (paginated)."""
     config = Config()
     db = Database(config.get_db_path())
     
@@ -381,11 +420,17 @@ async def get_cluster(cluster_id: int):
             # If still bytes, exclude it (shouldn't happen after get_cluster unpickles)
             del cluster_dict['centroid']
     
-    members = db.get_cluster_members(cluster_id)
+    # Get paginated members
+    all_members = db.get_cluster_members(cluster_id)
+    total = len(all_members)
+    members = all_members[offset:offset + limit]
     
     return {
         **cluster_dict,
-        "tracks": members
+        "tracks": members,
+        "total": total,
+        "limit": limit,
+        "offset": offset
     }
 
 
