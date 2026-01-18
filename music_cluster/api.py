@@ -41,6 +41,12 @@ except ImportError:
     UMAP_AVAILABLE = False
 from sklearn.manifold import TSNE
 
+try:
+    import librosa
+    LIBROSA_AVAILABLE = True
+except ImportError:
+    LIBROSA_AVAILABLE = False
+
 from .config import Config
 from .database import Database
 from .clustering import ClusterEngine
@@ -216,6 +222,82 @@ async def get_track_audio(track_id: int):
             "Content-Disposition": f'inline; filename="{Path(filepath).name}"'
         }
     )
+
+
+@app.get("/api/tracks/{track_id}/waveform")
+async def get_track_waveform(track_id: int, samples: int = 200):
+    """Get waveform data (peaks) for a track.
+    
+    Args:
+        track_id: Track ID
+        samples: Number of samples to return (default 200 for visualization)
+    
+    Returns:
+        JSON with waveform peaks array and duration
+    """
+    if not LIBROSA_AVAILABLE:
+        raise HTTPException(status_code=500, detail="librosa not available")
+    
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    track = db.get_track_by_id(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    
+    filepath = track['filepath']
+    
+    if not Path(filepath).exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    try:
+        # Load audio file (mono, downsampled for speed)
+        y, sr = librosa.load(filepath, sr=22050, mono=True, duration=None)
+        
+        if len(y) == 0:
+            raise HTTPException(status_code=400, detail="Empty audio file")
+        
+        # Calculate duration
+        duration = len(y) / sr
+        
+        # Downsample to requested number of samples
+        # Use absolute values for waveform peaks
+        abs_y = np.abs(y)
+        
+        # Resample to requested number of samples
+        if len(abs_y) > samples:
+            # Average over windows
+            window_size = len(abs_y) // samples
+            peaks = []
+            for i in range(samples):
+                start = i * window_size
+                end = start + window_size
+                if end > len(abs_y):
+                    end = len(abs_y)
+                if start < len(abs_y):
+                    peaks.append(float(np.max(abs_y[start:end])))
+                else:
+                    peaks.append(0.0)
+        else:
+            # Pad if too short
+            peaks = abs_y.tolist()
+            while len(peaks) < samples:
+                peaks.append(0.0)
+            peaks = peaks[:samples]
+        
+        # Normalize to 0-1 range
+        max_peak = max(peaks) if peaks else 1.0
+        if max_peak > 0:
+            peaks = [p / max_peak for p in peaks]
+        
+        return {
+            "peaks": peaks,
+            "duration": duration,
+            "samples": len(peaks)
+        }
+    except Exception as e:
+        logger.error(f"Error generating waveform for {filepath}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating waveform: {str(e)}")
 
 
 @app.get("/api/tracks/{track_id}/artwork")
