@@ -2,7 +2,7 @@
   import { api } from '$lib/services/api';
   import { goto } from '$app/navigation';
   import type { ClusterRequest } from '$lib/types';
-  import { Network, AlertCircle, Loader2, Play, ChevronDown } from 'lucide-svelte';
+  import { CircleDot, AlertCircle, Loader2, Play, ChevronDown } from 'lucide-svelte';
 
   let request: ClusterRequest = {
     name: '',
@@ -39,7 +39,7 @@
 
 <div class="container mx-auto p-8">
   <h1 class="text-4xl font-bold mb-8 flex items-center gap-3">
-    <Network class="w-10 h-10" />
+    <CircleDot class="w-10 h-10" />
     Create Clustering
   </h1>
 

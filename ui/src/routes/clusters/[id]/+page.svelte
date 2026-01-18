@@ -3,10 +3,13 @@
   import { page } from '$app/stores';
   import { api } from '$lib/services/api';
   import type { Cluster, Track } from '$lib/types';
-  import { Network, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { api } from '$lib/services/api';
+  import type { Cluster, Track } from '$lib/types';
+  import { CircleDot, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
-  import { api } from '$lib/services/api';
   import { addNotification } from '$lib/stores/notifications';
 
   let editingName = false;
@@ -77,7 +80,7 @@
       </button>
       <div class="flex items-center gap-3 mb-4">
         <div class="p-3 bg-primary/10 rounded-lg">
-          <Network class="w-8 h-8 text-primary" />
+          <CircleDot class="w-8 h-8 text-primary" />
         </div>
         <div class="flex-1">
           {#if editingName}

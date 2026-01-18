@@ -3,7 +3,7 @@
   import { api } from '$lib/services/api';
   import { clusterings } from '$lib/stores/clusters';
   import type { DatabaseInfo, Clustering } from '$lib/types';
-  import { Music, CheckCircle2, Network, Loader2, AlertCircle } from 'lucide-svelte';
+  import { Music, CheckCircle2, CircleDot, Loader2, AlertCircle } from 'lucide-svelte';
   import { addNotification } from '$lib/stores/notifications';
 
   let info: DatabaseInfo | null = null;
@@ -32,11 +32,6 @@
 </script>
 
 <div class="container mx-auto p-8">
-  <h1 class="text-4xl font-bold mb-8 flex items-center gap-3">
-    <Network class="w-10 h-10" />
-    Music Cluster
-  </h1>
-
   {#if loading}
     <div class="text-center py-12 flex items-center justify-center gap-2">
       <Loader2 class="w-5 h-5 animate-spin" />
@@ -65,7 +60,7 @@
       </div>
       <div class="bg-card p-6 rounded-lg border">
         <div class="flex items-center gap-3 mb-2">
-          <Network class="w-6 h-6 text-primary" />
+          <CircleDot class="w-6 h-6 text-primary" />
           <h2 class="text-2xl font-semibold">{info.clusterings}</h2>
         </div>
         <p class="text-muted-foreground">Clusterings</p>
@@ -74,7 +69,7 @@
 
     <div class="space-y-4">
       <h2 class="text-2xl font-semibold flex items-center gap-2">
-        <Network class="w-6 h-6" />
+        <CircleDot class="w-6 h-6" />
         Recent Clusterings
       </h2>
       {#each $clusterings.slice(0, 5) as clustering}

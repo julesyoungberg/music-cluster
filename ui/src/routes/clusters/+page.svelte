@@ -3,7 +3,7 @@
   import { api } from '$lib/services/api';
   import { clusterings, currentClustering } from '$lib/stores/clusters';
   import type { Clustering, Cluster } from '$lib/types';
-  import { Network, Loader2, Music2, ChevronDown, Tag } from 'lucide-svelte';
+  import { CircleDot, Loader2, Music2, ChevronDown, Tag } from 'lucide-svelte';
   import ClusterVisualization from '$lib/components/ClusterVisualization.svelte';
 
   let selectedClusteringId: number | null = null;
@@ -39,7 +39,7 @@
 
 <div class="container mx-auto p-8">
   <h1 class="text-4xl font-bold mb-8 flex items-center gap-3">
-    <Network class="w-10 h-10" />
+    <CircleDot class="w-10 h-10" />
     Clusters
   </h1>
 
@@ -90,7 +90,7 @@
         >
           <div class="flex items-start gap-3">
             <div class="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <Network class="w-5 h-5 text-primary" />
+              <CircleDot class="w-5 h-5 text-primary" />
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-lg mb-2 truncate">
@@ -107,7 +107,7 @@
     </div>
   {:else}
     <div class="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
-      <Network class="w-12 h-12 opacity-50" />
+      <CircleDot class="w-12 h-12 opacity-50" />
       <span>No clusters found</span>
     </div>
   {/if}
