@@ -18,8 +18,22 @@ import numpy as np
 import json
 import pickle
 import base64
+import logging
 from mutagen import File as MutagenFile
 from mutagen.id3 import ID3NoHeaderError
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
+from mutagen.oggvorbis import OggVorbis
+from mutagen.oggopus import OggOpus
+
+logger = logging.getLogger(__name__)
+
+# Configure logging for the API module
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 try:
     from umap import UMAP
     UMAP_AVAILABLE = True
@@ -173,68 +187,112 @@ async def get_track_artwork(track_id: int):
     
     track = db.get_track_by_id(track_id)
     if not track:
+        logger.warning(f"Track {track_id} not found")
         raise HTTPException(status_code=404, detail="Track not found")
     
     filepath = track['filepath']
+    
+    if not Path(filepath).exists():
+        logger.warning(f"File does not exist: {filepath}")
+        raise HTTPException(status_code=404, detail="Audio file not found")
     
     try:
         # Try to extract artwork using mutagen
         audio_file = MutagenFile(filepath)
         
         if audio_file is None:
+            logger.warning(f"Could not read audio file: {filepath}")
             raise HTTPException(status_code=404, detail="Could not read audio file")
         
         # Handle different file types
         artwork_data = None
         mime_type = None
         
-        # MP3 files (ID3 tags)
-        if hasattr(audio_file, 'get') and 'APIC:' in audio_file:
-            apic = audio_file['APIC:'].data
-            artwork_data = apic
-            # Try to determine MIME type from APIC
-            if hasattr(audio_file['APIC:'], 'mime'):
-                mime_type = audio_file['APIC:'].mime
-            else:
-                mime_type = 'image/jpeg'  # Default for MP3
-        
-        # FLAC files (Vorbis comments)
-        elif hasattr(audio_file, 'pictures') and audio_file.pictures:
-            picture = audio_file.pictures[0]
-            artwork_data = picture.data
-            mime_type = picture.mime
-        
-        # M4A/MP4 files (MP4 tags)
-        elif hasattr(audio_file, 'get') and 'covr' in audio_file:
-            covr = audio_file['covr']
-            if isinstance(covr, list) and len(covr) > 0:
-                artwork_data = covr[0]
-                mime_type = 'image/jpeg'  # MP4 typically uses JPEG
-        
-        # OGG files
-        elif hasattr(audio_file, 'get') and 'metadata_block_picture' in audio_file:
-            # OGG Vorbis/Opus can have embedded pictures
-            picture_data = audio_file['metadata_block_picture'][0]
-            # This is base64 encoded, need to decode
-            import base64
-            decoded = base64.b64decode(picture_data)
-            # FLAC-style picture block
-            artwork_data = decoded
-            mime_type = 'image/jpeg'
+        try:
+            # FLAC files (Vorbis comments) - most reliable
+            if isinstance(audio_file, FLAC):
+                if audio_file.pictures:
+                    picture = audio_file.pictures[0]
+                    artwork_data = picture.data
+                    mime_type = picture.mime
+                    logger.debug(f"Found FLAC artwork for track {track_id}")
+            
+            # M4A/MP4 files (MP4 tags)
+            elif isinstance(audio_file, MP4):
+                if 'covr' in audio_file:
+                    covr = audio_file['covr']
+                    if isinstance(covr, list) and len(covr) > 0:
+                        artwork_data = covr[0]
+                        mime_type = 'image/jpeg'
+                        logger.debug(f"Found MP4 artwork for track {track_id}")
+            
+            # MP3 files (ID3 tags) - need to use ID3 directly
+            elif filepath.lower().endswith(('.mp3', '.mp2', '.mp1')):
+                try:
+                    from mutagen.id3 import ID3, APIC
+                    id3_file = ID3(filepath)
+                    # Look for APIC frames
+                    for key in id3_file.keys():
+                        if key.startswith('APIC'):
+                            apic = id3_file[key]
+                            if hasattr(apic, 'data'):
+                                artwork_data = apic.data
+                                mime_type = apic.mime if hasattr(apic, 'mime') else 'image/jpeg'
+                                logger.debug(f"Found MP3 artwork for track {track_id}")
+                                break
+                except Exception as e:
+                    logger.debug(f"Error reading ID3 tags for {filepath}: {e}")
+            
+            # OGG Vorbis files
+            elif isinstance(audio_file, OggVorbis):
+                if 'metadata_block_picture' in audio_file:
+                    try:
+                        picture_data = audio_file['metadata_block_picture'][0]
+                        decoded = base64.b64decode(picture_data)
+                        artwork_data = decoded
+                        mime_type = 'image/jpeg'
+                        logger.debug(f"Found OGG Vorbis artwork for track {track_id}")
+                    except Exception as e:
+                        logger.debug(f"Error decoding OGG picture: {e}")
+            
+            # OGG Opus files
+            elif isinstance(audio_file, OggOpus):
+                if 'metadata_block_picture' in audio_file:
+                    try:
+                        picture_data = audio_file['metadata_block_picture'][0]
+                        decoded = base64.b64decode(picture_data)
+                        artwork_data = decoded
+                        mime_type = 'image/jpeg'
+                        logger.debug(f"Found Opus artwork for track {track_id}")
+                    except Exception as e:
+                        logger.debug(f"Error decoding Opus picture: {e}")
+            
+        except Exception as e:
+            logger.debug(f"Error extracting artwork from {filepath}: {e}", exc_info=True)
         
         if artwork_data:
             # Return as base64-encoded data URL
-            base64_data = base64.b64encode(artwork_data).decode('utf-8')
-            return {
-                "artwork": f"data:{mime_type or 'image/jpeg'};base64,{base64_data}",
-                "mime_type": mime_type or 'image/jpeg'
-            }
+            try:
+                base64_data = base64.b64encode(artwork_data).decode('utf-8')
+                return {
+                    "artwork": f"data:{mime_type or 'image/jpeg'};base64,{base64_data}",
+                    "mime_type": mime_type or 'image/jpeg'
+                }
+            except Exception as e:
+                logger.error(f"Error encoding artwork for track {track_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Error encoding artwork: {str(e)}")
         else:
+            logger.debug(f"No artwork found in file: {filepath}")
             raise HTTPException(status_code=404, detail="No artwork found in file")
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ID3NoHeaderError:
+        logger.debug(f"No ID3 header in file: {filepath}")
         raise HTTPException(status_code=404, detail="No ID3 header found")
     except Exception as e:
+        logger.error(f"Error extracting artwork from track {track_id} ({filepath}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error extracting artwork: {str(e)}")
 
 
@@ -375,17 +433,68 @@ async def get_visualization_data(clustering_id: int, method: str = "umap"):
     centroids_array = np.array(centroids)
     
     # Perform dimensionality reduction
+    num_clusters = len(centroids)
+    
     if method == "umap" and UMAP_AVAILABLE:
-        reducer = UMAP(n_components=2, random_state=42, n_neighbors=min(15, len(centroids) - 1))
-        coordinates_2d = reducer.fit_transform(centroids_array)
+        # UMAP requires n_neighbors < n_samples and has internal constraints
+        # For small numbers of clusters, use PCA instead to avoid spectral layout issues
+        if num_clusters < 5:
+            # Too few points for UMAP (spectral layout fails), use PCA
+            from sklearn.decomposition import PCA
+            reducer = PCA(n_components=min(2, num_clusters))
+            coordinates_2d = reducer.fit_transform(centroids_array)
+            # If only 1-2 clusters, pad to 2D
+            if coordinates_2d.shape[1] < 2:
+                padding = np.zeros((coordinates_2d.shape[0], 2 - coordinates_2d.shape[1]))
+                coordinates_2d = np.hstack([coordinates_2d, padding])
+            # Update method name for response
+            method = "pca"  # Indicate we used PCA fallback
+        else:
+            # Ensure n_neighbors is less than number of samples
+            # UMAP's spectral layout needs at least n_neighbors + 1 samples
+            # Be conservative: use n_neighbors = max(2, num_clusters - 2) to ensure it works
+            n_neighbors = max(2, min(10, num_clusters - 2))
+            if n_neighbors >= num_clusters:
+                # Still too many neighbors, use PCA
+                logger.debug(f"Too few clusters ({num_clusters}) for UMAP, using PCA")
+                from sklearn.decomposition import PCA
+                reducer = PCA(n_components=2)
+                coordinates_2d = reducer.fit_transform(centroids_array)
+                method = "pca"
+            else:
+                try:
+                    reducer = UMAP(n_components=2, random_state=42, n_neighbors=n_neighbors, min_dist=0.1)
+                    coordinates_2d = reducer.fit_transform(centroids_array)
+                except Exception as e:
+                    # If UMAP still fails, fall back to PCA
+                    logger.warning(f"UMAP failed for {num_clusters} clusters (n_neighbors={n_neighbors}), falling back to PCA: {e}")
+                    from sklearn.decomposition import PCA
+                    reducer = PCA(n_components=2)
+                    coordinates_2d = reducer.fit_transform(centroids_array)
+                    method = "pca"
     elif method == "tsne":
-        reducer = TSNE(n_components=2, random_state=42, perplexity=min(30, len(centroids) - 1))
-        coordinates_2d = reducer.fit_transform(centroids_array)
+        # t-SNE requires perplexity < n_samples
+        if num_clusters < 4:
+            # Too few points for t-SNE, use PCA
+            from sklearn.decomposition import PCA
+            reducer = PCA(n_components=min(2, num_clusters))
+            coordinates_2d = reducer.fit_transform(centroids_array)
+            if coordinates_2d.shape[1] < 2:
+                padding = np.zeros((coordinates_2d.shape[0], 2 - coordinates_2d.shape[1]))
+                coordinates_2d = np.hstack([coordinates_2d, padding])
+        else:
+            perplexity = min(30, max(5, (num_clusters - 1) // 2))
+            reducer = TSNE(n_components=2, random_state=42, perplexity=perplexity)
+            coordinates_2d = reducer.fit_transform(centroids_array)
     else:
         # Fallback: use first two principal components
         from sklearn.decomposition import PCA
-        reducer = PCA(n_components=2)
+        reducer = PCA(n_components=min(2, num_clusters))
         coordinates_2d = reducer.fit_transform(centroids_array)
+        # If only 1-2 clusters, pad to 2D
+        if coordinates_2d.shape[1] < 2:
+            padding = np.zeros((coordinates_2d.shape[0], 2 - coordinates_2d.shape[1]))
+            coordinates_2d = np.hstack([coordinates_2d, padding])
     
     # Combine cluster data with coordinates
     result = []

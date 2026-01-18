@@ -3,10 +3,6 @@
   import { page } from '$app/stores';
   import { api } from '$lib/services/api';
   import type { Cluster, Track } from '$lib/types';
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
-  import { api } from '$lib/services/api';
-  import type { Cluster, Track } from '$lib/types';
   import { CircleDot, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
