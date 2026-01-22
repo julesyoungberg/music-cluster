@@ -12,6 +12,26 @@
   let loading = false;
   let activeTab: 'visualization' | 'list' = 'list';
 
+  // Sort clusterings by created_at in reverse chronological order (newest first)
+  $: sortedClusterings = $clusterings.slice().sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateB - dateA; // Descending order (newest first)
+  });
+
+  // Format date for display
+  function formatDate(dateString?: string): string {
+    if (!dateString) return 'Unknown date';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   $: if (selectedClusteringId) {
     loadClusters();
   }
@@ -33,8 +53,14 @@
   onMount(async () => {
     const { clusterings: list } = await api.getClusterings();
     clusterings.set(list);
-    if (list.length > 0) {
-      selectedClusteringId = list[0].id;
+    // Sort and select the first (newest) one
+    const sorted = list.slice().sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
+    });
+    if (sorted.length > 0) {
+      selectedClusteringId = sorted[0].id;
     }
   });
 </script>
@@ -54,11 +80,16 @@
         bind:value={selectedClusteringId}
         class="w-full p-2 pr-10 border rounded-lg bg-background appearance-none"
       >
-        {#each $clusterings as clustering}
+        {#each sortedClusterings as clustering}
           <option value={clustering.id}>{clustering.name || `Clustering ${clustering.id}`}</option>
         {/each}
       </select>
     </div>
+    {#if $currentClustering?.created_at}
+      <p class="text-sm text-muted-foreground mt-2">
+        Created: {formatDate($currentClustering.created_at)}
+      </p>
+    {/if}
   </div>
 
   {#if loading}
