@@ -1,16 +1,20 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/services/api';
   import { clusterings, currentClustering } from '$lib/stores/clusters';
   import type { Clustering, Cluster } from '$lib/types';
-  import { CircleDot, Loader2, Music2, ChevronDown, Tag, Download, Play, GitCompareArrows, BarChart3, List } from 'lucide-svelte';
+  import { CircleDot, Loader2, Music2, ChevronDown, Tag, Download, Play, GitCompareArrows, BarChart3, List, Trash2, AlertTriangle } from 'lucide-svelte';
   import ClusterVisualization from '$lib/components/ClusterVisualization.svelte';
+  import Modal from '$lib/components/Modal.svelte';
   import { goto } from '$app/navigation';
+  import { addNotification } from '$lib/stores/notifications';
 
   let selectedClusteringId: number | null = null;
   let clusters: Cluster[] = [];
   let loading = false;
   let activeTab: 'visualization' | 'list' = 'list';
+  let showDeleteModal = false;
+  let deleting = false;
 
   // Sort clusterings by created_at in reverse chronological order (newest first)
   $: sortedClusterings = $clusterings.slice().sort((a, b) => {
@@ -50,18 +54,62 @@
     }
   }
 
-  onMount(async () => {
+  async function loadClusterings() {
     const { clusterings: list } = await api.getClusterings();
     clusterings.set(list);
-    // Sort and select the first (newest) one
+    // Sort and select the first (newest) one if current selection is deleted
     const sorted = list.slice().sort((a, b) => {
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
       return dateB - dateA;
     });
-    if (sorted.length > 0) {
-      selectedClusteringId = sorted[0].id;
+    
+    // If current selection was deleted or doesn't exist, select first one
+    if (!selectedClusteringId || !list.find(c => c.id === selectedClusteringId)) {
+      if (sorted.length > 0) {
+        selectedClusteringId = sorted[0].id;
+      } else {
+        selectedClusteringId = null;
+      }
     }
+  }
+
+  function openDeleteModal() {
+    showDeleteModal = true;
+  }
+
+  function closeDeleteModal() {
+    if (!deleting) {
+      showDeleteModal = false;
+    }
+  }
+
+  async function confirmDelete() {
+    if (!selectedClusteringId) return;
+    
+    deleting = true;
+    try {
+      await api.deleteClustering(selectedClusteringId);
+      addNotification('success', 'Clustering deleted successfully');
+      showDeleteModal = false;
+      
+      // Reload clusterings list
+      await loadClusterings();
+      
+      // Clear current clustering if it was deleted
+      if (currentClustering && currentClustering.id === selectedClusteringId) {
+        currentClustering.set(null);
+      }
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to delete clustering';
+      addNotification('error', errorMsg);
+    } finally {
+      deleting = false;
+    }
+  }
+
+  onMount(async () => {
+    await loadClusterings();
   });
 </script>
 
@@ -73,17 +121,33 @@
 
   <div class="mb-6">
     <label for="clustering-select" class="block text-sm font-medium mb-2">Select Clustering</label>
-    <div class="relative w-full max-w-xs">
-      <ChevronDown class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-      <select
-        id="clustering-select"
-        bind:value={selectedClusteringId}
-        class="w-full p-2 pr-10 border rounded-lg bg-background appearance-none"
-      >
-        {#each sortedClusterings as clustering}
-          <option value={clustering.id}>{clustering.name || `Clustering ${clustering.id}`}</option>
-        {/each}
-      </select>
+    <div class="flex items-center gap-4">
+      <div class="flex-1 max-w-xs">
+        <div class="relative">
+          <ChevronDown class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <select
+            id="clustering-select"
+            bind:value={selectedClusteringId}
+            class="w-full p-2 pr-10 border rounded-lg bg-background appearance-none"
+          >
+            {#each sortedClusterings as clustering}
+              <option value={clustering.id}>{clustering.name || `Clustering ${clustering.id}`}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+      {#if selectedClusteringId && sortedClusterings.length > 0}
+        <button
+          on:click={openDeleteModal}
+          class="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
+          disabled={deleting}
+          aria-label="Delete clustering"
+          title="Delete clustering"
+        >
+          <Trash2 class="w-4 h-4" />
+          Delete
+        </button>
+      {/if}
     </div>
     {#if $currentClustering?.created_at}
       <p class="text-sm text-muted-foreground mt-2">
@@ -91,6 +155,42 @@
       </p>
     {/if}
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  <Modal open={showDeleteModal} title="Delete Clustering" on:close={closeDeleteModal}>
+    <div class="space-y-4">
+      <div class="flex items-start gap-3">
+        <div class="p-2 bg-destructive/10 rounded-lg">
+          <AlertTriangle class="w-5 h-5 text-destructive" />
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-medium mb-2">Are you sure you want to delete this clustering?</p>
+          <p class="text-sm text-muted-foreground">
+            This will permanently delete <strong>"{$currentClustering?.name || `Clustering ${selectedClusteringId}`}"</strong> and all its clusters. This action cannot be undone.
+          </p>
+        </div>
+      </div>
+      <div class="flex gap-2 justify-end pt-4">
+        <button
+          on:click={closeDeleteModal}
+          class="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 transition-opacity"
+          disabled={deleting}
+        >
+          Cancel
+        </button>
+        <button
+          on:click={confirmDelete}
+          class="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+          disabled={deleting}
+        >
+          {#if deleting}
+            <Loader2 class="w-4 h-4 animate-spin" />
+          {/if}
+          Delete Clustering
+        </button>
+      </div>
+    </div>
+  </Modal>
 
   {#if loading}
     <div class="text-center py-12 flex items-center justify-center gap-2">

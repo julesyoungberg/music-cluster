@@ -481,6 +481,28 @@ async def get_clustering_by_name(name: str):
     }
 
 
+@app.delete("/api/clusterings/{clustering_id}")
+async def delete_clustering(clustering_id: int):
+    """Delete a clustering and all its clusters."""
+    config = Config()
+    db = Database(config.get_db_path())
+    
+    # Check if clustering exists
+    clustering = db.get_clustering(clustering_id=clustering_id)
+    if not clustering:
+        raise HTTPException(status_code=404, detail="Clustering not found")
+    
+    # Delete clustering (cascade will delete clusters and cluster_members)
+    deleted = db.delete_clustering(clustering_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Clustering not found")
+    
+    return {
+        "clustering_id": clustering_id,
+        "message": f"Clustering '{clustering.get('name', clustering_id)}' deleted successfully"
+    }
+
+
 @app.get("/api/clusters/{cluster_id}")
 async def get_cluster(cluster_id: int, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
     """Get a specific cluster with its tracks (paginated)."""

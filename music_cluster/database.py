@@ -299,6 +299,27 @@ class Database:
             conn.commit()
             return cursor.lastrowid
     
+    def delete_clustering(self, clustering_id: int) -> bool:
+        """Delete a clustering and all its clusters (cascade delete).
+        
+        Args:
+            clustering_id: Clustering ID to delete
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            # Check if clustering exists
+            cursor.execute("SELECT id FROM clusterings WHERE id = ?", (clustering_id,))
+            if not cursor.fetchone():
+                return False
+            
+            # Delete clustering (cascade will delete clusters and cluster_members)
+            cursor.execute("DELETE FROM clusterings WHERE id = ?", (clustering_id,))
+            conn.commit()
+            return True
+    
     def get_clustering(self, clustering_id: Optional[int] = None, name: Optional[str] = None) -> Optional[Dict]:
         """Get clustering by ID or name.
         
