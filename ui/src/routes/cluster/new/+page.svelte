@@ -61,7 +61,10 @@
         bind:value={request.name}
         class="w-full p-2 border rounded-lg bg-background"
         placeholder="Enter clustering name..."
+        aria-required="true"
+        aria-describedby="cluster-name-help"
       />
+      <p id="cluster-name-help" class="text-xs text-muted-foreground mt-1">A unique name for this clustering</p>
     </div>
 
     <div>
@@ -124,6 +127,7 @@
       on:click={createCluster}
       disabled={loading || !request.name}
       class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+      aria-label="Create new clustering"
     >
       {#if loading}
         <Loader2 class="w-4 h-4 animate-spin" />

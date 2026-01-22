@@ -1,12 +1,15 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/services/api';
   import type { Cluster, Track } from '$lib/types';
-  import { CircleDot, Loader2, AlertCircle, Music, ArrowLeft, Edit2, Save, X, Play, Pause, ChevronLeft, ChevronRight, SkipBack, SkipForward } from 'lucide-svelte';
+  import { CircleDot, Music, ArrowLeft, Edit2, Save, X, Play, Pause, ChevronLeft, ChevronRight, SkipBack, SkipForward } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
   import Waveform from '$lib/components/Waveform.svelte';
+  import LoadingState from '$lib/components/LoadingState.svelte';
+  import ErrorState from '$lib/components/ErrorState.svelte';
+  import { useAudioPlayer } from '$lib/composables/useAudioPlayer';
   import { addNotification } from '$lib/stores/notifications';
 
   let editingName = false;
@@ -19,13 +22,24 @@
   let limit = 50;
   let offset = 0;
   let total = 0;
-  let currentTrackId: number | null = null;
-  let audio: HTMLAudioElement | null = null;
-  let playing = false;
-  let currentTime = 0;
-  let duration = 0;
   let waveformData: Map<number, { peaks: number[]; duration: number }> = new Map();
   let loadingWaveforms: Set<number> = new Set();
+
+  // Use audio player composable
+  const audioPlayer = useAudioPlayer(
+    undefined,
+    () => {
+      // Auto-play next track when current ends
+      if (cluster?.tracks) {
+        audioPlayer.playNextTrack(cluster.tracks);
+      }
+    }
+  );
+
+  $: currentTrackId = audioPlayer.currentTrackId;
+  $: playing = audioPlayer.playing;
+  $: currentTime = audioPlayer.currentTime;
+  $: duration = audioPlayer.duration;
 
   $: clusterId = $page.params.id ? parseInt($page.params.id) : 0;
 
@@ -82,56 +96,7 @@
   }
 
   function playTrack(trackId: number) {
-    if (currentTrackId === trackId && audio) {
-      if (playing) {
-        audio.pause();
-        playing = false;
-      } else {
-        audio.play();
-        playing = true;
-      }
-      return;
-    }
-
-    // Stop current track
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-      audio = null;
-    }
-
-    // Start new track
-    currentTrackId = trackId;
-    audio = new Audio(api.getTrackAudioUrl(trackId));
-    
-    audio.addEventListener('loadedmetadata', () => {
-      duration = audio?.duration || 0;
-    });
-    
-    audio.addEventListener('timeupdate', () => {
-      currentTime = audio?.currentTime || 0;
-    });
-    
-    audio.addEventListener('play', () => {
-      playing = true;
-    });
-    
-    audio.addEventListener('pause', () => {
-      playing = false;
-    });
-    
-    audio.addEventListener('ended', () => {
-      playing = false;
-      currentTime = 0;
-      // Auto-play next track
-      playNextTrack();
-    });
-    
-    audio.play().catch(() => {
-      playing = false;
-      currentTrackId = null;
-      audio = null;
-    });
+    audioPlayer.playTrack(trackId);
     
     // Load waveform if not already loaded
     if (!waveformData.has(trackId)) {
@@ -140,55 +105,19 @@
   }
 
   function seekTo(time: number) {
-    if (audio && duration > 0) {
-      audio.currentTime = Math.max(0, Math.min(duration, time));
-    }
-  }
-
-  function playNextTrack() {
-    if (!currentTrackId || !cluster?.tracks || cluster.tracks.length === 0) return;
-    
-    const currentIndex = cluster.tracks.findIndex(t => t.id === currentTrackId);
-    if (currentIndex >= 0 && currentIndex < cluster.tracks.length - 1) {
-      playTrack(cluster.tracks[currentIndex + 1].id);
-    }
-  }
-
-  function playPreviousTrack() {
-    if (!currentTrackId || !cluster?.tracks || cluster.tracks.length === 0) return;
-    
-    const currentIndex = cluster.tracks.findIndex(t => t.id === currentTrackId);
-    if (currentIndex > 0) {
-      playTrack(cluster.tracks[currentIndex - 1].id);
-    } else if (currentIndex === 0 && audio) {
-      // Restart current track if at beginning
-      audio.currentTime = 0;
-    }
+    audioPlayer.seekTo(time);
   }
 
   onMount(() => {
     loadCluster();
   });
-
-  onDestroy(() => {
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-    }
-  });
 </script>
 
 <div class="container mx-auto p-8">
   {#if loading}
-    <div class="text-center py-12 flex items-center justify-center gap-2">
-      <Loader2 class="w-5 h-5 animate-spin" />
-      <span>Loading...</span>
-    </div>
+    <LoadingState message="Loading cluster..." />
   {:else if error}
-    <div class="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2">
-      <AlertCircle class="w-5 h-5" />
-      <span>{error}</span>
-    </div>
+    <ErrorState error={error} onRetry={loadCluster} />
   {:else if cluster}
     <div class="mb-8">
       <button
@@ -283,9 +212,10 @@
               <div class="flex items-center gap-2">
                 {#if currentTrackId === track.id}
                   <button
-                    on:click={playPreviousTrack}
+                    on:click={() => audioPlayer.playPreviousTrack(cluster.tracks || [])}
                     class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
                     title="Previous track"
+                    aria-label="Previous track"
                     disabled={index === 0}
                   >
                     <SkipBack class="w-4 h-4" />
@@ -295,6 +225,7 @@
                   on:click={() => playTrack(track.id)}
                   class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center"
                   title={currentTrackId === track.id && playing ? 'Pause' : 'Play'}
+                  aria-label={currentTrackId === track.id && playing ? 'Pause track' : 'Play track'}
                 >
                   {#if currentTrackId === track.id && playing}
                     <Pause class="w-5 h-5" />
@@ -304,9 +235,10 @@
                 </button>
                 {#if currentTrackId === track.id}
                   <button
-                    on:click={playNextTrack}
+                    on:click={() => audioPlayer.playNextTrack(cluster.tracks || [])}
                     class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
                     title="Next track"
+                    aria-label="Next track"
                     disabled={index === cluster.tracks.length - 1}
                   >
                     <SkipForward class="w-4 h-4" />

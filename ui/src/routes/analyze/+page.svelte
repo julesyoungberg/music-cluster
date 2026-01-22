@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { api } from '$lib/services/api';
   import { activeTasks, updateTask } from '$lib/stores/tasks';
   import type { AnalyzeRequest, TaskStatus } from '$lib/types';
@@ -17,6 +18,7 @@
 
   let taskId: string | null = null;
   let polling = false;
+  let intervalId: ReturnType<typeof setInterval> | null = null;
 
   async function selectDirectory() {
     try {
@@ -54,13 +56,21 @@
   async function pollTaskStatus() {
     if (!taskId) return;
 
-    const interval = setInterval(async () => {
+    // Clear any existing interval
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+
+    intervalId = setInterval(async () => {
       try {
         const status = await api.getTaskStatus(taskId!);
         updateTask(taskId!, status);
 
         if (status.status === 'complete') {
-          clearInterval(interval);
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
           polling = false;
           const analyzed = status.analyzed || status.completed || 0;
           const errors = status.errors || 0;
@@ -70,18 +80,31 @@
             addNotification('success', `Successfully analyzed ${analyzed} tracks`);
           }
         } else if (status.status === 'error') {
-          clearInterval(interval);
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
           polling = false;
           addNotification('error', status.message || 'Analysis failed');
         }
       } catch (e) {
         console.error('Failed to get task status:', e);
-        clearInterval(interval);
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
         polling = false;
         addNotification('error', 'Failed to get task status');
       }
     }, 1000);
   }
+
+  onDestroy(() => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  });
 
   $: taskStatus = taskId ? $activeTasks.get(taskId) : null;
 </script>

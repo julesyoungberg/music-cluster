@@ -3,14 +3,14 @@
   import { api } from '$lib/services/api';
   import { clusterings } from '$lib/stores/clusters';
   import type { DatabaseInfo, Clustering } from '$lib/types';
-  import { Music, CheckCircle2, CircleDot, Loader2, AlertCircle } from 'lucide-svelte';
+  import { Music, CheckCircle2, CircleDot } from 'lucide-svelte';
   import { addNotification } from '$lib/stores/notifications';
+  import LoadingState from '$lib/components/LoadingState.svelte';
+  import ErrorState from '$lib/components/ErrorState.svelte';
 
-  let info: DatabaseInfo | null = null;
-  let loading = true;
-  let error: string | null = null;
-
-  onMount(async () => {
+  let loadData = async () => {
+    loading = true;
+    error = null;
     try {
       info = await api.getInfo();
       const { clusterings: clusteringsList } = await api.getClusterings();
@@ -28,20 +28,22 @@
     } finally {
       loading = false;
     }
+  };
+
+  let info: DatabaseInfo | null = null;
+  let loading = true;
+  let error: string | null = null;
+
+  onMount(() => {
+    loadData();
   });
 </script>
 
 <div class="container mx-auto p-8">
   {#if loading}
-    <div class="text-center py-12 flex items-center justify-center gap-2">
-      <Loader2 class="w-5 h-5 animate-spin" />
-      <span>Loading...</span>
-    </div>
+    <LoadingState message="Loading dashboard..." />
   {:else if error}
-    <div class="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2">
-      <AlertCircle class="w-5 h-5" />
-      <span>Error: {error}</span>
-    </div>
+    <ErrorState error={error} onRetry={loadData} />
   {:else if info}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       <div class="bg-card p-6 rounded-lg border">

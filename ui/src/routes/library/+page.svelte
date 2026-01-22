@@ -1,10 +1,14 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { api } from '$lib/services/api';
   import type { Track } from '$lib/types';
   import { Library, Search, ChevronLeft, ChevronRight, Loader2, Music, Play, Pause, SkipBack, SkipForward } from 'lucide-svelte';
   import TrackArtwork from '$lib/components/TrackArtwork.svelte';
   import Waveform from '$lib/components/Waveform.svelte';
+  import LoadingState from '$lib/components/LoadingState.svelte';
+  import { useAudioPlayer } from '$lib/composables/useAudioPlayer';
+  import { debounce } from '$lib/utils';
+  import { addNotification } from '$lib/stores/notifications';
 
   let tracks: Track[] = [];
   let loading = true;
@@ -12,13 +16,24 @@
   let offset = 0;
   let total = 0;
   let searchQuery = '';
-  let currentTrackId: number | null = null;
-  let audio: HTMLAudioElement | null = null;
-  let playing = false;
-  let currentTime = 0;
-  let duration = 0;
   let waveformData: Map<number, { peaks: number[]; duration: number }> = new Map();
   let loadingWaveforms: Set<number> = new Set();
+
+  // Use audio player composable
+  const audioPlayer = useAudioPlayer(
+    (time) => {
+      // Time update handler - waveform will react to currentTime changes
+    },
+    () => {
+      // Auto-play next track when current ends
+      audioPlayer.playNextTrack(tracks);
+    }
+  );
+
+  $: currentTrackId = audioPlayer.currentTrackId;
+  $: playing = audioPlayer.playing;
+  $: currentTime = audioPlayer.currentTime;
+  $: duration = audioPlayer.duration;
 
   async function loadTracks() {
     loading = true;
@@ -27,15 +42,18 @@
       tracks = result.tracks;
       total = result.total;
     } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to load tracks';
+      addNotification('error', errorMsg);
       console.error('Failed to load tracks:', e);
     } finally {
       loading = false;
     }
   }
 
-  async function search() {
+  async function performSearch() {
     if (!searchQuery.trim()) {
-      loadTracks();
+      offset = 0;
+      await loadTracks();
       return;
     }
     loading = true;
@@ -43,10 +61,26 @@
       const result = await api.search(searchQuery, undefined, limit);
       tracks = result.tracks;
       total = result.total;
+      offset = 0;
     } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to search tracks';
+      addNotification('error', errorMsg);
       console.error('Failed to search:', e);
     } finally {
       loading = false;
+    }
+  }
+
+  // Debounced search
+  const debouncedSearch = debounce(performSearch, 300);
+
+  // Trigger search when query changes
+  $: if (searchQuery !== undefined) {
+    if (searchQuery.trim()) {
+      debouncedSearch();
+    } else {
+      offset = 0;
+      loadTracks();
     }
   }
 
@@ -65,56 +99,7 @@
   }
 
   function playTrack(trackId: number) {
-    if (currentTrackId === trackId && audio) {
-      if (playing) {
-        audio.pause();
-        playing = false;
-      } else {
-        audio.play();
-        playing = true;
-      }
-      return;
-    }
-
-    // Stop current track
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-      audio = null;
-    }
-
-    // Start new track
-    currentTrackId = trackId;
-    audio = new Audio(api.getTrackAudioUrl(trackId));
-    
-    audio.addEventListener('loadedmetadata', () => {
-      duration = audio?.duration || 0;
-    });
-    
-    audio.addEventListener('timeupdate', () => {
-      currentTime = audio?.currentTime || 0;
-    });
-    
-    audio.addEventListener('play', () => {
-      playing = true;
-    });
-    
-    audio.addEventListener('pause', () => {
-      playing = false;
-    });
-    
-    audio.addEventListener('ended', () => {
-      playing = false;
-      currentTime = 0;
-      // Auto-play next track
-      playNextTrack();
-    });
-    
-    audio.play().catch(() => {
-      playing = false;
-      currentTrackId = null;
-      audio = null;
-    });
+    audioPlayer.playTrack(trackId);
     
     // Load waveform if not already loaded
     if (!waveformData.has(trackId)) {
@@ -123,41 +108,11 @@
   }
 
   function seekTo(time: number) {
-    if (audio && duration > 0) {
-      audio.currentTime = Math.max(0, Math.min(duration, time));
-    }
-  }
-
-  function playNextTrack() {
-    if (!currentTrackId || tracks.length === 0) return;
-    
-    const currentIndex = tracks.findIndex(t => t.id === currentTrackId);
-    if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
-      playTrack(tracks[currentIndex + 1].id);
-    }
-  }
-
-  function playPreviousTrack() {
-    if (!currentTrackId || tracks.length === 0) return;
-    
-    const currentIndex = tracks.findIndex(t => t.id === currentTrackId);
-    if (currentIndex > 0) {
-      playTrack(tracks[currentIndex - 1].id);
-    } else if (currentIndex === 0 && audio) {
-      // Restart current track if at beginning
-      audio.currentTime = 0;
-    }
+    audioPlayer.seekTo(time);
   }
 
   onMount(() => {
     loadTracks();
-  });
-
-  onDestroy(() => {
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-    }
   });
 </script>
 
@@ -174,26 +129,16 @@
         <input
           type="text"
           bind:value={searchQuery}
-          on:keydown={(e) => e.key === 'Enter' && search()}
           placeholder="Search tracks..."
           class="w-full pl-10 pr-4 py-2 border rounded-lg bg-background"
+          aria-label="Search tracks"
         />
       </div>
-      <button
-        on:click={search}
-        class="px-4 py-2 bg-primary text-primary-foreground rounded-lg flex items-center gap-2 hover:opacity-90 transition-opacity"
-      >
-        <Search class="w-4 h-4" />
-        Search
-      </button>
     </div>
   </div>
 
   {#if loading}
-    <div class="text-center py-12 flex items-center justify-center gap-2">
-      <Loader2 class="w-5 h-5 animate-spin" />
-      <span>Loading...</span>
-    </div>
+    <LoadingState message="Loading tracks..." />
   {:else if tracks.length > 0}
     <div class="space-y-2">
       {#each tracks as track, index (track.id)}
@@ -228,9 +173,10 @@
             <div class="flex items-center gap-2">
               {#if currentTrackId === track.id}
                 <button
-                  on:click={playPreviousTrack}
+                  on:click={() => audioPlayer.playPreviousTrack(tracks)}
                   class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
                   title="Previous track"
+                  aria-label="Previous track"
                   disabled={index === 0}
                 >
                   <SkipBack class="w-4 h-4" />
@@ -240,6 +186,7 @@
                 on:click={() => playTrack(track.id)}
                 class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center"
                 title={currentTrackId === track.id && playing ? 'Pause' : 'Play'}
+                aria-label={currentTrackId === track.id && playing ? 'Pause track' : 'Play track'}
               >
                 {#if currentTrackId === track.id && playing}
                   <Pause class="w-5 h-5" />
@@ -249,9 +196,10 @@
               </button>
               {#if currentTrackId === track.id}
                 <button
-                  on:click={playNextTrack}
+                  on:click={() => audioPlayer.playNextTrack(tracks)}
                   class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
                   title="Next track"
+                  aria-label="Next track"
                   disabled={index === tracks.length - 1}
                 >
                   <SkipForward class="w-4 h-4" />
