@@ -11,6 +11,7 @@
   import ErrorState from '$lib/components/ErrorState.svelte';
   import { useAudioPlayer } from '$lib/composables/useAudioPlayer';
   import { addNotification } from '$lib/stores/notifications';
+  import { resourceManager } from '$lib/services/resourceManager';
 
   let editingName = false;
   let editedName = '';
@@ -23,7 +24,6 @@
   let offset = 0;
   let total = 0;
   let waveformData: Map<number, { peaks: number[]; duration: number }> = new Map();
-  let loadingWaveforms: Set<number> = new Set();
 
   // Use audio player composable
   const audioPlayer = useAudioPlayer(
@@ -36,10 +36,8 @@
     }
   );
 
-  $: currentTrackId = audioPlayer.currentTrackId;
-  $: playing = audioPlayer.playing;
-  $: currentTime = audioPlayer.currentTime;
-  $: duration = audioPlayer.duration;
+  // Use stores directly (they're reactive)
+  const { currentTrackId, playing, currentTime, duration } = audioPlayer;
 
   $: clusterId = $page.params.id ? parseInt($page.params.id) : 0;
 
@@ -82,23 +80,50 @@
   }
 
   async function loadWaveform(trackId: number) {
-    if (waveformData.has(trackId) || loadingWaveforms.has(trackId)) return;
+    if (waveformData.has(trackId)) return;
     
-    loadingWaveforms.add(trackId);
-    try {
-      const data = await api.getTrackWaveform(trackId, 200);
+    const data = await resourceManager.getWaveform(trackId, 200);
+    if (data) {
+      waveformData = new Map(waveformData); // Create new Map to trigger reactivity
       waveformData.set(trackId, { peaks: data.peaks, duration: data.duration });
+    }
+  }
+
+  // Preload resources for all visible tracks
+  async function preloadResources(trackList: Track[]) {
+    const trackIds = trackList.map(t => t.id);
+    
+    // Preload artwork in background (batched, 10 concurrent)
+    resourceManager.preloadArtwork(trackIds, 10);
+    
+    // Preload waveforms for all tracks (batched, 5 concurrent)
+    // This ensures waveforms are visible for all tracks like SoundCloud/Rekordbox
+    try {
+      const waveformResults = await resourceManager.batchLoadWaveforms(trackIds, 200, 5);
+      
+      // Update waveform data (create new Map to trigger reactivity)
+      const newWaveformData = new Map(waveformData);
+      waveformResults.forEach((data, trackId) => {
+        if (data && data.peaks && data.peaks.length > 0) {
+          // Debug: check if peaks are valid
+          const maxPeak = Math.max(...data.peaks);
+          if (maxPeak > 0) {
+            newWaveformData.set(trackId, { peaks: data.peaks, duration: data.duration });
+          } else {
+            console.warn(`Track ${trackId} has zero peaks`);
+          }
+        }
+      });
+      waveformData = newWaveformData;
     } catch (e) {
-      console.error('Failed to load waveform:', e);
-    } finally {
-      loadingWaveforms.delete(trackId);
+      console.error('Error preloading waveforms:', e);
     }
   }
 
   function playTrack(trackId: number) {
     audioPlayer.playTrack(trackId);
     
-    // Load waveform if not already loaded
+    // Load waveform if not already loaded (will use resource manager's deduplication)
     if (!waveformData.has(trackId)) {
       loadWaveform(trackId);
     }
@@ -107,6 +132,15 @@
   function seekTo(time: number) {
     audioPlayer.seekTo(time);
   }
+
+  // Preload resources when cluster tracks change
+  $: if (cluster?.tracks && cluster.tracks.length > 0 && !loading) {
+    // Trigger preload
+    preloadResources(cluster.tracks);
+  }
+  
+  // Make waveformData reactive by watching it
+  $: waveformData; // This ensures UI updates when Map changes
 
   onMount(() => {
     loadCluster();
@@ -186,60 +220,76 @@
           Tracks
         </h2>
         {#each cluster.tracks as track, index (track.id)}
-          <div class="bg-card p-4 rounded-lg border hover:border-primary transition-colors {currentTrackId === track.id ? 'border-primary' : ''}">
+          <div class="bg-card p-4 rounded-lg border hover:border-primary transition-colors {$currentTrackId === track.id ? 'border-primary' : ''}">
             <div class="flex items-center gap-4">
               <TrackArtwork track={track} size={64} />
               <div class="flex-1 min-w-0">
                 <p class="font-medium truncate">{track.filename}</p>
                 <p class="text-sm text-muted-foreground truncate">{track.filepath}</p>
                 
-                {#if currentTrackId === track.id && waveformData.has(track.id)}
-                  <div class="mt-2">
+                <!-- Show waveform for all tracks (SoundCloud/Rekordbox style) -->
+                <div class="mt-2">
+                  {#if waveformData.has(track.id)}
                     <Waveform
                       peaks={waveformData.get(track.id)!.peaks}
                       duration={waveformData.get(track.id)!.duration}
-                      currentTime={currentTime}
+                      currentTime={$currentTrackId === track.id ? $currentTime : 0}
                       height={30}
-                      on:seek={(e: CustomEvent<number>) => seekTo(e.detail)}
+                      on:seek={(e) => {
+                        if ($currentTrackId === track.id) {
+                          // If already playing, seek
+                          seekTo(e.detail);
+                        } else {
+                          // If not playing, start playing from that position
+                          playTrack(track.id);
+                          // Small delay to ensure audio is loaded before seeking
+                          setTimeout(() => seekTo(e.detail), 100);
+                        }
+                      }}
                     />
-                  </div>
-                {:else if currentTrackId === track.id}
-                  <div class="mt-2 h-[30px] flex items-center justify-center">
-                    <Loader2 class="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                {/if}
+                  {:else if resourceManager.isLoadingWaveform(track.id)}
+                    <div class="h-[30px] flex items-center justify-center bg-secondary/50 rounded">
+                      <Loader2 class="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  {:else}
+                    <div class="h-[30px] bg-secondary/30 rounded flex items-center justify-center">
+                      <Music class="w-4 h-4 text-muted-foreground opacity-50" />
+                    </div>
+                  {/if}
+                </div>
               </div>
               <div class="flex items-center gap-2">
-                {#if currentTrackId === track.id}
+                <!-- Show skip buttons when any track is playing -->
+                {#if $currentTrackId}
                   <button
                     on:click={() => audioPlayer.playPreviousTrack(cluster.tracks || [])}
-                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
+                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors {$currentTrackId === track.id && index === 0 ? 'opacity-50' : ''}"
                     title="Previous track"
                     aria-label="Previous track"
-                    disabled={index === 0}
+                    disabled={$currentTrackId === track.id && index === 0}
                   >
                     <SkipBack class="w-4 h-4" />
                   </button>
                 {/if}
                 <button
                   on:click={() => playTrack(track.id)}
-                  class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center"
-                  title={currentTrackId === track.id && playing ? 'Pause' : 'Play'}
-                  aria-label={currentTrackId === track.id && playing ? 'Pause track' : 'Play track'}
+                  class="p-3 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity flex items-center justify-center {$currentTrackId === track.id ? 'ring-2 ring-primary ring-offset-2' : ''}"
+                  title={$currentTrackId === track.id && $playing ? 'Pause' : 'Play'}
+                  aria-label={$currentTrackId === track.id && $playing ? 'Pause track' : 'Play track'}
                 >
-                  {#if currentTrackId === track.id && playing}
+                  {#if $currentTrackId === track.id && $playing}
                     <Pause class="w-5 h-5" />
                   {:else}
                     <Play class="w-5 h-5" />
                   {/if}
                 </button>
-                {#if currentTrackId === track.id}
+                {#if $currentTrackId}
                   <button
                     on:click={() => audioPlayer.playNextTrack(cluster.tracks || [])}
-                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
+                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors {$currentTrackId === track.id && index === cluster.tracks.length - 1 ? 'opacity-50' : ''}"
                     title="Next track"
                     aria-label="Next track"
-                    disabled={index === cluster.tracks.length - 1}
+                    disabled={$currentTrackId === track.id && index === cluster.tracks.length - 1}
                   >
                     <SkipForward class="w-4 h-4" />
                   </button>
