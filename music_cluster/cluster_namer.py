@@ -13,13 +13,13 @@ class ClusterNamer:
     # Rhythmic features at the end: BPM, onset strength stats, then high-level features
     BPM_INDEX = -10  # BPM is 10th from the end in feature vector
     
-    def __init__(self, include_genre: bool = True, include_bpm: bool = True, 
+    def __init__(self, include_genre: bool = True, include_bpm: bool = False, 
                  use_bpm_range: bool = True, include_descriptors: bool = True):
         """Initialize cluster namer.
         
         Args:
             include_genre: Include genre classification in names
-            include_bpm: Include BPM information in names
+            include_bpm: Include BPM information in names (default: False)
             use_bpm_range: Use BPM range instead of average (e.g., "120-130 BPM")
             include_descriptors: Include characteristic descriptors (Bass-Heavy, Dark, etc.)
         """

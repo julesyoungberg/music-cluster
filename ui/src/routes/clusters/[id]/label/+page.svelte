@@ -13,7 +13,7 @@
   let labeling = false;
   let options = {
     no_genre: false,
-    no_bpm: false,
+    no_bpm: false,  // Default to including BPM (matches API default: LabelClustersRequest.no_bpm = False)
     no_descriptors: false,
     bpm_average: false,
     dry_run: false
@@ -76,7 +76,7 @@
     </h1>
     {#if clustering}
       <p class="text-muted-foreground">
-        Auto-generate descriptive names for clusters in "{clustering.name || `Clustering ${clustering.id}`}" based on genre, BPM, and characteristics
+        Auto-generate descriptive names for clusters in "{clustering.name || `Clustering ${clustering.id}`}" based on subgenre and characteristics
       </p>
     {/if}
   </div>
