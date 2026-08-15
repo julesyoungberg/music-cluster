@@ -1,178 +1,96 @@
-# Installation Guide
+# Installation
 
 ## Prerequisites
 
-- Python 3.9 or higher
-- pip (Python package installer)
-- FFmpeg (for audio file decoding)
+- Python 3.10 or newer
+- FFmpeg, for decoding audio
+- Node.js 18+, only if you want the desktop UI
 
-### Installing FFmpeg
+### FFmpeg
 
-**macOS:**
 ```bash
-brew install ffmpeg
+brew install ffmpeg              # macOS
+sudo apt-get install ffmpeg      # Debian / Ubuntu
+winget install ffmpeg            # Windows
 ```
 
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install ffmpeg
-```
+Check it with `ffmpeg -version`.
 
-**Windows:**
-Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
-
-## Installation Steps
-
-### 1. Clone or Download the Repository
+## Install
 
 ```bash
-cd ~/workspace
-git clone https://github.com/yourusername/music-cluster.git
+git clone https://github.com/julesyoungberg/music-cluster.git
 cd music-cluster
-```
 
-### 2. Create a Virtual Environment (Recommended)
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-This will install:
-- librosa (audio feature extraction)
-- scikit-learn (machine learning)
-- numpy (numerical computing)
-- click (CLI framework)
-- tqdm (progress bars)
-- soundfile (audio I/O)
-- pyyaml (configuration)
-
-### 4. Install the Package
-
-```bash
 pip install -e .
-```
 
-The `-e` flag installs in "editable" mode, allowing you to modify the code. This also installs the `music-cluster` command so you can run it directly from anywhere.
-
-**What this does:**
-- Installs all required dependencies (librosa, scikit-learn, numpy, etc.)
-- Creates the `music-cluster` command in your PATH
-- Links the code so changes are immediately reflected without reinstalling
-
-### 5. Verify the Command is Installed
-
-Check that the `music-cluster` command works:
-
-```bash
-music-cluster --version
-```
-
-You should see:
-```
-music-cluster, version 1.0.0
-```
-
-You can also verify imports:
-
-```bash
-python test_imports.py
-```
-
-You should see:
-```
-Testing imports...
-✓ config module
-✓ database module
-✓ utils module
-✓ features module
-✓ clustering module
-✓ classifier module
-✓ exporter module
-
-✓ All core modules imported successfully!
-```
-
-### 6. Initialize the Tool
-
-Now you can use the `music-cluster` command directly:
-
-```bash
 music-cluster init
 ```
 
-**Alternative:** If the command isn't in your PATH, you can always use:
+`init` creates `~/.music-cluster/library.db` and `~/.music-cluster/config.yaml`.
+Both locations can be changed in the config, or overridden per run with the
+`MUSIC_CLUSTER_DB` and `MUSIC_CLUSTER_CONFIG` environment variables — useful for
+keeping a separate database per DJ setup.
+
+## Desktop UI
+
 ```bash
-python -m music_cluster.cli init
+cd ui && npm install && cd ..
+python start-dev.py
 ```
 
-This creates:
-- Configuration file at `~/.music-cluster/config.yaml`
-- Database at `~/.music-cluster/library.db`
+The UI runs at <http://localhost:1420> and the API at <http://localhost:8000>
+(interactive docs at `/docs`). For the native shell, `python start-dev.py --tauri`
+— that also needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+for your platform.
+
+To build a distributable app:
+
+```bash
+cd ui && npm run tauri:build
+```
+
+## Optional extras
+
+```bash
+pip install anthropic        # LLM-suggested names for discovered groups
+pip install -r requirements-dev.txt   # tests
+```
 
 ## Troubleshooting
 
-### Command Not Found
+**`command not found: music-cluster`** — activate the virtualenv, or use
+`python -m music_cluster.cli` instead. Reinstall with `pip install -e .` if it
+persists.
 
-If you get `command not found: music-cluster` after installation:
+**Audio files fail to analyse** — almost always missing FFmpeg. Check
+`ffmpeg -version`. A handful of failures out of thousands usually means those
+specific files are corrupt; `music-cluster analyze` reports each one.
 
-1. **Make sure you're in the virtual environment:**
-   ```bash
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+**Analysis is slow** — it is roughly a second per track and runs on every core.
+Lower `feature_extraction.excerpt_seconds` (default 90) to trade accuracy for
+speed. Analysis happens once per track; sorting afterwards is instant.
 
-2. **Check if the package is installed:**
-   ```bash
-   pip list | grep music-cluster
-   ```
-   You should see: `music-cluster 1.0.0`
+**Memory pressure on a very large library** — run with `--workers 2` to cap
+parallelism, or analyse in chunks. Fitting holds only the reference tracks in
+memory, not the whole library.
 
-3. **Verify the script location:**
-   ```bash
-   which music-cluster  # On macOS/Linux
-   where music-cluster  # On Windows
-   ```
+**"Need at least two groups with reference tracks"** — a collection needs two
+non-empty groups before it can be fitted. `music-cluster groups list` shows
+which are empty.
 
-4. **If still not found, use the module syntax instead:**
-   ```bash
-   python -m music_cluster.cli --version
-   ```
+**The UI says it cannot reach the API** — start it with `python start-dev.py`,
+or run `uvicorn music_cluster.api:app --port 8000` yourself. If you moved the
+API to another port, set `VITE_API_BASE` when running the UI.
 
-5. **Try reinstalling:**
-   ```bash
-   pip uninstall music-cluster
-   pip install -e .
-   ```
+## Upgrading from 1.x
 
-### Import Errors
-
-If you see import errors, make sure you're in the virtual environment and all dependencies are installed:
-
-```bash
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Audio Loading Issues
-
-If you get errors loading audio files:
-1. Make sure FFmpeg is installed
-2. Try a different audio file format
-3. Check that the audio file isn't corrupted
-
-### Memory Issues
-
-If analyzing large libraries causes memory issues:
-- Use the `--workers 1` flag to disable parallel processing
-- Reduce `--batch-size` to a smaller number
-- Analyze your library in smaller chunks
-
-## Next Steps
-
-Once installed, proceed to the README.md for usage examples and workflow documentation.
+The clustering-era database is migrated automatically on first use: analysed
+features are converted and kept, and the old clustering tables are dropped. Your
+previous clusterings are not carried over — they were anonymous groupings, and
+the new workflow is built on groups you name. Import your folders with
+`music-cluster groups import-tree` and re-fit; no re-analysis is needed.

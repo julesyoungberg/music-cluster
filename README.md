@@ -1,354 +1,225 @@
-# Music Cluster
+# music-cluster
 
-A Python-based CLI tool for analyzing, clustering, and classifying music tracks using audio feature extraction and machine learning.
+Sort new music into the folders you already keep.
 
-## Features
+You buy fifteen tracks, and now you have to decide which crate each one goes in.
+music-cluster learns what your existing genre folders sound like and, for every
+new track, tells you where it thinks it belongs and how sure it is. You listen,
+you decide, and it files the results.
 
-- **Comprehensive Audio Analysis**: Extracts timbral, rhythmic (BPM), harmonic, and loudness features
-- **Multiple Clustering Algorithms**: K-means, Hierarchical (Ward linkage), and HDBSCAN (density-based)
-- **Genre-Aware Naming**: Auto-generates cluster names with genre, BPM, and characteristics
-- **Flexible Naming Schemes**: Configure what to include in names (genre, BPM, descriptors)
-- **Smart Search**: Find tracks and see which clusters they belong to
-- **Fast Classification**: Classify new tracks in < 1 second
-- **Playlist Generation**: Export clusters as M3U playlists with representative tracks
-- **Detailed Statistics**: View cluster size distributions, quality metrics, and more
+**You define the groups.** The tool never invents a category and never moves a
+file you have not confirmed.
 
-## Installation
+## The two workflows
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/music-cluster.git
-cd music-cluster
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install the package
-pip install -e .
-```
-
-## Quick Start
-
-```bash
-# 1. Initialize the database
-music-cluster init
-
-# 2. Analyze your music library (extracts BPM, energy, spectral features, etc.)
-music-cluster analyze ~/Music/techno --recursive
-
-# 3. Create fine-grained clusters
-music-cluster cluster --name techno_detailed --clusters 15 --show-metrics
-
-# 4. Auto-label clusters with genres and BPM ranges
-music-cluster label-clusters techno_detailed
-
-# 5. View your organized clusters
-music-cluster show techno_detailed
-
-# 6. Search for specific artists
-music-cluster search "Aphex Twin" --clustering techno_detailed
-
-# 7. View detailed statistics
-music-cluster stats techno_detailed
-
-# 8. Export as playlists
-music-cluster export --output ~/Music/playlists
-
-# 9. Classify new tracks
-music-cluster classify ~/Downloads/NewAlbum --recursive
-```
-
-**Note:** If the `music-cluster` command isn't found, make sure you've installed the package with `pip install -e .` (see [INSTALL.md](INSTALL.md)). You can also use `python -m music_cluster.cli` instead of `music-cluster`.
-
-## Desktop UI
-
-Music Cluster includes a modern desktop GUI built with Tauri and Svelte.
-
-### Quick Start (Single Command)
-
-Start both the API server and UI with one command:
-
-**Option 1: Shell script (macOS/Linux)**
-```bash
-./start-dev.sh
-```
-
-**Option 2: Python script (Cross-platform)**
-```bash
-python start-dev.py
-```
-
-**Option 3: npm script (from ui directory)**
-```bash
-cd ui
-npm install  # First time only
-npm run start:all
-```
-
-### Manual Start
-
-1. **Start the API server:**
-   ```bash
-   uvicorn music_cluster.api:app --reload --port 8000
-   ```
-
-2. **In a separate terminal, start the UI:**
-   ```bash
-   cd ui
-   npm install
-   npm run dev
-   ```
-
-3. **Or run as a Tauri desktop app:**
-   ```bash
-   cd ui
-   npm install
-   npm run tauri:dev
-   ```
-
-### Building the Desktop App
-
-```bash
-cd ui
-npm install
-npm run tauri:build
-```
-
-This creates native executables in `src-tauri/target/release/bundle/`.
-
-## Usage
-
-### Initialize
-
-Create the database and configuration file:
+**I already have folders.** Point it at the parent of your genre folders. Each
+subfolder becomes a group, with itself as the destination for new music. Then
+sort a folder of new buys against them.
 
 ```bash
 music-cluster init
+music-cluster groups import-tree ~/Music/DJ    # each subfolder becomes a group
+music-cluster fit                              # learn what each one contains
+music-cluster check                            # are they actually distinguishable?
+
+music-cluster sort ~/Downloads/NewMusic        # score, then review interactively
+music-cluster apply 1 --mode copy              # write it to disk
 ```
 
-### Analyze Music Library
-
-Extract audio features from your music collection:
+**I have one big unsorted pile.** Discovery breaks it into candidate piles, each
+with a handful of representative tracks to audition. You keep the ones that are
+real, name them, and throw away the rest — then sort against them like any other
+groups.
 
 ```bash
-# Analyze a directory recursively
-music-cluster analyze ~/Music --recursive
-
-# Analyze specific file types
-music-cluster analyze ~/Music -r --extensions mp3,flac,wav
-
-# Re-analyze existing tracks
-music-cluster analyze ~/Music -r --update
-
-# Use multiple workers for faster processing
-music-cluster analyze ~/Music -r --workers 8
+music-cluster discover ~/Music/Unsorted        # propose candidate groups
+music-cluster candidates 1                     # audition, name, keep or discard
+music-cluster fit
 ```
 
-### Create Clusters
+Nothing becomes a group until you say so.
 
-Cluster your music by similarity:
+## Desktop app
+
+The same workflow with audio previews and waveforms, which is what you actually
+want when deciding whether a track is deep house or tech house.
 
 ```bash
-# Auto-detect optimal number of clusters (k-means)
-music-cluster cluster --name "auto_2024" --show-metrics
-
-# Use different algorithms
-music-cluster cluster --name "hierarchical_test" --algorithm hierarchical --clusters 10
-music-cluster cluster --name "density_based" --algorithm hdbscan --min-size 20
-
-# Use granularity control for intuitive adjustment
-music-cluster cluster --granularity fewer    # Broader clusters
-music-cluster cluster --granularity more     # More specific clusters
-music-cluster cluster --granularity finer    # Very fine-grained clusters
-
-# Specify exact number of clusters
-music-cluster cluster --clusters 25 --show-metrics
+python start-dev.py        # API + UI at http://localhost:1420
+python start-dev.py --tauri
 ```
 
-### Label Clusters
+The review screen plays each track, shows the ranked groups with confidence
+bars, and takes `1`–`5` to file, `s` to skip, `g` to pick any group. Committing
+shows exactly what would be written before anything is.
 
-Auto-generate descriptive names with genre classification:
+## How the sorting works
+
+Your folders are the training data. That is the whole idea, and it is what makes
+this different from clustering a library and hoping the results mean something.
+
+1. **Features.** Every track gets a 96-dimension vector: MFCCs and spectral
+   shape (timbre), tempo and onset statistics (rhythm), chroma (harmony), RMS
+   and dynamics. Tags — artist, title, genre, BPM, key — are read at the same
+   time.
+
+2. **A space tuned to your boundaries.** Reference tracks carry group labels, so
+   the feature space is fitted with LDA, which finds the directions that
+   separate *your* groups, blended with PCA components that preserve general
+   audio structure. Pure LDA would flatten everything onto `n_groups − 1` axes
+   and lose the ability to notice a track that resembles nothing you own.
+
+3. **Fair comparison across group sizes.** A track's distance to a group blends
+   its *k* nearest references (handles a folder containing several distinct
+   sounds) with the group centroid (stable for a group of eight), then divides
+   by that group's own internal spread. Without that last step a sprawling
+   900-track folder wins everything and an 8-track crate never wins anything.
+
+4. **A decision, with a confidence.** Scores across groups yield a confidence
+   and a top-1/top-2 margin. Clear the thresholds and a track can be auto-filed;
+   otherwise it goes to your queue. Too far from everything and it is reported
+   as matching nothing rather than forced into the least-bad group.
+
+5. **Learning.** Tracks you file become references for that group, so the sorter
+   follows your taste as it drifts. Turn it off if you would rather curate your
+   reference sets by hand.
+
+### Checking your own folders
+
+`music-cluster check` re-sorts every reference track with itself hidden from its
+own group and reports what came back where.
+
+```
+Group                             Tracks  Correct  Accuracy
+Deep House                           412      381       92%
+Tech House                           288      201       70%
+Minimal                              156       94       60%
+
+Most easily confused:
+    52 tracks from 'Minimal' look like 'Tech House' (33%)
+```
+
+That is useful information about your library, not just about the tool: two
+folders that overlap this much are either the same folder or need clearer
+examples of what separates them.
+
+## Filing
+
+Four modes, all with a dry run first and an undo afterwards:
+
+| Mode | What it does |
+| --- | --- |
+| `playlist` | Writes one M3U per group. Nothing on disk moves. |
+| `copy` | Copies into the group's destination folder. |
+| `move` | Moves the file, and follows it in the library. |
+| `symlink` | Links it into the folder, original stays put. |
 
 ```bash
-# Generate names with genre, BPM ranges, and characteristics
-music-cluster label-clusters my_clustering
-
-# Preview names before applying (dry run)
-music-cluster label-clusters my_clustering --dry-run
-
-# Customize naming scheme
-music-cluster label-clusters my_clustering --no-bpm          # Skip BPM
-music-cluster label-clusters my_clustering --bpm-average     # Use average instead of range
-music-cluster label-clusters my_clustering --no-descriptors  # Just genre + BPM
-
-# Manually rename specific clusters
-music-cluster rename-cluster my_clustering 5 "Deep Minimal Techno"
+music-cluster apply 3 --mode move --dry-run   # show the plan and stop
+music-cluster apply 3 --mode move             # confirm, then do it
+music-cluster undo 3                          # put everything back
 ```
 
-**Example Generated Names:**
-- `Tech House 95-145 BPM Complex`
-- `Techno 130 BPM Bass-Heavy`
-- `Deep House 120-125 BPM Dark`
-- `Drum & Bass 160-170 BPM Bright`
+Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 
-### Search and Explore
+## Commands
 
-Find tracks and analyze your collection:
+| | |
+| --- | --- |
+| `init` | Create the database and config |
+| `analyze PATH` | Extract features without sorting |
+| `groups import-tree PARENT` | Import every subfolder as a group |
+| `groups add NAME --folder/--playlist/--track` | Build a group from a folder, playlist, or seed tracks |
+| `groups list` / `show` / `rename` / `set-destination` / `remove` | Manage groups |
+| `groups export` | One playlist per group |
+| `fit` | Learn the groups |
+| `check` | Per-group accuracy and overlap |
+| `sort PATH` | Score new music, then review |
+| `review ID` / `sessions` | Resume or list review sessions |
+| `apply ID` / `undo ID` | Write decisions to disk, or reverse them |
+| `discover PATH` / `candidates ID` | Propose and review candidate groups |
+| `similar QUERY` | Find tracks that sound like one you name |
+| `search QUERY` | Search the library and show group membership |
+| `config --set KEY=VALUE` | Read or change settings |
 
-```bash
-# Search for tracks by artist or name
-music-cluster search "K-LONE" --clustering my_clustering
-
-# View detailed statistics
-music-cluster stats my_clustering
-
-# Compare two clusterings side-by-side
-music-cluster compare clustering1 clustering2
-
-# View tracks in a specific cluster
-music-cluster describe 42
-```
-
-### Export Playlists
-
-Generate M3U playlists from clusters:
-
-```bash
-# Export to default location (./playlists)
-music-cluster export
-
-# Export to specific directory
-music-cluster export --output ~/Music/Playlists/Clusters
-
-# Use relative paths in playlists
-music-cluster export --relative-paths
-
-# Export as JSON
-music-cluster export --format json
-```
-
-### Classify New Tracks
-
-Quickly classify new music:
-
-```bash
-# Classify a single track
-music-cluster classify ~/Downloads/new_song.mp3
-
-# Classify an entire directory
-music-cluster classify ~/Downloads/NewAlbum --recursive
-
-# Add classified tracks to existing playlists
-music-cluster classify ~/Downloads/NewAlbum -r --export
-```
-
-### View Information
-
-Inspect your database and clusters:
-
-```bash
-# Show database statistics
-music-cluster info
-
-# List all clusterings
-music-cluster list
-
-# Show clusters in a specific clustering
-music-cluster show my_clusters
-
-# Show tracks in a specific cluster
-music-cluster describe 5
-```
+Add `--collection NAME` to work with more than one sorting scheme.
 
 ## Configuration
 
-Configuration file location: `~/.music-cluster/config.yaml`
+`~/.music-cluster/config.yaml`, or the Settings screen. Everything is
+adjustable; the settings that matter most:
 
 ```yaml
-database:
-  path: ~/.music-cluster/library.db
+sorting:
+  auto_accept_confidence: 0.6   # how sure before a track can be auto-filed
+  min_margin: 0.08              # how far ahead of the runner-up
+  novelty_factor: 3.0           # beyond this, report "matches nothing"
+  neighbors: 5                  # references compared against per group
+  knn_weight: 0.7               # 1.0 = nearest tracks only, 0 = centroid only
+  discriminant_weight: 0.7      # focus on your boundaries vs general character
+  feature_weights:              # what "similar" means to you
+    timbre: 1.0
+    rhythm: 1.0                 # raise if BPM is what your folders follow
+    harmony: 1.0
+    dynamics: 1.0
+  learn_on_commit: true
+
+organize:
+  mode: playlist                # default filing mode
+  on_conflict: skip
 
 feature_extraction:
-  sample_rate: 44100
-  frame_size: 2048
-  hop_size: 1024
-  mfcc_coefficients: 20
-  analysis_version: "1.0.0"
-
-clustering:
-  default_algorithm: kmeans
-  auto_detect_k: true
-  default_granularity: normal
-  min_clusters: 5
-  max_clusters: 100
-  min_cluster_size: 3
-  detection_method: silhouette
-
-export:
-  playlist_format: m3u
-  relative_paths: false
-  include_representative: true
-
-performance:
-  batch_size: 100
-  num_workers: -1  # -1 = use all CPUs
-  cache_features: true
+  excerpt_seconds: 90           # analyse the middle 90s; 0 for the whole file
 ```
 
-## How It Works
+Changing anything under `sorting` or `feature_extraction` means re-running
+`fit` (and re-analysing, for the latter).
 
-1. **Feature Extraction**: Analyzes audio files using librosa to extract ~96 dimensional feature vectors including:
-   - Timbral features (MFCCs, spectral centroid, rolloff, contrast, zero-crossing rate)
-   - Rhythmic features (BPM/tempo, onset strength statistics)
-   - Harmonic features (chroma/pitch class profile)
-   - Dynamic features (RMS energy, spectral bandwidth)
+### Optional: LLM naming
 
-2. **Clustering**: Supports multiple algorithms:
-   - **K-means**: Fast, works well with spherical clusters
-   - **Hierarchical (Ward)**: Better for nested/hierarchical structures
-   - **HDBSCAN**: Density-based, finds clusters of varying densities without specifying count
+Discovery can ask an LLM to name candidate groups. It is off by default, and
+only track metadata — artist, title, genre tag, tempo — is ever sent; never
+audio.
 
-3. **Genre Classification**: Uses BPM, bass presence, energy, and spectral characteristics to classify:
-   - Electronic/Dance: Techno, House, Tech House, Deep House, Drum & Bass, Dubstep, etc.
-   - Auto-generates descriptive names with configurable schemes
+```bash
+pip install anthropic
+export ANTHROPIC_API_KEY=...
+music-cluster config --set labeling.llm_enabled=true
+music-cluster discover ~/Music/Unsorted --llm
+```
 
-4. **Classification**: New tracks are classified by finding the nearest cluster centroid in feature space
+Without it, names come from genre tags, tempo, and measured audio character.
 
-5. **Export**: Generates M3U playlists with representative tracks that best represent each cluster
+## Installation
+
+Python 3.10+ and FFmpeg. See [INSTALL.md](INSTALL.md) for details.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+```
 
 ## Performance
 
-- **Analysis**: ~1-2 seconds per track
-- **10,000 track library**: 3-5 hours initial analysis (with multiprocessing)
-- **Clustering**: Minutes for large libraries
-- **Classification**: < 1 second per track
-- **Storage**: ~1-2 KB per track
+- Analysis: roughly a second per track with the default 90-second excerpt,
+  across all CPU cores. A 10,000-track library takes well under an hour.
+- Fitting: seconds.
+- Sorting an already-analysed track: instant. The cost is analysis, once.
+- Storage: about 1 KB per track.
 
-## Supported Audio Formats
+Formats: anything FFmpeg decodes — MP3, FLAC, WAV, AIFF, M4A/ALAC, OGG, Opus,
+AAC, WMA, APE, WavPack. See [FORMATS.md](FORMATS.md).
 
-The tool supports **all audio formats that FFmpeg can decode**, including:
+## Development
 
-**Compressed formats:**
-- MP3, AAC, M4A, OGG (Vorbis), Opus, WMA
+```bash
+pip install -r requirements-dev.txt
+pytest
 
-**Lossless formats:**
-- FLAC, WAV, AIFF/AIF, APE (Monkey's Audio), ALAC (Apple Lossless), WavPack (WV)
-
-**Mixed format libraries are fully supported** - you can analyze collections with different file types together.
-
-## Requirements
-
-- Python 3.9+
-- FFmpeg (for audio decoding)
+cd ui && npm install && npm run check
+```
 
 ## License
 
-MIT License
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+MIT

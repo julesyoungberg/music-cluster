@@ -220,23 +220,6 @@ class Database:
                 """
             )
 
-            # Older databases predate the metadata columns.
-            cursor.execute("PRAGMA table_info(tracks)")
-            existing = {row[1] for row in cursor.fetchall()}
-            column_types = {
-                "title": "TEXT",
-                "artist": "TEXT",
-                "album": "TEXT",
-                "genre": "TEXT",
-                "year": "INTEGER",
-                "tag_bpm": "REAL",
-                "tag_key": "TEXT",
-                "comment": "TEXT",
-            }
-            for column, sql_type in column_types.items():
-                if column not in existing:
-                    cursor.execute(f"ALTER TABLE tracks ADD COLUMN {column} {sql_type}")
-
             cursor.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
                 (str(SCHEMA_VERSION),),
@@ -283,6 +266,22 @@ class Database:
 
             for legacy in ("cluster_members", "clusters", "clusterings"):
                 cursor.execute(f"DROP TABLE IF EXISTS {legacy}")
+
+            # v1 had no tag metadata. These columns must exist before the main
+            # schema script runs, because it indexes one of them.
+            existing = {row[1] for row in cursor.execute("PRAGMA table_info(tracks)").fetchall()}
+            for column, sql_type in (
+                ("title", "TEXT"),
+                ("artist", "TEXT"),
+                ("album", "TEXT"),
+                ("genre", "TEXT"),
+                ("year", "INTEGER"),
+                ("tag_bpm", "REAL"),
+                ("tag_key", "TEXT"),
+                ("comment", "TEXT"),
+            ):
+                if column not in existing:
+                    cursor.execute(f"ALTER TABLE tracks ADD COLUMN {column} {sql_type}")
 
             conn.commit()
 

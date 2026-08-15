@@ -2,7 +2,7 @@
 
 ## Overview
 
-Music Cluster supports **mixed format libraries** and can analyze collections with different audio file types together. All feature extraction is format-agnostic - the tool converts everything to a common representation for analysis.
+music-cluster supports **mixed format libraries** and can analyze collections with different audio file types together. All feature extraction is format-agnostic - the tool converts everything to a common representation for analysis.
 
 ## Supported Formats
 
@@ -40,7 +40,7 @@ With FFmpeg installed, you can also process:
 1. **Loading**: Librosa uses FFmpeg/audioread to decode audio files to PCM
 2. **Normalization**: All audio is resampled to a common sample rate (default: 44.1kHz)
 3. **Feature Extraction**: Same features extracted regardless of source format
-4. **Clustering**: Format-agnostic - MP3s and FLACs cluster together if they sound similar
+4. **Sorting**: Format-agnostic - an MP3 and a FLAC that sound alike are treated alike
 
 ## Default Extensions
 
@@ -92,7 +92,7 @@ All these files will be analyzed together, and similar-sounding tracks will clus
 
 ## Format Quality Considerations
 
-### Does Format Affect Clustering?
+### Does Format Affect Sorting?
 
 **Short answer**: Minimally, if at all.
 
@@ -101,12 +101,12 @@ All these files will be analyzed together, and similar-sounding tracks will clus
 - Lossy compression (MP3, AAC, Ogg) removes inaudible information
 - Feature extraction works on the decoded audio, so format compression is mostly irrelevant
 - Very low bitrate files (< 128kbps) might cluster slightly differently due to artifacts
-- Lossless vs lossy generally doesn't affect clustering results
+- Lossless vs lossy generally doesn't change which group a track lands in
 
 ### Recommendations
 
 1. **Mixed libraries are fine** - Don't worry about having different formats
-2. **Quality matters more than format** - 320kbps MP3 ≈ FLAC for clustering purposes
+2. **Quality matters more than format** - a 320kbps MP3 sorts the same as the FLAC
 3. **Avoid very low bitrates** - Files < 96kbps may have noticeable artifacts
 4. **Consistency not required** - The tool handles format differences automatically
 
@@ -190,7 +190,7 @@ are stored, not the audio itself.
 
 ✅ **Mixed format libraries fully supported**  
 ✅ **15+ common formats work out of the box**  
-✅ **Format-agnostic clustering**  
+✅ **Format-agnostic sorting**  
 ✅ **No quality loss in feature extraction**  
 ✅ **No conversion required**
 

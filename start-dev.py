@@ -1,99 +1,98 @@
 #!/usr/bin/env python3
-"""
-Start Music Cluster development environment.
-Starts both the FastAPI backend and Svelte frontend.
+"""Run the API and the desktop UI together for development.
+
+    python start-dev.py            # API + web UI at http://localhost:1420
+    python start-dev.py --tauri    # API + the Tauri desktop shell
 """
 
+import argparse
+import os
+import shutil
+import signal
 import subprocess
 import sys
-import os
-import signal
 import time
 from pathlib import Path
 
-# Colors for terminal output
-GREEN = '\033[0;32m'
-BLUE = '\033[0;34m'
-RED = '\033[0;31m'
-NC = '\033[0m'  # No Color
+ROOT = Path(__file__).resolve().parent
+UI = ROOT / "ui"
 
-def cleanup(processes):
-    """Cleanup function to kill all child processes."""
-    print(f"\n{BLUE}Shutting down...{NC}")
-    for proc in processes:
-        try:
-            proc.terminate()
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        except Exception:
-            pass
+BLUE, GREEN, RED, RESET = "\033[0;34m", "\033[0;32m", "\033[0;31m", "\033[0m"
 
-def main():
-    script_dir = Path(__file__).parent
-    os.chdir(script_dir)
-    
-    # Check if virtual environment exists
-    venv_python = script_dir / "venv" / "bin" / "python"
-    if not venv_python.exists():
-        print(f"{RED}Error: Virtual environment not found.{NC}")
-        print("Please create it first:")
-        print("  python -m venv venv")
-        print("  source venv/bin/activate")
-        print("  pip install -r requirements.txt")
-        sys.exit(1)
-    
-    # Check if node_modules exists
-    ui_dir = script_dir / "ui"
-    if not (ui_dir / "node_modules").exists():
-        print(f"{BLUE}Installing Node.js dependencies...{NC}")
-        subprocess.run(["npm", "install"], cwd=ui_dir, check=True)
-    
-    processes = []
-    
-    def signal_handler(sig, frame):
-        cleanup(processes)
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
+
+def fail(message: str) -> "None":
+    print(f"{RED}{message}{RESET}", file=sys.stderr)
+    sys.exit(1)
+
+
+def python_executable() -> str:
+    """Prefer a project virtualenv, falling back to the current interpreter."""
+    for candidate in (ROOT / ".venv" / "bin" / "python", ROOT / "venv" / "bin" / "python"):
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tauri", action="store_true", help="Run the desktop shell")
+    parser.add_argument("--port", type=int, default=8000, help="API port")
+    args = parser.parse_args()
+
+    if not shutil.which("npm"):
+        fail("npm is required to run the UI. Install Node.js, or run the API alone with uvicorn.")
+
+    if not (UI / "node_modules").exists():
+        print(f"{BLUE}Installing UI dependencies...{RESET}")
+        subprocess.run(["npm", "install"], cwd=UI, check=True)
+
+    python = python_executable()
     try:
-        # Start FastAPI server
-        print(f"{GREEN}Starting FastAPI server on http://localhost:8000{NC}")
-        api_proc = subprocess.Popen(
-            [str(venv_python), "-m", "uvicorn", "music_cluster.api:app", "--reload", "--port", "8000"],
-            cwd=script_dir
+        subprocess.run(
+            [python, "-c", "import fastapi, uvicorn"],
+            check=True,
+            capture_output=True,
         )
-        processes.append(api_proc)
-        
-        # Wait a moment for API to start
+    except subprocess.CalledProcessError:
+        fail(f"{python} cannot import fastapi/uvicorn. Run: pip install -r requirements.txt")
+
+    processes = []
+    try:
+        print(f"{BLUE}Starting API on port {args.port}...{RESET}")
+        processes.append(
+            subprocess.Popen(
+                [python, "-m", "uvicorn", "music_cluster.api:app", "--reload",
+                 "--port", str(args.port)],
+                cwd=ROOT,
+            )
+        )
         time.sleep(2)
-        
-        # Start Svelte dev server
-        print(f"{GREEN}Starting Svelte dev server on http://localhost:1420{NC}")
-        ui_proc = subprocess.Popen(
-            ["npm", "run", "dev"],
-            cwd=ui_dir
+
+        print(f"{BLUE}Starting UI...{RESET}")
+        processes.append(
+            subprocess.Popen(["npm", "run", "tauri:dev" if args.tauri else "dev"], cwd=UI)
         )
-        processes.append(ui_proc)
-        
-        print(f"{GREEN}✓ Both servers are running!{NC}")
-        print(f"{BLUE}API: http://localhost:8000{NC}")
-        print(f"{BLUE}UI: http://localhost:1420{NC}")
-        print(f"{BLUE}API Docs: http://localhost:8000/docs{NC}")
-        print(f"\nPress Ctrl+C to stop both servers")
-        
-        # Wait for processes
-        for proc in processes:
-            proc.wait()
-            
+
+        print(f"\n{GREEN}Running. Press Ctrl+C to stop.{RESET}")
+        if not args.tauri:
+            print("  UI:  http://localhost:1420")
+        print(f"  API: http://localhost:{args.port}/docs\n")
+
+        while all(process.poll() is None for process in processes):
+            time.sleep(0.5)
     except KeyboardInterrupt:
-        cleanup(processes)
-    except Exception as e:
-        print(f"{RED}Error: {e}{NC}")
-        cleanup(processes)
-        sys.exit(1)
+        pass
+    finally:
+        print(f"\n{BLUE}Shutting down...{RESET}")
+        for process in processes:
+            if process.poll() is None:
+                process.send_signal(signal.SIGINT)
+        for process in processes:
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
 
 if __name__ == "__main__":
     main()
