@@ -22,10 +22,13 @@ def utc_now() -> str:
     """Timestamp string matching SQLite's own CURRENT_TIMESTAMP format.
 
     Columns mix defaults (UTC, via CURRENT_TIMESTAMP) with values written
-    from Python, and staleness checks compare them as strings, so both
-    sides must be UTC in the same layout.
+    from Python, and staleness checks compare them as strings, so both sides
+    must be UTC in the same layout. The fractional part extends SQLite's own
+    format rather than diverging from it, so the two still order correctly
+    against each other — and it keeps two changes in the same second apart.
     """
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+
 
 TRACK_METADATA_COLUMNS = (
     "title",

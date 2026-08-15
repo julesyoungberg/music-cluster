@@ -104,11 +104,9 @@ def score_session(
         payload = suggestion.to_dict()
         if suggestion.status == STATUS_AUTO and auto_accept:
             payload["status"] = STATUS_ACCEPTED
-        elif suggestion.status == STATUS_AUTO:
-            # A confident suggestion is still just a suggestion until confirmed.
-            payload["status"] = STATUS_PENDING
-            payload["auto"] = True
-        elif suggestion.status == STATUS_REVIEW:
+        elif suggestion.status in (STATUS_AUTO, STATUS_REVIEW):
+            # A confident suggestion is still only a suggestion until a human
+            # confirms it; the confidence is stored so the UI can rank by it.
             payload["status"] = STATUS_PENDING
         else:
             payload["status"] = STATUS_UNMATCHED

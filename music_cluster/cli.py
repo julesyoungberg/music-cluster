@@ -537,8 +537,10 @@ def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
 
     if review and summary.get("pending"):
         review_session(db, config, session["id"])
-    else:
+    elif summary.get("pending"):
         click.echo(f"\nNext: music-cluster review {session['id']}")
+    else:
+        click.echo(f"\nNext: music-cluster apply {session['id']} --mode copy")
 
 
 @cli.command()
