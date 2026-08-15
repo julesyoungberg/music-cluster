@@ -1,141 +1,166 @@
 """Configuration management for music-cluster."""
 
+import copy
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
+
 import yaml
 
 
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: Dict[str, Any] = {
     "database": {
-        "path": "~/.music-cluster/library.db"
+        "path": "~/.music-cluster/library.db",
     },
     "feature_extraction": {
         "sample_rate": 44100,
         "frame_size": 2048,
         "hop_size": 1024,
         "mfcc_coefficients": 20,
-        "analysis_version": "1.0.0"
+        "analysis_version": "2.0.0",
+        # Analysing the middle of a track is both faster and more representative
+        # than intros/outros. 0 disables excerpting.
+        "excerpt_seconds": 90,
     },
-    "clustering": {
-        "default_algorithm": "hdbscan",
-        "auto_detect_k": True,
-        "default_granularity": "normal",
-        "min_clusters": 5,
-        "max_clusters": 100,
-        "min_cluster_size": 3,
-        "detection_method": "silhouette"
+    "sorting": {
+        # How the reference space is built before distances are measured.
+        # auto | none | pca | lda | nca
+        "projection": "auto",
+        "pca_variance": 0.95,
+        "max_components": 40,
+        # Share of the space devoted to what separates the existing groups.
+        "discriminant_weight": 0.7,
+        # Distance to a group blends its k nearest references with its centroid.
+        "neighbors": 5,
+        "knn_weight": 0.7,
+        # Per-group distances are divided by that group's own spread so a broad
+        # 900-track folder does not out-compete a tight 8-track seed group.
+        "scale_normalization": True,
+        "temperature": 0.5,
+        # Decision thresholds.
+        "auto_accept_confidence": 0.6,
+        "min_margin": 0.08,
+        "novelty_factor": 3.0,
+        # Relative importance of each feature family.
+        "feature_weights": {
+            "timbre": 1.0,
+            "rhythm": 1.0,
+            "harmony": 1.0,
+            "dynamics": 1.0,
+        },
+        # Add accepted tracks to their group as new references on commit.
+        "learn_on_commit": True,
     },
-    "export": {
-        "playlist_format": "m3u",
+    "discovery": {
+        "algorithm": "hdbscan",
+        "granularity": "normal",
+        "min_group_size": 8,
+        "max_candidates": 30,
+        "exemplars_per_candidate": 5,
+        "detection_method": "silhouette",
+    },
+    "organize": {
+        # playlist | copy | move | symlink
+        "mode": "playlist",
+        "playlist_format": "m3u8",
+        "playlist_dir": "~/.music-cluster/playlists",
         "relative_paths": False,
-        "include_representative": True
+        "on_conflict": "skip",  # skip | rename | overwrite
+        "dry_run_first": True,
+    },
+    "labeling": {
+        # Optional LLM assist for naming discovered groups.
+        "llm_enabled": False,
+        "llm_model": "claude-sonnet-5",
+        "llm_api_key_env": "ANTHROPIC_API_KEY",
     },
     "performance": {
         "batch_size": 100,
         "num_workers": -1,  # -1 = use all CPUs
-        "cache_features": True
-    }
+    },
 }
 
 
 class Config:
-    """Configuration manager for music-cluster."""
-    
+    """Layered configuration: defaults overridden by a user YAML file."""
+
     def __init__(self, config_path: Optional[str] = None):
-        """Initialize configuration.
-        
-        Args:
-            config_path: Optional path to config file. If None, uses default location.
-        """
         if config_path is None:
-            config_path = os.path.expanduser("~/.music-cluster/config.yaml")
-        
+            config_path = os.environ.get(
+                "MUSIC_CLUSTER_CONFIG", os.path.expanduser("~/.music-cluster/config.yaml")
+            )
+
         self.config_path = config_path
         self.config = self._load_config()
-    
+
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from file or use defaults.
-        
-        Returns:
-            Configuration dictionary
-        """
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, "r") as f:
-                    user_config = yaml.safe_load(f) or {}
-                # Merge with defaults (user config overrides defaults)
-                return self._merge_configs(DEFAULT_CONFIG, user_config)
-            except Exception as e:
-                print(f"Warning: Failed to load config from {self.config_path}: {e}")
-                print("Using default configuration.")
-                return DEFAULT_CONFIG.copy()
-        else:
-            return DEFAULT_CONFIG.copy()
-    
+        defaults = copy.deepcopy(DEFAULT_CONFIG)
+        if not os.path.exists(self.config_path):
+            return defaults
+        try:
+            with open(self.config_path, "r") as handle:
+                user_config = yaml.safe_load(handle) or {}
+            return self._merge_configs(defaults, user_config)
+        except Exception as exc:
+            print(f"Warning: failed to load config from {self.config_path}: {exc}")
+            print("Using default configuration.")
+            return defaults
+
     def _merge_configs(self, default: Dict, user: Dict) -> Dict:
-        """Recursively merge user config with default config.
-        
-        Args:
-            default: Default configuration
-            user: User configuration
-            
-        Returns:
-            Merged configuration
-        """
-        result = default.copy()
+        result = dict(default)
         for key, value in user.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_configs(result[key], value)
             else:
                 result[key] = value
         return result
-    
+
     def save(self) -> None:
-        """Save current configuration to file."""
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-        
-        with open(self.config_path, "w") as f:
-            yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
-    
+        directory = os.path.dirname(self.config_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        with open(self.config_path, "w") as handle:
+            yaml.dump(self.config, handle, default_flow_style=False, sort_keys=False)
+
     def get(self, *keys: str, default: Any = None) -> Any:
-        """Get a configuration value by key path.
-        
-        Args:
-            *keys: Keys to traverse (e.g., 'database', 'path')
-            default: Default value if key not found
-            
-        Returns:
-            Configuration value
-        """
-        value = self.config
+        value: Any = self.config
         for key in keys:
             if isinstance(value, dict) and key in value:
                 value = value[key]
             else:
                 return default
         return value
-    
+
+    def set(self, keys: list, value: Any) -> None:
+        """Set a nested value by key path, creating intermediate dicts."""
+        target = self.config
+        for key in keys[:-1]:
+            if not isinstance(target.get(key), dict):
+                target[key] = {}
+            target = target[key]
+        target[keys[-1]] = value
+
+    def section(self, name: str) -> Dict[str, Any]:
+        """A copy of one top-level section merged over its defaults."""
+        return copy.deepcopy(self.get(name, default={}) or {})
+
     def get_db_path(self) -> str:
-        """Get the database path with expansion.
-        
-        Returns:
-            Expanded database path
-        """
-        db_path = self.get("database", "path", default="~/.music-cluster/library.db")
-        return os.path.expanduser(db_path)
-    
+        path = os.environ.get("MUSIC_CLUSTER_DB") or self.get(
+            "database", "path", default="~/.music-cluster/library.db"
+        )
+        return os.path.expanduser(path)
+
+    def extractor_config(self) -> Dict[str, Any]:
+        """Keyword arguments for :class:`~music_cluster.extractor.FeatureExtractor`."""
+        return {
+            "sample_rate": self.get("feature_extraction", "sample_rate", default=44100),
+            "frame_size": self.get("feature_extraction", "frame_size", default=2048),
+            "hop_size": self.get("feature_extraction", "hop_size", default=1024),
+            "n_mfcc": self.get("feature_extraction", "mfcc_coefficients", default=20),
+            "excerpt_seconds": self.get("feature_extraction", "excerpt_seconds", default=90),
+        }
+
     @staticmethod
     def create_default_config(config_path: Optional[str] = None) -> "Config":
-        """Create and save default configuration file.
-        
-        Args:
-            config_path: Optional path for config file
-            
-        Returns:
-            Config instance
-        """
         config = Config(config_path)
         config.save()
         return config

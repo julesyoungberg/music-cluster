@@ -1,3 +1,3 @@
-"""Music Cluster - CLI tool for music clustering and classification."""
+"""music-cluster: sort new music into the folders you already keep."""
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
