@@ -5,12 +5,15 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
   preprocess: vitePreprocess(),
   kit: {
+    // The app is a single-page client that talks to the local API, so dynamic
+    // routes such as /sort/[id] are resolved in the browser rather than
+    // prerendered.
     adapter: adapter({
       pages: 'build',
       assets: 'build',
-      fallback: undefined,
+      fallback: 'index.html',
       precompress: false,
-      strict: true
+      strict: false
     })
   }
 };

@@ -1,227 +1,163 @@
-"""Audio feature extraction for music-cluster."""
+"""Audio feature extraction.
+
+Produces the fixed-length vector described by :mod:`music_cluster.features`.
+The block order here and the layout there must stay in sync.
+"""
+
+import logging
+import warnings
+from typing import Optional
 
 import librosa
 import numpy as np
 import soundfile as sf
-from typing import Dict, Optional
-import warnings
-import logging
 
-from .features import aggregate_features
+from .features import aggregate_features, build_layout
 
 
-# Suppress warnings from librosa and audioread
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+logging.getLogger("audioread.ffdec").setLevel(logging.ERROR)
+logging.getLogger("audioread").setLevel(logging.ERROR)
 
-# Suppress mpg123 stderr messages about comments
-logging.getLogger('audioread.ffdec').setLevel(logging.ERROR)
-logging.getLogger('audioread').setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 
 class FeatureExtractor:
-    """Extract comprehensive audio features from music tracks."""
-    
-    def __init__(self, sample_rate: int = 44100, frame_size: int = 2048,
-                 hop_size: int = 1024, n_mfcc: int = 20):
-        """Initialize feature extractor.
-        
+    """Extract a track-level feature vector from an audio file."""
+
+    def __init__(
+        self,
+        sample_rate: int = 44100,
+        frame_size: int = 2048,
+        hop_size: int = 1024,
+        n_mfcc: int = 20,
+        excerpt_seconds: Optional[float] = 90,
+    ):
+        """
         Args:
-            sample_rate: Target sample rate for audio
-            frame_size: Frame size for STFT
-            hop_size: Hop size for STFT
-            n_mfcc: Number of MFCC coefficients
+            excerpt_seconds: Analyse only this many seconds from the middle of
+                the track. Intros and outros are unrepresentative of a DJ tool's
+                subject matter, and excerpting is several times faster. Falsy
+                values analyse the whole file.
         """
         self.sample_rate = sample_rate
         self.frame_size = frame_size
         self.hop_size = hop_size
         self.n_mfcc = n_mfcc
-    
+        self.excerpt_seconds = excerpt_seconds
+        self.layout = build_layout(n_mfcc)
+
     def extract(self, filepath: str) -> Optional[np.ndarray]:
-        """Extract features from an audio file.
-        
-        Args:
-            filepath: Path to audio file
-            
-        Returns:
-            Feature vector or None if extraction failed
-        """
+        """Extract features, returning None when the file cannot be decoded."""
         try:
-            # Load audio
-            y, sr = librosa.load(filepath, sr=self.sample_rate, mono=True)
-            
-            if len(y) == 0:
+            y, sr = self._load(filepath)
+            if y is None or len(y) == 0:
                 return None
-            
-            # Extract all features
-            features = self._extract_all_features(y, sr)
-            
-            return features
-        except Exception as e:
-            print(f"Error extracting features from {filepath}: {e}")
+            return self._extract_all_features(y, sr)
+        except Exception as exc:
+            logger.warning("Feature extraction failed for %s: %s", filepath, exc)
             return None
-    
+
+    def _load(self, filepath: str):
+        """Load audio, taking a centred excerpt when configured."""
+        if not self.excerpt_seconds:
+            return librosa.load(filepath, sr=self.sample_rate, mono=True)
+
+        duration = self.get_audio_duration(filepath)
+        if duration and duration > self.excerpt_seconds:
+            offset = max(0.0, (duration - self.excerpt_seconds) / 2.0)
+            return librosa.load(
+                filepath,
+                sr=self.sample_rate,
+                mono=True,
+                offset=offset,
+                duration=self.excerpt_seconds,
+            )
+        return librosa.load(filepath, sr=self.sample_rate, mono=True)
+
     def _extract_all_features(self, y: np.ndarray, sr: int) -> np.ndarray:
-        """Extract comprehensive feature set.
-        
-        Args:
-            y: Audio time series
-            sr: Sample rate
-            
-        Returns:
-            Concatenated feature vector
-        """
-        # Collect frame-level features
-        frame_features = []
-        
-        # 1. Timbral Features
-        # MFCCs (20 coefficients)
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=self.n_mfcc,
-                                     n_fft=self.frame_size, hop_length=self.hop_size)
-        frame_features.append(mfccs.T)
-        
-        # Spectral centroid (brightness)
-        spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr,
-                                                              n_fft=self.frame_size,
-                                                              hop_length=self.hop_size)
-        frame_features.append(spectral_centroid.T)
-        
-        # Spectral rolloff
-        spectral_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr,
-                                                            n_fft=self.frame_size,
-                                                            hop_length=self.hop_size)
-        frame_features.append(spectral_rolloff.T)
-        
-        # Spectral flux (approximated via spectral contrast)
-        spectral_contrast = librosa.feature.spectral_contrast(y=y, sr=sr,
-                                                              n_fft=self.frame_size,
-                                                              hop_length=self.hop_size)
-        frame_features.append(spectral_contrast.T)
-        
-        # Zero crossing rate
-        zcr = librosa.feature.zero_crossing_rate(y=y, frame_length=self.frame_size,
-                                                 hop_length=self.hop_size)
-        frame_features.append(zcr.T)
-        
-        # 2. Harmonic Features
-        # Chroma features (12-dimensional pitch class profile)
-        chroma = librosa.feature.chroma_stft(y=y, sr=sr, n_fft=self.frame_size,
-                                            hop_length=self.hop_size)
-        frame_features.append(chroma.T)
-        
-        # 3. Loudness & Dynamics
-        # RMS energy
-        rms = librosa.feature.rms(y=y, frame_length=self.frame_size,
-                                 hop_length=self.hop_size)
-        frame_features.append(rms.T)
-        
-        # Concatenate all frame features
-        all_frame_features = np.concatenate(frame_features, axis=1)
-        
-        # Aggregate frame-level features (mean + std)
-        aggregated = aggregate_features(all_frame_features)
-        
-        # 4. Rhythmic Features (track-level)
-        rhythmic_features = self._extract_rhythmic_features(y, sr)
-        
-        # 5. High-level features (track-level)
-        highlevel_features = self._extract_highlevel_features(y, sr)
-        
-        # Concatenate all features
-        full_feature_vector = np.concatenate([
-            aggregated,
-            rhythmic_features,
-            highlevel_features
-        ])
-        
-        # Ensure no NaN or Inf values
-        full_feature_vector = np.nan_to_num(full_feature_vector, nan=0.0,
-                                           posinf=0.0, neginf=0.0)
-        
-        return full_feature_vector
-    
+        # Frame-level blocks, in the order declared by features._frame_blocks.
+        frame_features = [
+            librosa.feature.mfcc(
+                y=y, sr=sr, n_mfcc=self.n_mfcc, n_fft=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.spectral_centroid(
+                y=y, sr=sr, n_fft=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.spectral_rolloff(
+                y=y, sr=sr, n_fft=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.spectral_contrast(
+                y=y, sr=sr, n_fft=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.zero_crossing_rate(
+                y=y, frame_length=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.chroma_stft(
+                y=y, sr=sr, n_fft=self.frame_size, hop_length=self.hop_size
+            ).T,
+            librosa.feature.rms(y=y, frame_length=self.frame_size, hop_length=self.hop_size).T,
+        ]
+
+        aggregated = aggregate_features(np.concatenate(frame_features, axis=1))
+        vector = np.concatenate(
+            [
+                aggregated,
+                self._extract_rhythmic_features(y, sr),
+                self._extract_highlevel_features(y, sr),
+            ]
+        )
+        vector = np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0)
+
+        if len(vector) != self.layout.dim:
+            raise ValueError(
+                f"Extracted {len(vector)} features but layout expects {self.layout.dim}"
+            )
+        return vector
+
     def _extract_rhythmic_features(self, y: np.ndarray, sr: int) -> np.ndarray:
-        """Extract rhythmic features.
-        
-        Args:
-            y: Audio time series
-            sr: Sample rate
-            
-        Returns:
-            Rhythmic feature vector
-        """
-        features = []
-        
         try:
-            # BPM (tempo)
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            # Handle both scalar and array returns (newer librosa versions)
-            tempo_value = float(tempo) if np.isscalar(tempo) else float(tempo[0])
-            features.append(tempo_value)
-            
-            # Beat strength (onset strength)
+            tempo_value = float(tempo) if np.isscalar(tempo) else float(np.atleast_1d(tempo)[0])
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-            features.extend([
-                np.mean(onset_env),
-                np.std(onset_env),
-                np.max(onset_env)
-            ])
-            
-        except Exception as e:
-            # If rhythm extraction fails, use zeros
-            features = [0.0] * 4
-        
-        return np.array(features)
-    
+            return np.array(
+                [
+                    tempo_value,
+                    float(np.mean(onset_env)),
+                    float(np.std(onset_env)),
+                    float(np.max(onset_env)),
+                ]
+            )
+        except Exception:
+            return np.zeros(4)
+
     def _extract_highlevel_features(self, y: np.ndarray, sr: int) -> np.ndarray:
-        """Extract high-level features.
-        
-        Args:
-            y: Audio time series
-            sr: Sample rate
-            
-        Returns:
-            High-level feature vector
-        """
-        features = []
-        
-        # Energy-based features
-        energy = np.sum(y ** 2) / len(y)
-        features.append(energy)
-        
-        # Dynamic range
-        dynamic_range = np.max(np.abs(y)) - np.min(np.abs(y))
-        features.append(dynamic_range)
-        
-        # Spectral bandwidth
-        spec_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr,
-                                                     n_fft=self.frame_size,
-                                                     hop_length=self.hop_size)
-        features.extend([np.mean(spec_bw), np.std(spec_bw)])
-        
-        # Spectral flatness (measure of noisiness)
-        spec_flatness = librosa.feature.spectral_flatness(y=y, n_fft=self.frame_size,
-                                                          hop_length=self.hop_size)
-        features.extend([np.mean(spec_flatness), np.std(spec_flatness)])
-        
-        return np.array(features)
-    
+        energy = float(np.sum(y**2) / len(y))
+        dynamic_range = float(np.max(np.abs(y)) - np.min(np.abs(y)))
+        spec_bw = librosa.feature.spectral_bandwidth(
+            y=y, sr=sr, n_fft=self.frame_size, hop_length=self.hop_size
+        )
+        flatness = librosa.feature.spectral_flatness(
+            y=y, n_fft=self.frame_size, hop_length=self.hop_size
+        )
+        return np.array(
+            [
+                energy,
+                dynamic_range,
+                float(np.mean(spec_bw)),
+                float(np.std(spec_bw)),
+                float(np.mean(flatness)),
+                float(np.std(flatness)),
+            ]
+        )
+
     def get_audio_duration(self, filepath: str) -> Optional[float]:
-        """Get duration of audio file in seconds.
-        
-        Args:
-            filepath: Path to audio file
-            
-        Returns:
-            Duration in seconds or None if error
-        """
+        """Duration in seconds, or None if it cannot be determined."""
         try:
-            info = sf.info(filepath)
-            return info.duration
+            return float(sf.info(filepath).duration)
         except Exception:
             try:
-                y, sr = librosa.load(filepath, sr=None)
-                return len(y) / sr
-            except Exception as e:
-                print(f"Error getting duration from {filepath}: {e}")
+                return float(librosa.get_duration(path=filepath))
+            except Exception:
                 return None

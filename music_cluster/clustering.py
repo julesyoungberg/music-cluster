@@ -1,371 +1,208 @@
-"""Clustering engine for music-cluster."""
+"""Unsupervised clustering, used only to *propose* groups.
 
-import json
+In the directed workflow the DJ defines the groups. Clustering has one job
+left: when someone points at a folder of a few thousand unsorted tracks, break
+it into candidate piles so they have something concrete to accept, rename,
+merge, or throw away. Nothing here writes a group — that is always a human
+decision.
+"""
+
 import math
-import numpy as np
-from sklearn.cluster import KMeans, AgglomerativeClustering, SpectralClustering
-from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from typing import Dict, List, Optional, Tuple
-from tqdm import tqdm
+
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
 try:
-    import hdbscan
+    # scikit-learn ships HDBSCAN from 1.3 onwards; the standalone package is
+    # only a fallback for older installs.
+    from sklearn.cluster import HDBSCAN as _HDBSCAN
+
     HDBSCAN_AVAILABLE = True
-except ImportError:
-    HDBSCAN_AVAILABLE = False
+except ImportError:  # pragma: no cover
+    try:
+        from hdbscan import HDBSCAN as _HDBSCAN
+
+        HDBSCAN_AVAILABLE = True
+    except ImportError:
+        _HDBSCAN = None
+        HDBSCAN_AVAILABLE = False
 
 
-# Granularity multipliers
+ALGORITHMS = ("hdbscan", "kmeans", "hierarchical")
+
+# How many candidate piles to aim for, relative to the automatic estimate.
 GRANULARITY_MULTIPLIERS = {
-    "fewer": 0.5,
-    "less": 0.75,
+    "coarse": 0.5,
+    "broad": 0.75,
     "normal": 1.0,
-    "more": 1.5,
-    "finer": 2.0
+    "fine": 1.5,
+    "finest": 2.0,
 }
+
+NOISE_LABEL = -1
 
 
 class ClusterEngine:
-    """Multi-algorithm clustering engine with auto-detection."""
-    
-    def __init__(self, min_clusters: int = 5, max_clusters: int = 100,
-                 detection_method: str = "silhouette", algorithm: str = "kmeans"):
-        """Initialize clustering engine.
-        
-        Args:
-            min_clusters: Minimum number of clusters to test
-            max_clusters: Maximum number of clusters to test
-            detection_method: Method for auto-detection (silhouette, elbow, calinski)
-            algorithm: Clustering algorithm (kmeans, hdbscan, hierarchical, spectral)
-        """
-        self.min_clusters = min_clusters
-        self.max_clusters = max_clusters
-        self.detection_method = detection_method
+    """Wraps the clustering backends behind one call."""
+
+    def __init__(
+        self,
+        algorithm: str = "hdbscan",
+        min_group_size: int = 8,
+        max_candidates: int = 30,
+        detection_method: str = "silhouette",
+    ):
+        if algorithm not in ALGORITHMS:
+            raise ValueError(f"Unknown algorithm {algorithm!r}; choose from {ALGORITHMS}")
         self.algorithm = algorithm
-    
-    def find_optimal_k(self, features: np.ndarray, show_progress: bool = True) -> Tuple[int, Dict]:
-        """Find optimal number of clusters using the specified method.
-        
-        Args:
-            features: Feature matrix (n_samples, n_features)
-            show_progress: Whether to show progress bar
-            
-        Returns:
-            Tuple of (optimal_k, metrics_dict)
+        self.min_group_size = max(2, min_group_size)
+        self.max_candidates = max(2, max_candidates)
+        self.detection_method = detection_method
+
+    def cluster(
+        self,
+        features: np.ndarray,
+        n_clusters: Optional[int] = None,
+        granularity: str = "normal",
+    ) -> Tuple[np.ndarray, np.ndarray, Dict]:
+        """Cluster projected features.
+
+        Returns ``(labels, centroids, metrics)``. Labels of ``-1`` are noise
+        (HDBSCAN only) and have no centroid.
         """
-        n_samples = features.shape[0]
-        
-        # Determine search range based on dataset size
-        min_k = max(self.min_clusters, 2)
-        max_k = min(self.max_clusters, n_samples // 2, math.floor(math.sqrt(n_samples)))
-        
-        if max_k < min_k:
-            max_k = min_k
-        
-        # Test different k values
-        k_range = range(min_k, max_k + 1)
-        scores = []
-        inertias = []
-        
-        iterator = tqdm(k_range, desc="Finding optimal k") if show_progress else k_range
-        
-        for k in iterator:
-            kmeans = KMeans(n_clusters=k, init='k-means++', n_init=10,
-                          max_iter=300, random_state=42)
-            labels = kmeans.fit_predict(features)
-            
-            # Compute metrics
-            if k < n_samples:
-                if self.detection_method == "silhouette":
-                    score = silhouette_score(features, labels)
-                elif self.detection_method == "calinski":
-                    score = calinski_harabasz_score(features, labels)
-                else:  # elbow
-                    score = -kmeans.inertia_  # Negative so higher is better
-                
-                scores.append(score)
-                inertias.append(kmeans.inertia_)
-        
-        # Find optimal k
-        if not scores:
-            optimal_k = min_k
-        else:
-            if self.detection_method == "elbow":
-                # Find elbow point using rate of change
-                optimal_k = self._find_elbow_point(list(k_range), inertias)
-            else:
-                # Find k with highest score
-                optimal_idx = np.argmax(scores)
-                optimal_k = list(k_range)[optimal_idx]
-        
-        # Collect metrics
-        metrics = {
-            "k_range": list(k_range),
-            "scores": scores,
-            "inertias": inertias,
-            "optimal_k": optimal_k,
-            "method": self.detection_method
-        }
-        
-        return optimal_k, metrics
-    
-    def _find_elbow_point(self, k_values: List[int], inertias: List[float]) -> int:
-        """Find elbow point in inertia curve.
-        
-        Args:
-            k_values: List of k values tested
-            inertias: List of inertia values
-            
-        Returns:
-            K value at elbow point
-        """
-        if len(inertias) < 3:
-            return k_values[0]
-        
-        # Compute rate of change
-        rates = []
-        for i in range(1, len(inertias)):
-            rate = (inertias[i-1] - inertias[i]) / inertias[i-1] if inertias[i-1] != 0 else 0
-            rates.append(rate)
-        
-        # Find point where rate of decrease slows significantly
-        if len(rates) < 2:
-            return k_values[0]
-        
-        # Find maximum rate change
-        rate_changes = []
-        for i in range(1, len(rates)):
-            change = abs(rates[i] - rates[i-1])
-            rate_changes.append(change)
-        
-        if rate_changes:
-            elbow_idx = np.argmax(rate_changes) + 1
-            return k_values[min(elbow_idx, len(k_values) - 1)]
-        
-        return k_values[len(k_values) // 2]
-    
-    def apply_granularity(self, optimal_k: int, granularity: str) -> int:
-        """Apply granularity multiplier to optimal k.
-        
-        Args:
-            optimal_k: Optimal number of clusters
-            granularity: Granularity level (fewer/less/normal/more/finer)
-            
-        Returns:
-            Adjusted k value
-        """
-        if granularity not in GRANULARITY_MULTIPLIERS:
-            return optimal_k
-        
-        multiplier = GRANULARITY_MULTIPLIERS[granularity]
-        adjusted_k = int(round(optimal_k * multiplier))
-        
-        # Ensure k is at least 2
-        return max(2, adjusted_k)
-    
-    def cluster(self, features: np.ndarray, n_clusters: int = None,
-                show_progress: bool = True, min_cluster_size: int = None,
-                min_samples: int = None, cluster_selection_epsilon: float = 0.0) -> Tuple[np.ndarray, np.ndarray, Dict]:
-        """Perform clustering using specified algorithm.
-        
-        Args:
-            features: Feature matrix (n_samples, n_features)
-            n_clusters: Number of clusters (not used for HDBSCAN)
-            show_progress: Whether to show progress
-            min_cluster_size: Minimum cluster size (for HDBSCAN)
-            min_samples: Minimum samples for core points (for HDBSCAN)
-            cluster_selection_epsilon: Distance threshold for HDBSCAN (controls cluster granularity)
-            
-        Returns:
-            Tuple of (labels, centroids, metrics)
-        """
-        if self.algorithm == "hdbscan":
-            if not HDBSCAN_AVAILABLE:
-                raise ImportError("HDBSCAN not installed. Run: pip install hdbscan")
-            
-            if show_progress:
-                print(f"Running HDBSCAN (density-based clustering)...")
-                if cluster_selection_epsilon > 0:
-                    print(f"  Distance threshold: {cluster_selection_epsilon:.3f}")
-                if min_cluster_size:
-                    print(f"  Min cluster size: {min_cluster_size}")
-            
-            # Set defaults if not provided
-            if min_cluster_size is None:
-                min_cluster_size = max(5, int(len(features) * 0.01))  # 1% of data or 5
-            if min_samples is None:
-                min_samples = min_cluster_size
-            
-            # Perform HDBSCAN
-            clusterer = hdbscan.HDBSCAN(
-                min_cluster_size=min_cluster_size,
-                min_samples=min_samples,
-                cluster_selection_epsilon=cluster_selection_epsilon,
-                metric='euclidean',
-                cluster_selection_method='eom',
-                core_dist_n_jobs=-1
+        features = np.asarray(features, dtype=float)
+        if len(features) < self.min_group_size:
+            raise ValueError(
+                f"Need at least {self.min_group_size} tracks to look for groups, got {len(features)}"
             )
-            labels = clusterer.fit_predict(features)
-            
-            # HDBSCAN uses -1 for noise points
-            unique_labels = np.unique(labels[labels >= 0])
-            n_clusters_found = len(unique_labels)
-            n_noise = np.sum(labels == -1)
-            
-            if show_progress:
-                print(f"  Found {n_clusters_found} clusters")
-                if n_noise > 0:
-                    print(f"  Noise points: {n_noise} ({100*n_noise/len(labels):.1f}%)")
-            
-            # Compute centroids for valid clusters
-            centroids = np.zeros((n_clusters_found, features.shape[1]))
-            for i, label in enumerate(unique_labels):
-                cluster_mask = labels == label
-                if np.sum(cluster_mask) > 0:
-                    centroids[i] = np.mean(features[cluster_mask], axis=0)
-            
-            # Compute inertia (only for non-noise points)
-            inertia = 0.0
-            for feature, label in zip(features, labels):
-                if label >= 0:
-                    inertia += np.linalg.norm(feature - centroids[label]) ** 2
-            
-            metrics = self._compute_clustering_metrics(features, labels, inertia)
-            metrics['n_noise'] = int(n_noise)
-            metrics['noise_percentage'] = float(100 * n_noise / len(labels))
-            
-        elif self.algorithm == "hierarchical":
-            if show_progress:
-                print(f"Running hierarchical clustering with {n_clusters} clusters...")
-            
-            # Perform hierarchical clustering
-            clusterer = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward')
-            labels = clusterer.fit_predict(features)
-            
-            # Compute centroids manually for hierarchical clustering
-            centroids = np.zeros((n_clusters, features.shape[1]))
-            for i in range(n_clusters):
-                cluster_mask = labels == i
-                if np.sum(cluster_mask) > 0:
-                    centroids[i] = np.mean(features[cluster_mask], axis=0)
-            
-            # Compute inertia for metrics
-            inertia = 0.0
-            for i, (feature, label) in enumerate(zip(features, labels)):
-                inertia += np.linalg.norm(feature - centroids[label]) ** 2
-            
-            metrics = self._compute_clustering_metrics(features, labels, inertia)
-            
-        elif self.algorithm == "kmeans":
-            if show_progress:
-                print(f"Running K-means with {n_clusters} clusters...")
-            
-            # Perform K-means clustering
-            kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=10,
-                           max_iter=300, random_state=42)
-            labels = kmeans.fit_predict(features)
-            centroids = kmeans.cluster_centers_
-            
-            metrics = self._compute_clustering_metrics(features, labels, kmeans.inertia_)
-            
+
+        if self.algorithm == "hdbscan":
+            labels = self._hdbscan(features)
         else:
-            raise ValueError(f"Unsupported algorithm: {self.algorithm}")
-        
-        return labels, centroids, metrics
-    
-    def _compute_clustering_metrics(self, features: np.ndarray, labels: np.ndarray,
-                                   inertia: float) -> Dict:
-        """Compute clustering quality metrics.
-        
-        Args:
-            features: Feature matrix
-            labels: Cluster labels
-            inertia: K-means inertia
-            
-        Returns:
-            Dictionary of metrics
-        """
-        metrics = {
-            "inertia": inertia,
-            "n_clusters": len(np.unique(labels))
-        }
-        
-        # Only compute if we have enough samples
-        if len(np.unique(labels)) > 1 and len(features) > len(np.unique(labels)):
-            try:
-                metrics["silhouette_score"] = silhouette_score(features, labels)
-            except:
-                metrics["silhouette_score"] = None
-            
-            try:
-                metrics["davies_bouldin_score"] = davies_bouldin_score(features, labels)
-            except:
-                metrics["davies_bouldin_score"] = None
-            
-            try:
-                metrics["calinski_harabasz_score"] = calinski_harabasz_score(features, labels)
-            except:
-                metrics["calinski_harabasz_score"] = None
-        
-        # Cluster size distribution
-        unique, counts = np.unique(labels, return_counts=True)
-        metrics["cluster_sizes"] = dict(zip([int(x) for x in unique], 
-                                           [int(x) for x in counts]))
-        metrics["min_cluster_size"] = int(np.min(counts))
-        metrics["max_cluster_size"] = int(np.max(counts))
-        metrics["mean_cluster_size"] = float(np.mean(counts))
-        
-        return metrics
-    
-    def find_representative_tracks(self, features: np.ndarray, labels: np.ndarray,
-                                  centroids: np.ndarray, track_ids: List[int]) -> Dict[int, int]:
-        """Find representative track for each cluster.
-        
-        Args:
-            features: Feature matrix
-            labels: Cluster labels
-            centroids: Cluster centroids
-            track_ids: List of track IDs corresponding to features
-            
-        Returns:
-            Dictionary mapping cluster_index -> track_id
-        """
-        representatives = {}
-        
-        for cluster_idx in range(len(centroids)):
-            # Find all tracks in this cluster
-            cluster_mask = labels == cluster_idx
-            cluster_features = features[cluster_mask]
-            cluster_track_ids = [track_ids[i] for i in range(len(track_ids)) if cluster_mask[i]]
-            
-            if len(cluster_features) == 0:
+            if n_clusters is None:
+                n_clusters = self.apply_granularity(self.estimate_k(features), granularity)
+            n_clusters = int(np.clip(n_clusters, 2, min(self.max_candidates, len(features) // 2)))
+            labels = self._partition(features, n_clusters)
+
+        centroids = self._centroids(features, labels)
+        return labels, centroids, self._metrics(features, labels)
+
+    def _hdbscan(self, features: np.ndarray) -> np.ndarray:
+        if not HDBSCAN_AVAILABLE:
+            raise ImportError(
+                "HDBSCAN needs scikit-learn 1.3 or newer. Upgrade scikit-learn, or "
+                "run discovery with --algorithm kmeans."
+            )
+        return _HDBSCAN(
+            min_cluster_size=self.min_group_size,
+            min_samples=max(2, self.min_group_size // 2),
+            metric="euclidean",
+            cluster_selection_method="eom",
+        ).fit_predict(features)
+
+    def _partition(self, features: np.ndarray, n_clusters: int) -> np.ndarray:
+        if self.algorithm == "hierarchical":
+            return AgglomerativeClustering(n_clusters=n_clusters, linkage="ward").fit_predict(
+                features
+            )
+        return KMeans(
+            n_clusters=n_clusters, init="k-means++", n_init=10, random_state=42
+        ).fit_predict(features)
+
+    def estimate_k(self, features: np.ndarray) -> int:
+        """Pick a cluster count by scoring a small range of candidates."""
+        n_samples = len(features)
+        min_k = 2
+        max_k = int(min(self.max_candidates, max(3, math.floor(math.sqrt(n_samples / 2)))))
+        if max_k <= min_k:
+            return min_k
+
+        # Sample large libraries: the shape of the score curve is what matters,
+        # and scoring every k on 20k tracks is needlessly slow.
+        sample = features
+        if n_samples > 4000:
+            rng = np.random.default_rng(42)
+            sample = features[rng.choice(n_samples, 4000, replace=False)]
+
+        best_k, best_score = min_k, -np.inf
+        for k in range(min_k, max_k + 1):
+            labels = KMeans(n_clusters=k, n_init=5, random_state=42).fit_predict(sample)
+            if len(np.unique(labels)) < 2:
                 continue
-            
-            # Find track closest to centroid
-            centroid = centroids[cluster_idx]
-            distances = np.linalg.norm(cluster_features - centroid, axis=1)
-            min_idx = np.argmin(distances)
-            
-            representatives[cluster_idx] = cluster_track_ids[min_idx]
-        
-        return representatives
-    
-    def compute_distances_to_centroids(self, features: np.ndarray, labels: np.ndarray,
-                                      centroids: np.ndarray) -> np.ndarray:
-        """Compute distance of each point to its cluster centroid.
-        
-        Args:
-            features: Feature matrix
-            labels: Cluster labels
-            centroids: Cluster centroids
-            
-        Returns:
-            Array of distances
-        """
-        distances = np.zeros(len(features))
-        
-        for i, (feature, label) in enumerate(zip(features, labels)):
-            centroid = centroids[label]
-            distances[i] = np.linalg.norm(feature - centroid)
-        
-        return distances
+            if self.detection_method == "calinski":
+                score = calinski_harabasz_score(sample, labels)
+            else:
+                score = silhouette_score(sample, labels)
+            if score > best_score:
+                best_k, best_score = k, score
+        return best_k
+
+    @staticmethod
+    def apply_granularity(k: int, granularity: str) -> int:
+        multiplier = GRANULARITY_MULTIPLIERS.get(granularity, 1.0)
+        return max(2, int(round(k * multiplier)))
+
+    @staticmethod
+    def _centroids(features: np.ndarray, labels: np.ndarray) -> np.ndarray:
+        valid = sorted(int(label) for label in np.unique(labels) if label != NOISE_LABEL)
+        if not valid:
+            return np.empty((0, features.shape[1]))
+        return np.vstack([features[labels == label].mean(axis=0) for label in valid])
+
+    def _metrics(self, features: np.ndarray, labels: np.ndarray) -> Dict:
+        valid_mask = labels != NOISE_LABEL
+        unique = np.unique(labels[valid_mask])
+        metrics: Dict = {
+            "n_candidates": int(len(unique)),
+            "n_noise": int(np.sum(~valid_mask)),
+            "noise_percentage": float(100 * np.sum(~valid_mask) / max(len(labels), 1)),
+            "algorithm": self.algorithm,
+        }
+
+        if len(unique) > 1 and valid_mask.sum() > len(unique):
+            subset, sublabels = features[valid_mask], labels[valid_mask]
+            for name, func in (
+                ("silhouette_score", silhouette_score),
+                ("davies_bouldin_score", davies_bouldin_score),
+                ("calinski_harabasz_score", calinski_harabasz_score),
+            ):
+                try:
+                    metrics[name] = float(func(subset, sublabels))
+                except Exception:
+                    metrics[name] = None
+
+        sizes = {int(label): int(np.sum(labels == label)) for label in unique}
+        metrics["candidate_sizes"] = sizes
+        return metrics
+
+
+def select_exemplars(
+    features: np.ndarray, member_indices: List[int], count: int = 5
+) -> List[int]:
+    """Pick tracks that show what a candidate pile contains.
+
+    The medoid comes first (the most typical track), then greedily the members
+    furthest from everything already picked. A DJ scanning five tracks learns
+    more from the spread of a pile than from its five most average tracks.
+    """
+    if not member_indices:
+        return []
+    if len(member_indices) <= count:
+        return list(member_indices)
+
+    points = features[member_indices]
+    centroid = points.mean(axis=0)
+    medoid_local = int(np.argmin(np.linalg.norm(points - centroid, axis=1)))
+
+    chosen = [medoid_local]
+    distances = np.linalg.norm(points - points[medoid_local], axis=1)
+    while len(chosen) < count:
+        nxt = int(np.argmax(distances))
+        if nxt in chosen:
+            break
+        chosen.append(nxt)
+        distances = np.minimum(distances, np.linalg.norm(points - points[nxt], axis=1))
+
+    return [member_indices[i] for i in chosen]

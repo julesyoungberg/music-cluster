@@ -1,897 +1,905 @@
-"""CLI interface for music-cluster."""
+"""Command-line interface for music-cluster.
 
-import click
+The workflow, in the order you would actually use it:
+
+    music-cluster init
+    music-cluster groups import-tree ~/Music/DJ      # your existing folders
+    music-cluster fit                                # learn what they contain
+    music-cluster check                              # are they distinguishable?
+    music-cluster sort ~/Downloads/New               # score the new stuff
+    music-cluster review <session>                   # you decide
+    music-cluster apply <session> --mode copy        # write it to disk
+
+For an unsorted pile with no structure yet, start with `discover` instead.
+"""
+
 import json
 import os
-import pickle
 import sys
-import platform
-import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import List, Tuple, Optional, Dict
+from typing import Optional
+
+import click
 from tqdm import tqdm
-import numpy as np
 
 from .config import Config
 from .database import Database
-from .extractor import FeatureExtractor
-from .clustering import ClusterEngine
-from .classifier import TrackClassifier
-from .exporter import PlaylistExporter
-from .cluster_namer import ClusterNamer
-from .utils import (
-    find_audio_files, get_file_info, compute_file_checksum,
-    parse_extensions, DEFAULT_AUDIO_EXTENSIONS
-)
+from . import discovery as discovery_mod
+from . import groups as groups_mod
+from . import organizer, sorting
+from .library import analyze_paths, prune_missing
+from .metadata import display_name
+from .utils import parse_extensions
+
+
+DEFAULT_COLLECTION = "My Folders"
+
+
+# ----------------------------------------------------------------------
+# Shared helpers
+# ----------------------------------------------------------------------
+
+
+def get_context():
+    """Config and database, the two things nearly every command needs."""
+    config = Config()
+    return config, Database(config.get_db_path())
+
+
+def progress_bar(desc: str):
+    """Progress callback backed by tqdm, created lazily on first call."""
+    state = {"bar": None}
+
+    def callback(done: int, total: int, _filepath: str) -> None:
+        if total == 0:
+            return
+        if state["bar"] is None:
+            state["bar"] = tqdm(total=total, desc=desc, unit="track")
+        state["bar"].n = done
+        state["bar"].refresh()
+        if done >= total:
+            state["bar"].close()
+
+    return callback
+
+
+def resolve_collection_or_exit(db: Database, name: Optional[str]):
+    try:
+        return groups_mod.resolve_collection(db, name)
+    except LookupError as exc:
+        raise click.ClickException(str(exc))
+
+
+def echo_error(message: str) -> None:
+    click.echo(click.style(f"Error: {message}", fg="red"), err=True)
+
+
+def format_confidence(value: Optional[float]) -> str:
+    if value is None:
+        return "   - "
+    percent = value * 100
+    color = "green" if percent >= 75 else "yellow" if percent >= 50 else "red"
+    return click.style(f"{percent:4.0f}%", fg=color)
 
 
 @click.group()
-@click.version_option(version="1.0.0")
+@click.version_option(version="2.0.0")
 def cli():
-    """Music Cluster - Analyze, cluster, and classify music tracks.
-    
-    A comprehensive tool for organizing music libraries using audio analysis,
-    machine learning clustering, and automatic genre classification.
-    
-    Quick Start:
-    
-        1. music-cluster init
-        
-        2. music-cluster analyze ~/Music/techno --recursive
-        
-        3. music-cluster cluster --name techno_detailed --clusters 15
-        
-        4. music-cluster label-clusters techno_detailed
-        
-        5. music-cluster show techno_detailed
-        
-        6. music-cluster export --output ~/Music/playlists
-    
-    For detailed help on any command:
-    
-        music-cluster COMMAND --help
-    """
-    pass
+    """Sort new music into the folders you already keep."""
+
+
+# ----------------------------------------------------------------------
+# Setup
+# ----------------------------------------------------------------------
 
 
 @cli.command()
-@click.option('--db-path', type=str, default=None, help='Database path (default: ~/.music-cluster/library.db)')
+@click.option("--db-path", type=str, default=None, help="Database path")
 def init(db_path):
-    """Initialize database and configuration."""
-    # Create config
-    config = Config.create_default_config()
-    click.echo(f"Created configuration file: {config.config_path}")
-    
-    # Get database path
+    """Create the database and config file."""
+    config = Config()
     if db_path:
-        db_path = os.path.expanduser(db_path)
-    else:
-        db_path = config.get_db_path()
-    
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    
-    # Initialize database
-    db = Database(db_path)
-    click.echo(f"Initialized database: {db_path}")
-    click.echo("\n✓ Setup complete! You can now analyze your music library.")
+        config.set(["database", "path"], db_path)
+    config.save()
 
+    path = config.get_db_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    db = Database(path)
+    groups_mod.ensure_collection(db, DEFAULT_COLLECTION, "Default sorting scheme")
 
-@cli.command()
-@click.argument('path', type=click.Path(exists=True))
-@click.option('-r', '--recursive', is_flag=True, help='Scan subdirectories')
-@click.option('-u', '--update', is_flag=True, help='Re-analyze existing tracks')
-@click.option('--extensions', type=str, default='mp3,flac,wav,m4a,ogg,aiff,aif,opus,aac,wma,ape,alac,wv', 
-              help='Comma-separated file extensions (default: all common formats)')
-@click.option('--batch-size', type=int, default=100, help='Batch size for saving')
-@click.option('--workers', type=int, default=-1, help='Number of parallel workers (-1 = all CPUs)')
-@click.option('--skip-errors', is_flag=True, help='Continue on errors')
-def analyze(path, recursive, update, extensions, batch_size, workers, skip_errors):
-    """Analyze audio files and extract features.
-    
-    Extracts comprehensive audio features from music files including:
-    - Timbral characteristics (MFCCs, spectral features)
-    - Rhythmic features (BPM, onset strength)
-    - Harmonic features (chroma)
-    - Loudness and dynamics
-    
-    Examples:
-        music-cluster analyze ~/Music --recursive
-        music-cluster analyze ~/Music/techno -r --update
-        music-cluster analyze ~/Music -r --workers 8
-    """
-    from .cli_helpers import (determine_worker_count, filter_files_to_analyze, 
-                              process_files_parallel, process_files_sequential)
-    
-    # Load config
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Parse extensions
-    ext_set = parse_extensions(extensions)
-    
-    # Find audio files
-    click.echo(f"Scanning for audio files in {path}...")
-    audio_files = find_audio_files(path, recursive=recursive, extensions=ext_set)
-    
-    if not audio_files:
-        click.echo("No audio files found.")
-        return
-    
-    click.echo(f"Found {len(audio_files)} audio files")
-    
-    # Filter files that need analysis
-    files_to_analyze = filter_files_to_analyze(audio_files, db, update)
-    
-    if not files_to_analyze:
-        click.echo("All files already analyzed. Use --update to re-analyze.")
-        return
-    
-    click.echo(f"Analyzing {len(files_to_analyze)} files...")
-    
-    # Determine number of workers
-    workers = determine_worker_count(workers)
-    
-    # Initialize extractor config
-    extractor_config = {
-        'sample_rate': config.get('feature_extraction', 'sample_rate', default=44100),
-        'frame_size': config.get('feature_extraction', 'frame_size', default=2048),
-        'hop_size': config.get('feature_extraction', 'hop_size', default=1024),
-        'n_mfcc': config.get('feature_extraction', 'mfcc_coefficients', default=20)
-    }
-    analysis_version = config.get('feature_extraction', 'analysis_version', default='1.0.0')
-    
-    # Process files
-    if workers > 1:
-        analyzed_count, error_count = process_files_parallel(
-            files_to_analyze, extractor_config, workers, batch_size,
-            db, analysis_version, skip_errors
-        )
-    else:
-        analyzed_count, error_count = process_files_sequential(
-            files_to_analyze, extractor_config, batch_size,
-            db, analysis_version, skip_errors
-        )
-    
-    click.echo(f"\n✓ Analysis complete!")
-    click.echo(f"  Analyzed: {analyzed_count} tracks")
-    if error_count > 0:
-        click.echo(f"  Errors: {error_count} tracks")
-    click.echo(f"  Total in database: {db.count_features()} tracks")
-
-
-
-
-@cli.command()
-@click.option('--name', type=str, default=None, help='Name for this clustering')
-@click.option('--clusters', type=int, default=None, help='Exact number of clusters (not used for HDBSCAN)')
-@click.option('--granularity', type=click.Choice(['fewer', 'less', 'normal', 'more', 'finer']),
-              default='normal', help='Cluster granularity level')
-@click.option('--algorithm', type=click.Choice(['kmeans', 'hierarchical', 'hdbscan']),
-              default='kmeans', help='Clustering algorithm')
-@click.option('--min-size', type=int, default=3, help='Minimum cluster size')
-@click.option('--max-clusters', type=int, default=100, help='Maximum k to test')
-@click.option('--method', type=click.Choice(['silhouette', 'elbow', 'calinski']),
-              default='silhouette', help='Detection method')
-@click.option('--epsilon', type=float, default=0.0, help='HDBSCAN distance threshold (0=auto, higher=fewer clusters)')
-@click.option('--min-samples', type=int, default=None, help='HDBSCAN min samples (defaults to min-size)')
-@click.option('--show-metrics', is_flag=True, help='Display clustering metrics')
-def cluster(name, clusters, granularity, algorithm, min_size, max_clusters, method, epsilon, min_samples, show_metrics):
-    """Perform clustering on analyzed tracks."""
-    # Load config and database
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Check if we have features
-    feature_count = db.count_features()
-    if feature_count == 0:
-        click.echo("Error: No analyzed tracks found. Run 'music-cluster analyze' first.")
-        return
-    
-    click.echo(f"Loading {feature_count} feature vectors...")
-    
-    # Load features
-    feature_matrix, track_ids = db.get_all_features()
-    
-    if len(feature_matrix) < 2:
-        click.echo("Error: Need at least 2 tracks to cluster.")
-        return
-    
-    # Check for conflicting options
-    if clusters and granularity != 'normal':
-        click.echo("Warning: --clusters and --granularity are mutually exclusive. Using --clusters.")
-        granularity = 'normal'
-    
-    # Initialize clustering engine
-    engine = ClusterEngine(
-        min_clusters=min_size,
-        max_clusters=max_clusters,
-        detection_method=method,
-        algorithm=algorithm
-    )
-    
-    # HDBSCAN doesn't need optimal k finding
-    if algorithm == 'hdbscan':
-        # Perform HDBSCAN clustering
-        labels, centroids, cluster_metrics = engine.cluster(
-            feature_matrix,
-            show_progress=True,
-            min_cluster_size=min_size,
-            min_samples=min_samples,
-            cluster_selection_epsilon=epsilon
-        )
-        n_clusters = len(centroids)
-    else:
-        # Determine number of clusters
-        if clusters:
-            n_clusters = clusters
-            click.echo(f"Using specified cluster count: {n_clusters}")
-        else:
-            click.echo(f"Finding optimal number of clusters (method: {method})...")
-            optimal_k, metrics = engine.find_optimal_k(feature_matrix, show_progress=True)
-            
-            # Apply granularity
-            n_clusters = engine.apply_granularity(optimal_k, granularity)
-            
-            click.echo(f"Optimal k: {optimal_k}")
-            if granularity != 'normal':
-                click.echo(f"Adjusted for '{granularity}' granularity: {n_clusters}")
-        
-        # Perform clustering
-        labels, centroids, cluster_metrics = engine.cluster(feature_matrix, n_clusters, show_progress=True)
-    
-    # Find representative tracks
-    click.echo("Finding representative tracks...")
-    representatives = engine.find_representative_tracks(feature_matrix, labels, centroids, track_ids)
-    
-    # Compute distances
-    distances = engine.compute_distances_to_centroids(feature_matrix, labels, centroids)
-    
-    # Save to database
-    click.echo("Saving clustering to database...")
-    
-    # Prepare parameters
-    params = {
-        'granularity': granularity,
-        'method': method,
-        'min_size': min_size
-    }
-    if algorithm == 'hdbscan':
-        params['epsilon'] = epsilon
-        params['min_samples'] = min_samples
-    
-    # Create clustering record
-    clustering_id = db.add_clustering(
-        name=name,
-        algorithm=algorithm,
-        num_clusters=n_clusters,
-        parameters=json.dumps(params),
-        silhouette_score=cluster_metrics.get('silhouette_score')
-    )
-    
-    # For HDBSCAN, get unique labels (excluding noise)
-    if algorithm == 'hdbscan':
-        unique_labels = np.unique(labels[labels >= 0])
-    else:
-        unique_labels = range(n_clusters)
-    
-    # Save clusters and members
-    for cluster_idx in unique_labels:
-        cluster_mask = labels == cluster_idx
-        cluster_size = int(np.sum(cluster_mask))
-        
-        if cluster_size == 0:
-            continue
-        
-        # Get representative
-        rep_track_id = representatives.get(cluster_idx)
-        
-        # Create cluster
-        cluster_id = db.add_cluster(
-            clustering_id=clustering_id,
-            cluster_index=int(cluster_idx),
-            size=cluster_size,
-            representative_track_id=rep_track_id,
-            centroid=centroids[cluster_idx if algorithm != 'hdbscan' else list(unique_labels).index(cluster_idx)]
-        )
-        
-        # Add members
-        for i, (track_id, label, distance) in enumerate(zip(track_ids, labels, distances)):
-            if label == cluster_idx:
-                db.add_cluster_member(cluster_id, track_id, distance)
-    
-    # Display results
-    click.echo(f"\n✓ Clustering complete!")
-    click.echo(f"  Clustering ID: {clustering_id}")
-    if name:
-        click.echo(f"  Name: {name}")
-    click.echo(f"  Number of clusters: {n_clusters}")
-    if algorithm == 'hdbscan' and cluster_metrics.get('n_noise', 0) > 0:
-        click.echo(f"  Noise points: {cluster_metrics['n_noise']} ({cluster_metrics['noise_percentage']:.1f}%)")
-    
-    if show_metrics and cluster_metrics:
-        click.echo("\nQuality Metrics:")
-        if cluster_metrics.get('silhouette_score'):
-            click.echo(f"  Silhouette Score: {cluster_metrics['silhouette_score']:.3f}")
-        if cluster_metrics.get('davies_bouldin_score'):
-            click.echo(f"  Davies-Bouldin Score: {cluster_metrics['davies_bouldin_score']:.3f}")
-        if cluster_metrics.get('calinski_harabasz_score'):
-            click.echo(f"  Calinski-Harabasz Score: {cluster_metrics['calinski_harabasz_score']:.1f}")
-        
-        click.echo("\nCluster Size Distribution:")
-        click.echo(f"  Min: {cluster_metrics['min_cluster_size']} tracks")
-        click.echo(f"  Max: {cluster_metrics['max_cluster_size']} tracks")
-        click.echo(f"  Mean: {cluster_metrics['mean_cluster_size']:.1f} tracks")
-
-
-@cli.command()
-@click.argument('path', type=click.Path(exists=True))
-@click.option('-r', '--recursive', is_flag=True, help='Process directory recursively')
-@click.option('--clustering', type=str, default=None, help='Clustering name (default: latest)')
-@click.option('--threshold', type=float, default=None, help='Max distance threshold')
-@click.option('--export', is_flag=True, help='Add to playlists')
-@click.option('--show-features', is_flag=True, help='Display features')
-def classify(path, recursive, clustering, threshold, export, show_features):
-    """Classify new tracks to existing clusters."""
-    # Load config and database
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get clustering
-    clustering_info = db.get_clustering(name=clustering) if clustering else db.get_clustering()
-    if not clustering_info:
-        click.echo("Error: No clustering found. Run 'music-cluster cluster' first.")
-        return
-    
-    click.echo(f"Using clustering: {clustering_info.get('name', 'Unnamed')} (ID: {clustering_info['id']})")
-    
-    # Load clusters and centroids
-    clusters = db.get_clusters_by_clustering(clustering_info['id'])
-    if not clusters:
-        click.echo("Error: No clusters found in this clustering.")
-        return
-    
-    # Build centroid matrix
-    centroids = []
-    cluster_ids = []
-    for cluster in clusters:
-        if cluster['centroid']:
-            centroid = pickle.loads(cluster['centroid'])
-            centroids.append(centroid)
-            cluster_ids.append(cluster['id'])
-    
-    centroids = np.array(centroids)
-    
-    # Initialize classifier
-    classifier = TrackClassifier(centroids, cluster_ids)
-    
-    # Find audio files to classify
-    audio_files = find_audio_files(path, recursive=recursive)
-    if not audio_files:
-        click.echo("No audio files found.")
-        return
-    
-    # Initialize extractor
-    extractor_config = {
-        'sample_rate': config.get('feature_extraction', 'sample_rate', default=44100),
-        'frame_size': config.get('feature_extraction', 'frame_size', default=2048),
-        'hop_size': config.get('feature_extraction', 'hop_size', default=1024),
-        'n_mfcc': config.get('feature_extraction', 'mfcc_coefficients', default=20)
-    }
-    extractor = FeatureExtractor(**extractor_config)
-    
-    # Classify each file
-    click.echo(f"Classifying {len(audio_files)} tracks...")
-    
-    for filepath in audio_files:
-        # Extract features
-        features = extractor.extract(filepath)
-        if features is None:
-            click.echo(f"✗ {os.path.basename(filepath)}: Failed to extract features")
-            continue
-        
-        # Classify
-        cluster_id, distance = classifier.classify(features, threshold)
-        
-        if cluster_id == -1:
-            click.echo(f"✗ {os.path.basename(filepath)}: No match (distance: {distance:.2f})")
-        else:
-            # Get cluster info
-            cluster_info = db.get_cluster(cluster_id)
-            rep_track = db.get_track_by_id(cluster_info['representative_track_id'])
-            
-            click.echo(f"✓ {os.path.basename(filepath)}")
-            click.echo(f"  → Cluster {cluster_info['cluster_index']} (distance: {distance:.2f})")
-            if rep_track:
-                click.echo(f"  Representative: {rep_track['filename']}")
-
-
-@cli.command()
-@click.option('--output', type=str, default='./playlists', help='Output directory')
-@click.option('--format', type=click.Choice(['m3u', 'm3u8', 'json']), 
-              default='m3u', help='Playlist format')
-@click.option('--clustering', type=str, default=None, help='Clustering name (default: latest)')
-@click.option('--relative-paths', is_flag=True, help='Use relative paths')
-@click.option('--include-representative', is_flag=True, default=True, 
-              help='Include representative track first')
-def export(output, format, clustering, relative_paths, include_representative):
-    """Export clusters as playlists."""
-    # Load config and database
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get clustering
-    clustering_info = db.get_clustering(name=clustering) if clustering else db.get_clustering()
-    if not clustering_info:
-        click.echo("Error: No clustering found. Run 'music-cluster cluster' first.")
-        return
-    
-    click.echo(f"Exporting clustering: {clustering_info.get('name', 'Unnamed')}")
-    
-    # Get clusters
-    clusters = db.get_clusters_by_clustering(clustering_info['id'])
-    if not clusters:
-        click.echo("Error: No clusters found.")
-        return
-    
-    # Prepare cluster data
-    clusters_data = []
-    for cluster in clusters:
-        members = db.get_cluster_members(cluster['id'])
-        rep_track = db.get_track_by_id(cluster['representative_track_id']) if cluster['representative_track_id'] else None
-        
-        clusters_data.append({
-            'cluster': cluster,
-            'tracks': members,
-            'representative': rep_track
-        })
-    
-    # Export
-    exporter = PlaylistExporter(
-        output_dir=output,
-        playlist_format=format,
-        relative_paths=relative_paths,
-        include_representative=include_representative
-    )
-    
-    click.echo(f"Exporting {len(clusters)} clusters to {output}...")
-    created_files = exporter.export_all_clusters(clustering_info, clusters_data)
-    
-    click.echo(f"\n✓ Export complete!")
-    click.echo(f"  Created {len(created_files)} files in {output}")
+    click.echo(f"Database:   {path}")
+    click.echo(f"Config:     {config.config_path}")
+    click.echo(f"Collection: {DEFAULT_COLLECTION}")
+    click.echo("\nNext: music-cluster groups import-tree ~/Music/YourDJFolders")
 
 
 @cli.command()
 def info():
-    """Show database statistics."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    track_count = db.count_tracks()
-    feature_count = db.count_features()
-    clusterings = db.get_all_clusterings()
-    
-    click.echo("Music Cluster Database Info")
-    click.echo("=" * 50)
+    """Show what is in the library."""
+    config, db = get_context()
     click.echo(f"Database: {config.get_db_path()}")
-    click.echo(f"Total tracks: {track_count}")
-    click.echo(f"Analyzed tracks: {feature_count}")
-    click.echo(f"Clusterings: {len(clusterings)}")
-    
-    if clusterings:
-        click.echo("\nRecent Clusterings:")
-        for clustering in clusterings[:5]:
-            click.echo(f"  - {clustering.get('name', 'Unnamed')} (ID: {clustering['id']})")
-            click.echo(f"    Clusters: {clustering['num_clusters']}, Created: {clustering.get('created_at', 'Unknown')}")
+    click.echo(f"Tracks:   {db.count_tracks()} ({db.count_features()} analysed)")
 
-
-@cli.command(name='list')
-def list_cmd():
-    """List all clusterings."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    clusterings = db.get_all_clusterings()
-    
-    if not clusterings:
-        click.echo("No clusterings found.")
+    collections = db.list_collections()
+    if not collections:
+        click.echo("\nNo collections yet. Run: music-cluster collection create <name>")
         return
-    
-    click.echo(f"Found {len(clusterings)} clustering(s):\n")
-    
-    for clustering in clusterings:
-        click.echo(f"ID: {clustering['id']}")
-        click.echo(f"Name: {clustering.get('name', 'Unnamed')}")
-        click.echo(f"Algorithm: {clustering.get('algorithm', 'kmeans')}")
-        click.echo(f"Clusters: {clustering['num_clusters']}")
-        if clustering.get('silhouette_score'):
-            click.echo(f"Quality Score: {clustering['silhouette_score']:.3f}")
-        click.echo(f"Created: {clustering.get('created_at', 'Unknown')}")
-        click.echo()
+
+    click.echo("\nCollections:")
+    for collection in collections:
+        model = db.load_model(collection["id"])
+        accuracy = model["metrics"].get("accuracy") if model else None
+        fitted = (
+            f"fitted, {accuracy * 100:.0f}% self-check" if accuracy is not None else "not fitted"
+        )
+        click.echo(
+            f"  {collection['name']}: {collection['group_count']} groups, "
+            f"{collection['track_count']} reference tracks ({fitted})"
+        )
 
 
 @cli.command()
-@click.argument('clustering_name', type=str)
-def show(clustering_name):
-    """Show clusters in a clustering."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    clustering = db.get_clustering(name=clustering_name)
-    if not clustering:
-        click.echo(f"Error: Clustering '{clustering_name}' not found.")
-        return
-    
-    clusters = db.get_clusters_by_clustering(clustering['id'])
-    
-    click.echo(f"Clustering: {clustering.get('name', 'Unnamed')} (ID: {clustering['id']})")
-    click.echo(f"Total clusters: {len(clusters)}\n")
-    
-    for cluster in clusters:
-        rep_track = db.get_track_by_id(cluster['representative_track_id']) if cluster['representative_track_id'] else None
-        
-        cluster_label = f"Cluster {cluster['cluster_index']}"
-        if cluster.get('name'):
-            cluster_label += f": {cluster['name']}"
-        
-        click.echo(cluster_label)
-        click.echo(f"  Size: {cluster['size']} tracks")
-        if rep_track:
-            click.echo(f"  Representative: {rep_track['filename']}")
-        click.echo()
-
-
-@cli.command()
-@click.argument('cluster_id', type=int)
-def describe(cluster_id):
-    """Show tracks in a cluster."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    cluster = db.get_cluster(cluster_id)
-    if not cluster:
-        click.echo(f"Error: Cluster {cluster_id} not found.")
-        return
-    
-    members = db.get_cluster_members(cluster_id)
-    
-    click.echo(f"Cluster {cluster['cluster_index']} (ID: {cluster_id})")
-    click.echo(f"Size: {len(members)} tracks\n")
-    
-    if cluster['representative_track_id']:
-        rep_track = db.get_track_by_id(cluster['representative_track_id'])
-        if rep_track:
-            click.echo(f"Representative Track: {rep_track['filename']}\n")
-    
-    click.echo("Tracks:")
-    for i, track in enumerate(members, 1):
-        click.echo(f"{i:3d}. {track['filename']}")
-        if 'distance_to_centroid' in track:
-            click.echo(f"     Distance: {track['distance_to_centroid']:.3f}")
-
-
-@cli.command(name='rename-cluster')
-@click.argument('clustering_name', type=str)
-@click.argument('cluster_index', type=int)
-@click.argument('new_name', type=str)
-def rename_cluster_cmd(clustering_name, cluster_index, new_name):
-    """Rename a specific cluster."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get clustering
-    clustering = db.get_clustering(name=clustering_name)
-    if not clustering:
-        click.echo(f"Error: Clustering '{clustering_name}' not found.")
-        return
-    
-    # Get cluster
-    cluster = db.get_cluster_by_index(clustering['id'], cluster_index)
-    if not cluster:
-        click.echo(f"Error: Cluster {cluster_index} not found in clustering '{clustering_name}'.")
-        return
-    
-    # Update name
-    db.update_cluster_name(cluster['id'], new_name)
-    
-    click.echo(f"✓ Renamed Cluster {cluster_index} to '{new_name}'")
-
-
-@cli.command(name='label-clusters')
-@click.argument('clustering_name', type=str)
-@click.option('--dry-run', is_flag=True, help='Show generated names without saving')
-@click.option('--no-genre', is_flag=True, help='Exclude genre classification from names')
-@click.option('--no-bpm', is_flag=True, help='Exclude BPM information from names')
-@click.option('--no-descriptors', is_flag=True, help='Exclude characteristics (Bass-Heavy, Dark, etc.)')
-@click.option('--bpm-average', is_flag=True, help='Use average BPM instead of range')
-def label_clusters_cmd(clustering_name, dry_run, no_genre, no_bpm, no_descriptors, bpm_average):
-    """Auto-generate descriptive names for all clusters.
-    
-    Analyzes audio characteristics to generate meaningful names including:
-    - Genre classification (Techno, House, Drum & Bass, etc.)
-    - BPM information (range or average)
-    - Distinctive characteristics (Bass-Heavy, Bright, Dark, etc.)
-    
-    Naming scheme can be customized with flags:
-        --no-genre: Skip genre classification
-        --no-bpm: Skip BPM information  
-        --no-descriptors: Skip characteristics
-        --bpm-average: Use average BPM instead of range
-    
-    Examples:
-        music-cluster label-clusters my_clustering --dry-run
-        music-cluster label-clusters techno_fine_kmeans
-        music-cluster label-clusters my_clustering --no-bpm
-        music-cluster label-clusters my_clustering --bpm-average
-    """
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get clustering
-    clustering = db.get_clustering(name=clustering_name)
-    if not clustering:
-        click.echo(f"Error: Clustering '{clustering_name}' not found.")
-        return
-    
-    # Get clusters
-    clusters = db.get_clusters_by_clustering(clustering['id'])
-    if not clusters:
-        click.echo("No clusters found.")
-        return
-    
-    # Unpickle centroids with error handling
-    for cluster in clusters:
-        if cluster['centroid']:
-            try:
-                cluster['centroid'] = pickle.loads(cluster['centroid'])
-            except (pickle.UnpicklingError, EOFError, ValueError, TypeError) as e:
-                click.echo(f"Warning: Failed to unpickle centroid for cluster {cluster['cluster_index']}: {e}", err=True)
-                click.echo(f"  Skipping this cluster for name generation.", err=True)
-                cluster['centroid'] = None
-    
-    # Load features and labels
-    click.echo("Loading features...")
-    feature_matrix, track_ids = db.get_all_features()
-    
-    # Reconstruct labels from cluster membership
-    labels = np.full(len(track_ids), -1, dtype=int)
-    for cluster in clusters:
-        members = db.get_cluster_members(cluster['id'])
-        for member in members:
-            try:
-                # Note: member comes from cluster_members table, use track_id not id
-                track_idx = track_ids.index(member['id']) if 'id' in member else track_ids.index(member.get('track_id', -1))
-                labels[track_idx] = cluster['cluster_index']
-            except (ValueError, KeyError):
-                # Track not in feature list (possibly deleted or not analyzed), skip
-                continue
-    
-    # Generate names
-    click.echo("Generating cluster names...")
-    namer = ClusterNamer(
-        include_genre=not no_genre,
-        include_bpm=not no_bpm,
-        use_bpm_range=not bpm_average,
-        include_descriptors=not no_descriptors
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("-r/--no-recursive", "recursive", default=True, help="Scan subdirectories")
+@click.option("-u", "--update", is_flag=True, help="Re-analyse tracks already in the library")
+@click.option("--extensions", type=str, default=None, help="Comma-separated extensions")
+@click.option("--workers", type=int, default=None, help="Parallel workers (-1 = all CPUs)")
+def analyze(paths, recursive, update, extensions, workers):
+    """Extract audio features for files, without sorting them."""
+    config, db = get_context()
+    result = analyze_paths(
+        db,
+        config,
+        list(paths),
+        recursive=recursive,
+        update=update,
+        extensions=parse_extensions(extensions) if extensions else None,
+        workers=workers,
+        progress=progress_bar("Analysing"),
     )
-    names = namer.generate_names_for_clustering(clusters, feature_matrix, labels)
-    
-    # Display and optionally save
-    click.echo(f"\nGenerated names for {len(names)} clusters:\n")
-    for cluster_idx, name in sorted(names.items()):
-        cluster = next(c for c in clusters if c['cluster_index'] == cluster_idx)
-        click.echo(f"Cluster {cluster_idx}: {name} ({cluster['size']} tracks)")
-        
-        if not dry_run:
-            db.update_cluster_name(cluster['id'], name)
-    
-    if dry_run:
-        click.echo("\n(Dry run - no names were saved. Run without --dry-run to save.)")
-    else:
-        click.echo(f"\n✓ Updated {len(names)} cluster names")
+    click.echo(
+        f"\nAnalysed {result.analyzed}, skipped {result.skipped} (already known), "
+        f"failed {result.failed}."
+    )
+    for error in result.errors[:5]:
+        click.echo(f"  {os.path.basename(error['filepath'])}: {error['error']}")
 
 
 @cli.command()
-@click.argument('query', type=str)
-@click.option('--clustering', type=str, default=None, help='Clustering name (default: all tracks)')
-@click.option('--limit', type=int, default=20, help='Maximum results to show')
-def search(query, clustering, limit):
-    """Search for tracks by name or artist.
-    
-    Searches track filenames and paths (case-insensitive). If a clustering
-    is specified, shows which cluster each track belongs to.
-    
-    Examples:
-        music-cluster search "Aphex Twin"
-        music-cluster search "K-LONE" --clustering techno_fine_kmeans
-        music-cluster search "remix" --limit 50
+def prune():
+    """Remove library entries whose files no longer exist."""
+    _, db = get_context()
+    removed = prune_missing(db)
+    click.echo(f"Removed {len(removed)} missing track(s).")
+
+
+# ----------------------------------------------------------------------
+# Collections
+# ----------------------------------------------------------------------
+
+
+@cli.group()
+def collection():
+    """Manage sorting schemes."""
+
+
+@collection.command("create")
+@click.argument("name")
+@click.option("--description", type=str, default=None)
+def collection_create(name, description):
+    """Create a collection."""
+    _, db = get_context()
+    if db.get_collection(name=name):
+        raise click.ClickException(f"A collection named {name!r} already exists")
+    db.create_collection(name, description)
+    click.echo(f"Created collection {name!r}.")
+
+
+@collection.command("list")
+def collection_list():
+    """List collections."""
+    _, db = get_context()
+    collections = db.list_collections()
+    if not collections:
+        click.echo("No collections yet.")
+        return
+    for item in collections:
+        click.echo(
+            f"{item['id']:>4}  {item['name']:<30} {item['group_count']:>3} groups"
+            f"  {item['track_count']:>6} tracks"
+        )
+
+
+@collection.command("delete")
+@click.argument("name")
+@click.confirmation_option(prompt="Delete this collection and all of its groups?")
+def collection_delete(name):
+    """Delete a collection (tracks stay in the library)."""
+    _, db = get_context()
+    target = db.get_collection(name=name)
+    if not target:
+        raise click.ClickException(f"No collection named {name!r}")
+    db.delete_collection(target["id"])
+    click.echo(f"Deleted {name!r}.")
+
+
+# ----------------------------------------------------------------------
+# Groups
+# ----------------------------------------------------------------------
+
+
+@cli.group()
+def groups():
+    """Manage the folders you sort into."""
+
+
+@groups.command("import-tree")
+@click.argument("parent", type=click.Path(exists=True, file_okay=False))
+@click.option("--collection", "collection_name", default=None, help="Collection name")
+@click.option("--min-tracks", type=int, default=1, help="Skip folders with fewer tracks")
+@click.option("-r/--no-recursive", "recursive", default=True)
+@click.option("--workers", type=int, default=None)
+def groups_import_tree(parent, collection_name, min_tracks, recursive, workers):
+    """Import every subfolder of PARENT as a group.
+
+    The fast path when your library is already a folder of genre folders.
     """
-    config = Config()
-    db = Database(config.get_db_path())
-    
+    config, db = get_context()
+    target = groups_mod.ensure_collection(db, collection_name or DEFAULT_COLLECTION)
+
+    reports = groups_mod.import_folders_as_groups(
+        db,
+        target["id"],
+        parent,
+        config,
+        recursive=recursive,
+        min_tracks=min_tracks,
+        workers=workers,
+        progress=progress_bar("Analysing"),
+    )
+    if not reports:
+        raise click.ClickException(f"No subfolders with at least {min_tracks} track(s) in {parent}")
+
+    click.echo("")
+    for report in reports:
+        click.echo(f"  {report.group_name:<32} {report.added:>5} reference tracks")
+    click.echo(f"\nImported {len(reports)} group(s) into {target['name']!r}.")
+    click.echo("Next: music-cluster fit")
+
+
+@groups.command("add")
+@click.argument("name")
+@click.option("--collection", "collection_name", default=None)
+@click.option("--folder", type=click.Path(exists=True, file_okay=False), help="Import a folder")
+@click.option("--playlist", type=click.Path(exists=True, dir_okay=False), help="Import a playlist")
+@click.option("--track", "tracks", multiple=True, type=click.Path(exists=True, dir_okay=False),
+              help="Add individual seed tracks (repeatable)")
+@click.option("--destination", type=click.Path(file_okay=False), default=None,
+              help="Folder new music assigned to this group should go to")
+@click.option("--description", type=str, default=None)
+@click.option("--workers", type=int, default=None)
+def groups_add(name, collection_name, folder, playlist, tracks, destination, description, workers):
+    """Create a group from a folder, a playlist, or a few seed tracks."""
+    config, db = get_context()
+    target = groups_mod.ensure_collection(db, collection_name or DEFAULT_COLLECTION)
+    callback = progress_bar("Analysing")
+
     try:
-        # Get all tracks
-        all_tracks = db.get_all_tracks()
-    except Exception as e:
-        click.echo(f"Error accessing database: {e}", err=True)
-        return
-    
-    if not all_tracks:
-        click.echo("No tracks in database.")
-        return
-    
-    # Filter by query (case-insensitive)
-    query_lower = query.lower()
-    matching_tracks = [
-        t for t in all_tracks
-        if query_lower in t['filename'].lower() or query_lower in t['filepath'].lower()
-    ]
-    
-    if not matching_tracks:
-        click.echo(f"No tracks found matching '{query}'")
-        return
-    
-    # If clustering specified, show which clusters they belong to
-    if clustering:
-        clustering_info = db.get_clustering(name=clustering)
-        if not clustering_info:
-            click.echo(f"Error: Clustering '{clustering}' not found.")
+        if folder:
+            report = groups_mod.import_folder_as_group(
+                db, target["id"], folder, config, name=name,
+                set_destination=destination is None, workers=workers, progress=callback,
+            )
+            if destination:
+                db.update_group(report.group_id, destination_path=os.path.abspath(destination))
+        elif playlist:
+            report = groups_mod.import_playlist_as_group(
+                db, target["id"], playlist, config, name=name,
+                destination_path=destination, workers=workers, progress=callback,
+            )
+        elif tracks:
+            group = groups_mod.create_group(
+                db, target["id"], name, description=description,
+                destination_path=destination, source_kind="manual",
+            )
+            report = groups_mod.add_tracks_to_group(
+                db, group, [os.path.abspath(t) for t in tracks], config,
+                role="seed", workers=workers, progress=callback,
+            )
+        else:
+            group = groups_mod.create_group(
+                db, target["id"], name, description=description, destination_path=destination
+            )
+            click.echo(f"Created empty group {name!r}. Add tracks with --track/--folder/--playlist.")
             return
-        
-        click.echo(f"Found {len(matching_tracks)} track(s) matching '{query}' in clustering '{clustering}':\n")
-        
-        for track in matching_tracks[:limit]:
-            cluster_id = db.get_track_cluster(track['id'], clustering_info['id'])
-            if cluster_id:
-                cluster = db.get_cluster(cluster_id)
-                cluster_label = f"Cluster {cluster['cluster_index']}"
-                if cluster.get('name'):
-                    cluster_label += f": {cluster['name']}"
-                click.echo(f"✓ {track['filename']}")
-                click.echo(f"  {cluster_label}")
-                click.echo(f"  {track['filepath']}")
-                click.echo()
-            else:
-                click.echo(f"✗ {track['filename']} (not in clustering)")
-                click.echo(f"  {track['filepath']}")
-                click.echo()
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+
+    click.echo(
+        f"\n{report.group_name}: {report.added} reference track(s) added"
+        + (f", {report.already_present} already present" if report.already_present else "")
+    )
+
+
+@groups.command("list")
+@click.option("--collection", "collection_name", default=None)
+def groups_list(collection_name):
+    """List the groups in a collection."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    rows = db.list_groups(target["id"])
+    if not rows:
+        click.echo(f"No groups in {target['name']!r} yet.")
+        return
+
+    model = db.load_model(target["id"])
+    accuracy = {
+        entry["group_id"]: entry["accuracy"]
+        for entry in (model["metrics"].get("per_group", []) if model else [])
+    }
+
+    click.echo(f"{target['name']}:\n")
+    click.echo(f"{'ID':>4}  {'Group':<30} {'Tracks':>7}  {'Self-check':>10}  Destination")
+    for group in rows:
+        score = accuracy.get(group["id"])
+        score_text = f"{score * 100:.0f}%" if score is not None else "-"
+        destination = group["destination_path"] or click.style("(none)", fg="yellow")
+        click.echo(
+            f"{group['id']:>4}  {group['name']:<30} {group['size']:>7}  {score_text:>10}  {destination}"
+        )
+
+
+@groups.command("show")
+@click.argument("name")
+@click.option("--collection", "collection_name", default=None)
+@click.option("--limit", type=int, default=25)
+def groups_show(name, collection_name, limit):
+    """Show a group's reference tracks."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    try:
+        group = groups_mod.resolve_group(db, target["id"], name)
+    except LookupError as exc:
+        raise click.ClickException(str(exc))
+
+    members = db.get_group_members(group["id"], limit=limit)
+    total = len(db.get_group_member_ids(group["id"]))
+    click.echo(f"{group['name']} — {total} reference track(s)")
+    click.echo(f"Destination: {group['destination_path'] or '(none)'}\n")
+    for track in members:
+        click.echo(f"  {display_name(track)}")
+    if total > limit:
+        click.echo(f"  ... and {total - limit} more")
+
+
+@groups.command("rename")
+@click.argument("name")
+@click.argument("new_name")
+@click.option("--collection", "collection_name", default=None)
+def groups_rename(name, new_name, collection_name):
+    """Rename a group."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    group = groups_mod.resolve_group(db, target["id"], name)
+    db.update_group(group["id"], name=new_name)
+    click.echo(f"Renamed {group['name']!r} to {new_name!r}.")
+
+
+@groups.command("set-destination")
+@click.argument("name")
+@click.argument("destination", type=click.Path(file_okay=False))
+@click.option("--collection", "collection_name", default=None)
+def groups_set_destination(name, destination, collection_name):
+    """Set where music sorted into a group should be filed."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    group = groups_mod.resolve_group(db, target["id"], name)
+    db.update_group(group["id"], destination_path=os.path.abspath(os.path.expanduser(destination)))
+    click.echo(f"{group['name']} -> {os.path.abspath(os.path.expanduser(destination))}")
+
+
+@groups.command("remove")
+@click.argument("name")
+@click.option("--collection", "collection_name", default=None)
+@click.confirmation_option(prompt="Remove this group?")
+def groups_remove(name, collection_name):
+    """Delete a group (its tracks stay in the library)."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    group = groups_mod.resolve_group(db, target["id"], name)
+    db.delete_group(group["id"])
+    db.touch_collection(target["id"])
+    click.echo(f"Removed {group['name']!r}.")
+
+
+@groups.command("export")
+@click.option("--collection", "collection_name", default=None)
+@click.option("--output", type=click.Path(file_okay=False), default="./playlists")
+@click.option("--format", "playlist_format", type=click.Choice(["m3u", "m3u8"]), default="m3u8")
+@click.option("--relative-paths", is_flag=True)
+def groups_export(collection_name, output, playlist_format, relative_paths):
+    """Write one playlist per group."""
+    _, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    written = organizer.export_groups_as_playlists(
+        db, db.list_groups(target["id"]), output,
+        playlist_format=playlist_format, relative_paths=relative_paths,
+    )
+    click.echo(f"Wrote {len(written)} playlist(s) to {os.path.abspath(output)}")
+
+
+# ----------------------------------------------------------------------
+# Fit and check
+# ----------------------------------------------------------------------
+
+
+@cli.command()
+@click.option("--collection", "collection_name", default=None)
+def fit(collection_name):
+    """Learn what each group contains."""
+    config, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+
+    click.echo(f"Fitting {target['name']!r}...")
+    try:
+        metrics = groups_mod.fit_collection(db, target, config)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+
+    embedding = metrics.get("embedding", {})
+    click.echo(
+        f"Fitted {metrics['n_groups']} groups / {metrics['n_tracks']} reference tracks "
+        f"({embedding.get('projection', '?')} space, {embedding.get('output_dim', '?')} dims)"
+    )
+    click.echo(f"Self-check accuracy: {metrics['accuracy'] * 100:.1f}%")
+    for problem in metrics.get("problems", []):
+        click.echo(click.style(f"  warning: {problem['name']}: {problem['issue']}", fg="yellow"))
+    click.echo("\nRun `music-cluster check` for a per-group breakdown.")
+
+
+@cli.command()
+@click.option("--collection", "collection_name", default=None)
+@click.option("--refit", is_flag=True, help="Refit before checking")
+def check(collection_name, refit):
+    """Report how distinguishable your groups are from each other."""
+    config, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+
+    if refit:
+        groups_mod.fit_collection(db, target, config)
+
+    model = db.load_model(target["id"])
+    if not model:
+        raise click.ClickException("Not fitted yet. Run `music-cluster fit` first.")
+    metrics = model["metrics"]
+
+    click.echo(f"{target['name']} — self-check\n")
+    click.echo(f"Overall accuracy: {metrics.get('accuracy', 0) * 100:.1f}%")
+    click.echo(
+        f"Reference tracks: {metrics.get('n_tracks', 0)} across {metrics.get('n_groups', 0)} groups\n"
+    )
+
+    click.echo(f"{'Group':<32} {'Tracks':>7} {'Correct':>8} {'Accuracy':>9}")
+    for entry in sorted(metrics.get("per_group", []), key=lambda e: e["accuracy"]):
+        color = "green" if entry["accuracy"] >= 0.8 else "yellow" if entry["accuracy"] >= 0.5 else "red"
+        click.echo(
+            f"{entry['name']:<32} {entry['size']:>7} {entry['correct']:>8} "
+            + click.style(f"{entry['accuracy'] * 100:>8.0f}%", fg=color)
+        )
+
+    pairs = metrics.get("confusable_pairs", [])
+    if pairs:
+        click.echo("\nMost easily confused:")
+        for pair in pairs:
+            click.echo(
+                f"  {pair['count']:>4} tracks from {pair['from_name']!r} "
+                f"look like {pair['to_name']!r} ({pair['rate'] * 100:.0f}%)"
+            )
+        click.echo(
+            "\nHigh overlap usually means two groups are genuinely similar — either merge\n"
+            "them, or add more reference tracks that show what makes them different."
+        )
+
+
+# ----------------------------------------------------------------------
+# Sorting
+# ----------------------------------------------------------------------
+
+
+@cli.command()
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("--collection", "collection_name", default=None)
+@click.option("--name", default=None, help="Name for this sort session")
+@click.option("-r/--no-recursive", "recursive", default=True)
+@click.option("--auto-accept", is_flag=True, help="Pre-accept high-confidence suggestions")
+@click.option("--workers", type=int, default=None)
+@click.option("--review/--no-review", default=True, help="Open the review prompt when done")
+def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
+    """Score new music against your groups."""
+    config, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+
+    try:
+        outcome = sorting.create_session(
+            db, config, target, list(paths), name=name, recursive=recursive,
+            workers=workers, progress=progress_bar("Analysing"), auto_accept=auto_accept,
+        )
+    except (ValueError, LookupError) as exc:
+        raise click.ClickException(str(exc))
+
+    session = outcome["session"]
+    summary = outcome["summary"]
+    click.echo(f"\nSession {session['id']} ({session['name']}):")
+    click.echo(f"  {summary.get('pending', 0)} to review")
+    if summary.get("accepted"):
+        click.echo(f"  {summary['accepted']} auto-accepted")
+    if summary.get("unmatched"):
+        click.echo(f"  {summary['unmatched']} matched nothing in this collection")
+
+    if review and summary.get("pending"):
+        review_session(db, config, session["id"])
+    elif summary.get("pending"):
+        click.echo(f"\nNext: music-cluster review {session['id']}")
     else:
-        click.echo(f"Found {len(matching_tracks)} track(s) matching '{query}':\n")
-        for track in matching_tracks[:limit]:
-            click.echo(f"• {track['filename']}")
-            click.echo(f"  {track['filepath']}")
-            click.echo()
-    
-    if len(matching_tracks) > limit:
-        click.echo(f"... and {len(matching_tracks) - limit} more. Use --limit to see more.")
+        click.echo(f"\nNext: music-cluster apply {session['id']} --mode copy")
 
 
 @cli.command()
-@click.argument('clustering_name', type=str)
-def stats(clustering_name):
-    """Show detailed statistics for a clustering."""
-    config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get clustering
-    clustering = db.get_clustering(name=clustering_name)
-    if not clustering:
-        click.echo(f"Error: Clustering '{clustering_name}' not found.")
+@click.argument("session_id", type=int)
+def review(session_id):
+    """Step through a session's suggestions and decide."""
+    config, db = get_context()
+    review_session(db, config, session_id)
+
+
+def review_session(db: Database, config: Config, session_id: int) -> None:
+    """Interactive review loop: one track at a time, one keystroke per decision."""
+    overview = sorting.session_overview(db, session_id)
+    groups_by_id = {group["id"]: group for group in overview["groups"]}
+
+    while True:
+        items = db.list_sort_items(session_id, status=sorting.STATUS_PENDING, limit=1)
+        if not items:
+            break
+        item = items[0]
+        remaining = db.sort_session_summary(session_id).get(sorting.STATUS_PENDING, 0)
+
+        click.echo("\n" + "─" * 72)
+        click.echo(click.style(display_name(item), bold=True) + f"   [{remaining} left]")
+        details = [
+            f"{int(item['duration'] // 60)}:{int(item['duration'] % 60):02d}" if item["duration"] else None,
+            f"{item['tag_bpm']:.0f} BPM" if item["tag_bpm"] else None,
+            item["tag_key"],
+            item["genre"],
+        ]
+        detail_line = "  ".join(part for part in details if part)
+        if detail_line:
+            click.echo(click.style(detail_line, dim=True))
+        click.echo("")
+
+        ranked = item.get("ranked") or []
+        if not ranked:
+            click.echo(click.style("  No group came close to this track.", fg="yellow"))
+        for index, entry in enumerate(ranked[:5], start=1):
+            name = groups_by_id.get(entry["group_id"], {}).get("name", entry["group_name"])
+            click.echo(f"  {index}. {format_confidence(entry['score'])}  {name}")
+
+        click.echo("\n  [1-5] file it   [s] skip   [l] list all groups   [q] quit")
+        choice = click.prompt("  >", default="1", show_default=False).strip().lower()
+
+        if choice == "q":
+            click.echo(f"\nStopped. Resume with: music-cluster review {session_id}")
+            return
+        if choice == "s":
+            sorting.decide(db, item["id"], skip=True)
+            continue
+        if choice == "l":
+            for group in overview["groups"]:
+                click.echo(f"    {group['id']:>4}  {group['name']} ({group['size']})")
+            group_id = click.prompt("  Group ID", type=int, default=0)
+            if group_id in groups_by_id:
+                sorting.decide(db, item["id"], group_id=group_id)
+            continue
+        if choice.isdigit() and 1 <= int(choice) <= len(ranked):
+            sorting.decide(db, item["id"], group_id=ranked[int(choice) - 1]["group_id"])
+            continue
+
+        click.echo(click.style("  Not a valid choice.", fg="yellow"))
+
+    summary = db.sort_session_summary(session_id)
+    click.echo(f"\nReview complete: {summary.get('accepted', 0)} filed, "
+               f"{summary.get('skipped', 0)} skipped.")
+    click.echo(f"Next: music-cluster apply {session_id} --mode copy")
+
+
+@cli.command(name="sessions")
+@click.option("--collection", "collection_name", default=None)
+def sessions_cmd(collection_name):
+    """List sort sessions."""
+    _, db = get_context()
+    target = groups_mod.resolve_collection(db, collection_name, required=False)
+    rows = db.list_sort_sessions(target["id"] if target else None)
+    if not rows:
+        click.echo("No sort sessions yet.")
         return
-    
-    clusters = db.get_clusters_by_clustering(clustering['id'])
-    
-    if not clusters:
-        click.echo("No clusters found.")
-        return
-    
-    # Compute statistics
-    sizes = [c['size'] for c in clusters if c['size'] > 0]
-    
-    if not sizes:
-        click.echo("Error: No valid clusters with tracks found.")
-        return
-    
-    total_tracks = sum(sizes)
-    
-    click.echo(f"\nStatistics for '{clustering_name}'")
-    click.echo("=" * 60)
-    click.echo(f"Algorithm:        {clustering.get('algorithm', 'kmeans')}")
-    click.echo(f"Total Clusters:   {len(clusters)}")
-    click.echo(f"Total Tracks:     {total_tracks}")
-    
-    if clustering.get('silhouette_score'):
-        click.echo(f"Quality Score:    {clustering['silhouette_score']:.3f}")
-    
-    click.echo(f"\nCluster Size Distribution:")
-    click.echo(f"  Smallest:       {min(sizes)} tracks")
-    click.echo(f"  Largest:        {max(sizes)} tracks")
-    click.echo(f"  Mean:           {np.mean(sizes):.1f} tracks")
-    click.echo(f"  Median:         {np.median(sizes):.0f} tracks")
-    click.echo(f"  Std Dev:        {np.std(sizes):.1f}")
-    
-    # Size buckets
-    small = len([s for s in sizes if s < 50])
-    medium = len([s for s in sizes if 50 <= s < 150])
-    large = len([s for s in sizes if s >= 150])
-    
-    click.echo(f"\nSize Buckets:")
-    click.echo(f"  Small (<50):    {small} clusters")
-    click.echo(f"  Medium (50-149): {medium} clusters")
-    click.echo(f"  Large (≥150):   {large} clusters")
-    
-    # Named clusters
-    named = len([c for c in clusters if c.get('name')])
-    if named > 0:
-        click.echo(f"\nNamed Clusters:   {named} / {len(clusters)}")
-    
-    # Show top 5 largest clusters
-    click.echo(f"\nTop 5 Largest Clusters:")
-    sorted_clusters = sorted(clusters, key=lambda c: c['size'], reverse=True)[:5]
-    for i, cluster in enumerate(sorted_clusters, 1):
-        name = cluster.get('name', '')
-        label = f"Cluster {cluster['cluster_index']}"
-        if name:
-            label += f": {name}"
-        click.echo(f"  {i}. {label} ({cluster['size']} tracks)")
+    for row in rows:
+        click.echo(
+            f"{row['id']:>4}  {row['name'] or '(unnamed)':<28} {row['status']:<10} "
+            f"{row['item_count']:>5} tracks, {row['pending_count']:>4} pending"
+        )
 
 
 @cli.command()
-@click.argument('clustering1', type=str)
-@click.argument('clustering2', type=str)
-def compare(clustering1, clustering2):
-    """Compare two clusterings side-by-side."""
+@click.argument("session_id", type=int)
+@click.option("--mode", type=click.Choice(list(organizer.MODES)), default=None,
+              help="How to file the tracks (default: from config)")
+@click.option("--playlist-dir", type=click.Path(file_okay=False), default=None)
+@click.option("--on-conflict", type=click.Choice(list(organizer.CONFLICT_POLICIES)), default=None)
+@click.option("--dry-run", is_flag=True, help="Show what would happen and stop")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+@click.option("--learn/--no-learn", default=None,
+              help="Add filed tracks to their groups as new references")
+def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
+    """Write a session's decisions to disk."""
+    config, db = get_context()
+
+    try:
+        plan = sorting.plan_session_commit(
+            db, config, session_id, mode=mode, playlist_dir=playlist_dir, on_conflict=on_conflict
+        )
+    except LookupError as exc:
+        raise click.ClickException(str(exc))
+
+    if plan.is_empty and not plan.problems:
+        click.echo("Nothing to apply — no accepted decisions are waiting.")
+        return
+
+    click.echo(f"Mode: {plan.mode}\n")
+    for entry in plan.playlists:
+        click.echo(f"  playlist  {entry['track_count']:>4} tracks -> {entry['path']}")
+    for action in plan.actions[:20]:
+        click.echo(
+            f"  {action.action:<8} {os.path.basename(action.source_path)} -> {action.dest_path}"
+            + (f"  ({action.note})" if action.note else "")
+        )
+    if len(plan.actions) > 20:
+        click.echo(f"  ... and {len(plan.actions) - 20} more")
+
+    for problem in plan.problems:
+        click.echo(click.style(f"  skipped: {problem.get('issue')}"
+                               f" ({problem.get('group_name') or problem.get('filepath') or problem.get('track_id')})",
+                               fg="yellow"))
+
+    if dry_run:
+        click.echo("\nDry run — nothing was changed.")
+        return
+    if plan.is_empty:
+        click.echo("\nNothing left to do.")
+        return
+
+    if not yes:
+        verb = "move" if plan.mode == "move" else plan.mode
+        if not click.confirm(f"\nProceed to {verb} {len(plan.actions) or len(plan.playlists)} item(s)?"):
+            click.echo("Cancelled.")
+            return
+
+    outcome = sorting.commit_session(
+        db, config, session_id, mode=mode, playlist_dir=playlist_dir,
+        on_conflict=on_conflict, learn=learn,
+    )
+    result = outcome["result"]
+    click.echo(
+        f"\nDone: {result['performed_count']} file operation(s), "
+        f"{len(result['playlists'])} playlist(s)."
+    )
+    if outcome["learned"]:
+        click.echo(f"Added {outcome['learned']} track(s) to their groups as new references.")
+        click.echo("Run `music-cluster fit` to fold them into the model.")
+    for failure in result["failures"][:5]:
+        echo_error(f"{failure.get('source_path') or failure.get('path')}: {failure['error']}")
+
+    if plan.mode == "move":
+        click.echo(f"\nTo undo: music-cluster undo {session_id}")
+
+
+@cli.command()
+@click.argument("session_id", type=int)
+@click.option("--remove-playlists", is_flag=True, help="Also delete generated playlists")
+@click.confirmation_option(prompt="Reverse the file operations from this session?")
+def undo(session_id, remove_playlists):
+    """Reverse a session's file operations."""
+    _, db = get_context()
+    outcome = organizer.undo_session(db, session_id, remove_playlists=remove_playlists)
+    click.echo(f"Reversed {outcome['undone']} operation(s).")
+    for failure in outcome["failures"][:5]:
+        echo_error(str(failure))
+
+
+# ----------------------------------------------------------------------
+# Discovery
+# ----------------------------------------------------------------------
+
+
+@cli.command()
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("--name", default=None, help="Name for this discovery run")
+@click.option("--algorithm", type=click.Choice(["hdbscan", "kmeans", "hierarchical"]), default=None)
+@click.option("--groups", "target_groups", type=int, default=None,
+              help="Aim for this many candidate groups (kmeans/hierarchical)")
+@click.option("--granularity", type=click.Choice(["coarse", "broad", "normal", "fine", "finest"]),
+              default=None)
+@click.option("--min-size", type=int, default=None, help="Smallest candidate group to report")
+@click.option("--llm/--no-llm", default=None, help="Use an LLM to suggest names")
+@click.option("--workers", type=int, default=None)
+def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, workers):
+    """Propose candidate groups from an unsorted pile."""
+    config, db = get_context()
+    try:
+        outcome = discovery_mod.run_discovery(
+            db, config, paths=list(paths), name=name, algorithm=algorithm,
+            granularity=granularity, target_groups=target_groups, min_group_size=min_size,
+            workers=workers, progress=progress_bar("Analysing"), use_llm=llm,
+        )
+    except (ValueError, ImportError) as exc:
+        raise click.ClickException(str(exc))
+
+    run = outcome["run"]
+    click.echo(f"\nRun {run['id']}: {len(outcome['candidates'])} candidate group(s)")
+    if outcome["unassigned"]:
+        click.echo(f"{outcome['unassigned']} track(s) did not fit any candidate")
+    click.echo("")
+    for candidate in outcome["candidates"]:
+        stats = candidate["stats"]
+        bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
+        line = (
+            f"  [{candidate['candidate_index']:>2}] {candidate['suggested_name']:<34} "
+            f"{candidate['size']:>5} tracks"
+        )
+        click.echo(f"{line}  ~{bpm:.0f} BPM" if bpm else line)
+    click.echo(f"\nNext: music-cluster candidates {run['id']}")
+
+
+@cli.command(name="candidates")
+@click.argument("run_id", type=int)
+def candidates_cmd(run_id):
+    """Review a discovery run's candidates and promote the good ones."""
+    config, db = get_context()
+    run = db.get_discovery_run(run_id)
+    if not run:
+        raise click.ClickException(f"No discovery run with ID {run_id}")
+
+    target = resolve_collection_or_exit(db, None)
+    click.echo(f"Run {run_id} ({run['name']}) — promoting into {target['name']!r}\n")
+
+    for candidate in db.list_discovery_candidates(run_id):
+        if candidate["status"] != "pending":
+            continue
+        stats = candidate["stats"]
+        click.echo("─" * 72)
+        click.echo(click.style(candidate["suggested_name"], bold=True)
+                   + f"   {candidate['size']} tracks")
+        descriptors = ", ".join(stats.get("descriptors", []))
+        bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
+        tempo = f"~{bpm:.0f} BPM   " if bpm else ""
+        click.echo(click.style(f"  {tempo}{descriptors}", dim=True))
+        if stats.get("top_genres"):
+            tags = ", ".join(f"{g['name']} ({g['count']})" for g in stats["top_genres"])
+            click.echo(click.style(f"  tags: {tags}", dim=True))
+
+        click.echo("\n  Representative tracks:")
+        for track_id in candidate["exemplars"]:
+            track = db.get_track(track_id)
+            if track:
+                click.echo(f"    {track['filepath']}")
+
+        click.echo("\n  [y] make this a group   [s] seeds only   [n] discard   [q] quit")
+        choice = click.prompt("  >", default="n", show_default=False).strip().lower()
+
+        if choice == "q":
+            return
+        if choice == "n":
+            discovery_mod.reject_candidate(db, candidate["id"])
+            continue
+        if choice in ("y", "s"):
+            group_name = click.prompt("  Group name", default=candidate["suggested_name"])
+            destination = click.prompt("  Destination folder (blank for none)", default="",
+                                       show_default=False).strip()
+            outcome = discovery_mod.promote_candidate(
+                db, config, target, candidate["id"], name=group_name,
+                destination_path=destination or None, seeds_only=(choice == "s"),
+            )
+            click.echo(f"  Created {group_name!r} with {outcome['added']} reference track(s).\n")
+
+    click.echo("\nDone. Next: music-cluster fit")
+
+
+@cli.command(name="similar")
+@click.argument("query")
+@click.option("--limit", type=int, default=20)
+def similar_cmd(query, limit):
+    """Find tracks that sound like a track matching QUERY."""
+    config, db = get_context()
+    matches = db.list_tracks(limit=5, query=query)
+    if not matches:
+        raise click.ClickException(f"No track matching {query!r}")
+
+    seed = matches[0]
+    click.echo(f"Tracks similar to {display_name(seed)}:\n")
+    results = discovery_mod.expand_seeds(db, config, [seed["id"]], limit=limit)
+    for result in results:
+        click.echo(f"  {result['relative_distance']:.2f}  {display_name(result['track'])}")
+
+
+@cli.command()
+@click.argument("query")
+@click.option("--limit", type=int, default=20)
+def search(query, limit):
+    """Search the library and show which groups each track belongs to."""
+    _, db = get_context()
+    tracks = db.list_tracks(limit=limit, query=query)
+    if not tracks:
+        click.echo("No matches.")
+        return
+    for track in tracks:
+        memberships = db.find_track_groups(track["id"])
+        labels = ", ".join(group["name"] for group in memberships) or "unfiled"
+        click.echo(f"  {display_name(track):<52} {click.style(labels, dim=True)}")
+
+
+@cli.command(name="config")
+@click.option("--set", "assignments", multiple=True, metavar="KEY=VALUE",
+              help="Set a dotted config key, e.g. sorting.neighbors=8")
+@click.option("--json", "as_json", is_flag=True, help="Print the config as JSON")
+def config_cmd(assignments, as_json):
+    """Show or change configuration."""
     config = Config()
-    db = Database(config.get_db_path())
-    
-    # Get both clusterings
-    c1 = db.get_clustering(name=clustering1)
-    c2 = db.get_clustering(name=clustering2)
-    
-    if not c1:
-        click.echo(f"Error: Clustering '{clustering1}' not found.")
+
+    for assignment in assignments:
+        if "=" not in assignment:
+            raise click.ClickException(f"Expected KEY=VALUE, got {assignment!r}")
+        key, raw = assignment.split("=", 1)
+        config.set(key.split("."), _coerce(raw))
+        click.echo(f"{key} = {_coerce(raw)!r}")
+
+    if assignments:
+        config.save()
+        click.echo(f"\nSaved to {config.config_path}")
         return
-    if not c2:
-        click.echo(f"Error: Clustering '{clustering2}' not found.")
-        return
-    
-    clusters1 = db.get_clusters_by_clustering(c1['id'])
-    clusters2 = db.get_clusters_by_clustering(c2['id'])
-    
-    # Display comparison
-    click.echo("\nClustering Comparison")
-    click.echo("=" * 60)
-    click.echo(f"{clustering1:<30} vs {clustering2:<30}")
-    click.echo("=" * 60)
-    
-    click.echo(f"{'Algorithm:':<20} {c1.get('algorithm', 'kmeans'):<30} {c2.get('algorithm', 'kmeans'):<30}")
-    click.echo(f"{'Clusters:':<20} {c1['num_clusters']:<30} {c2['num_clusters']:<30}")
-    
-    if c1.get('silhouette_score') and c2.get('silhouette_score'):
-        s1 = c1['silhouette_score']
-        s2 = c2['silhouette_score']
-        better = "←" if s1 > s2 else "→"
-        click.echo(f"{'Silhouette Score:':<20} {s1:<30.3f} {s2:<30.3f} {better}")
-    
-    # Cluster size stats
-    sizes1 = [c['size'] for c in clusters1 if c['size'] > 0]
-    sizes2 = [c['size'] for c in clusters2 if c['size'] > 0]
-    
-    if not sizes1 or not sizes2:
-        click.echo(f"\nError: Cannot compare clusterings with no valid clusters.")
-        if not sizes1:
-            click.echo(f"  '{clustering1}' has no clusters with tracks.")
-        if not sizes2:
-            click.echo(f"  '{clustering2}' has no clusters with tracks.")
-        return
-    
-    click.echo(f"\n{'Cluster Size Distribution:'}")
-    click.echo(f"{'  Min:':<20} {min(sizes1):<30} {min(sizes2):<30}")
-    click.echo(f"{'  Max:':<20} {max(sizes1):<30} {max(sizes2):<30}")
-    click.echo(f"{'  Mean:':<20} {np.mean(sizes1):<30.1f} {np.mean(sizes2):<30.1f}")
-    click.echo(f"{'  Std Dev:':<20} {np.std(sizes1):<30.1f} {np.std(sizes2):<30.1f}")
+
+    if as_json:
+        click.echo(json.dumps(config.config, indent=2))
+    else:
+        import yaml
+
+        click.echo(f"# {config.config_path}\n")
+        click.echo(yaml.dump(config.config, default_flow_style=False, sort_keys=False))
 
 
-if __name__ == '__main__':
-    cli()
+def _coerce(raw: str):
+    """Turn a CLI string into the type the config expects."""
+    lowered = raw.strip().lower()
+    if lowered in ("true", "yes", "on"):
+        return True
+    if lowered in ("false", "no", "off"):
+        return False
+    if lowered in ("none", "null", ""):
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        return raw
+
+
+def main():
+    try:
+        cli()
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted.")
+        sys.exit(130)
+
+
+if __name__ == "__main__":
+    main()

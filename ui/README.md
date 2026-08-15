@@ -1,51 +1,44 @@
-# Music Cluster UI
+# music-cluster UI
 
-Modern desktop UI for Music Cluster built with Tauri and Svelte.
+Desktop front end for [music-cluster](../README.md), built with SvelteKit,
+Tailwind and Tauri. It is a single-page client that talks to the local API — no
+server rendering, since everything it reads (the library, the filesystem) only
+exists on the user's machine.
 
-## Development
+## Running
 
-### Prerequisites
+From the repository root, which starts the API too:
 
-- Node.js 18+ and npm
-- Rust and Cargo (for Tauri)
-- Python dependencies installed (see main README)
-
-### Setup
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Start the FastAPI backend (in the project root):
-   ```bash
-   uvicorn music_cluster.api:app --reload --port 8000
-   ```
-
-3. Run the UI in development mode:
-   ```bash
-   npm run dev
-   ```
-
-4. Or run as Tauri desktop app:
-   ```bash
-   npm run tauri:dev
-   ```
-
-## Building
-
-Build the desktop app:
 ```bash
-npm run tauri:build
+python start-dev.py            # web UI at http://localhost:1420
+python start-dev.py --tauri    # native shell
 ```
 
-This creates native executables in `src-tauri/target/release/bundle/`.
+Or on its own, against an API you started yourself:
 
-## Project Structure
+```bash
+npm install
+npm run dev
+```
 
-- `src/routes/` - SvelteKit routes (pages)
-- `src/lib/components/` - Reusable components
-- `src/lib/stores/` - Svelte stores for state management
-- `src/lib/services/` - API client
-- `src/lib/types/` - TypeScript type definitions
-- `src-tauri/` - Tauri Rust backend
+Point it at a different API with `VITE_API_BASE=http://127.0.0.1:9000 npm run dev`.
+
+## Layout
+
+```
+src/lib/services/api.ts   typed client for every endpoint, plus task polling
+src/lib/stores/           collections/groups, notifications, the shared player
+src/lib/components/       waveform, folder picker, group picker, modal, ...
+src/routes/               one directory per screen
+```
+
+Long-running work (analysis, sorting, discovery) is a background task on the
+API; the client kicks it off and polls `/api/tasks/{id}` rather than holding a
+request open for minutes.
+
+## Checks
+
+```bash
+npm run check      # svelte-check
+npm run build      # static SPA into build/
+```
