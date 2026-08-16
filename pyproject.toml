@@ -72,6 +72,7 @@ python_functions = ["test_*"]
 addopts = "-q --strict-markers"
 markers = [
     "slow: tests that decode or synthesise real audio",
+    "e2e: tests that drive the whole application against real audio",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
