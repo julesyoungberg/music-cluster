@@ -73,3 +73,6 @@ dist/
 
 # Local dev venv
 .venv/
+
+# Browser end-to-end workspace, seeded by scripts/seed_e2e_library.py
+.e2e-workspace/
