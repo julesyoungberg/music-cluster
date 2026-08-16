@@ -48,8 +48,10 @@ htmlcov/
 /config.yaml
 
 # UI/Frontend
-# package-lock.json is committed: CI installs with `npm ci`, and a desktop app
-# that ships to users should build from pinned dependencies.
+# package-lock.json is committed, at the root and under ui/: CI installs with
+# `npm ci`, and a desktop app that ships to users should build from pinned
+# dependencies.
+node_modules/
 ui/node_modules/
 ui/.svelte-kit/
 ui/build/

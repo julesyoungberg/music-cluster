@@ -12,7 +12,11 @@ rust-version = "1.70"
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "1.5", features = ["shell-open", "shell-sidecar", "dialog-open"] }
+# Only the sidecar API is enabled. The UI talks to the server over HTTP and
+# browses the filesystem through it, so the app needs no filesystem or dialog
+# permissions of its own — and shipping them would widen what it can do for no
+# reason. Keep this list in step with the allowlist in tauri.conf.json.
+tauri = { version = "1.5", features = ["shell-sidecar"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

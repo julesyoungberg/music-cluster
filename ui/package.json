@@ -14,9 +14,6 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
     "start:all": "concurrently -n \"API,UI\" -c \"blue,green\" \"cd .. && uvicorn music_cluster.api:app --reload --port 8000\" \"npm run dev\""
   },
   "devDependencies": {
@@ -25,8 +22,6 @@
     "@sveltejs/adapter-static": "^3.0.0",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
-    "@tauri-apps/api": "^1.5.0",
-    "@tauri-apps/cli": "^1.5.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.4.2",
     "@types/node": "^20.10.0",

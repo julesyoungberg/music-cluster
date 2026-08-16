@@ -78,8 +78,15 @@ window.
 pip install -r requirements-build.txt
 python scripts/build_sidecar.py      # freezes the API (a few minutes, ~150 MB)
 python scripts/make_icons.py         # only needed if the icons are missing
-cd ui && npm install && npm run tauri:build
+
+npm install --prefix ui              # the web UI
+npm install                          # the Tauri CLI, which must live at the root
+npm run tauri:build
 ```
+
+The Tauri CLI finds `src-tauri` by searching downwards, so it has to be run
+from the repository root — that is the only reason there is a `package.json`
+there as well as in `ui/`.
 
 Installers land in `src-tauri/target/release/bundle/`. This also needs the
 [Tauri prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)

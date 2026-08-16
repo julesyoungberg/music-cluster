@@ -1,7 +1,7 @@
 {
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm --prefix ui run dev",
+    "beforeBuildCommand": "npm --prefix ui run build",
     "devPath": "http://localhost:1420",
     "distDir": "../ui/build",
     "withGlobalTauri": false
@@ -15,7 +15,6 @@
       "all": false,
       "shell": {
         "all": false,
-        "open": true,
         "sidecar": true,
         "scope": [
           {
@@ -24,17 +23,6 @@
             "args": ["--host", { "validator": "\\S+" }, "--port", { "validator": "\\d+" }]
           }
         ]
-      },
-      "dialog": {
-        "all": false,
-        "open": true
-      },
-      "fs": {
-        "all": false,
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true,
-        "scope": ["$APPDATA/**", "$HOME/**"]
       }
     },
     "bundle": {
