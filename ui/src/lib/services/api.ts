@@ -13,8 +13,25 @@ import type {
   Track
 } from '$lib/types';
 
+declare global {
+  interface Window {
+    /** Injected by the desktop shell, which starts the API on a free port. */
+    __MUSIC_CLUSTER_API_BASE__?: string;
+  }
+}
+
+/**
+ * Where the API lives.
+ *
+ * In the packaged desktop app the shell picks a free port for the bundled
+ * server and injects the address before the page loads, so a second copy of
+ * the app — or anything else already on 8000 — cannot make the two disagree.
+ * A dev build falls back to the Vite variable, then to the documented default.
+ */
 export const API_BASE =
-  (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://127.0.0.1:8000';
+  (typeof window !== 'undefined' ? window.__MUSIC_CLUSTER_API_BASE__ : undefined) ??
+  (import.meta.env.VITE_API_BASE as string | undefined) ??
+  'http://127.0.0.1:8000';
 
 export class ApiError extends Error {
   constructor(

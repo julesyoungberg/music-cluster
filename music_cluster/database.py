@@ -6,6 +6,7 @@ records suggestions and human decisions for a batch of incoming music.
 """
 
 import json
+import os
 import pickle
 import sqlite3
 from contextlib import contextmanager
@@ -47,6 +48,12 @@ class Database:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        # The CLI's `init` command creates this directory, but the desktop app
+        # has no such step: the first request a fresh install serves would
+        # otherwise fail with "unable to open database file".
+        directory = os.path.dirname(os.path.abspath(db_path))
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         self._init_database()
 
     # ------------------------------------------------------------------

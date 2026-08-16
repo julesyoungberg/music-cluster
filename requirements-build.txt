@@ -1,0 +1,3 @@
+# Packaging the desktop app: freezes the API server into the Tauri sidecar.
+-r requirements.txt
+pyinstaller>=6.11.0

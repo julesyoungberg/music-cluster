@@ -1,19 +1,28 @@
 [package]
 name = "music-cluster"
-version = "1.0.0"
+version = "2.0.0"
 description = "Music Cluster Desktop Application"
 authors = ["Music Cluster Team"]
 license = "MIT"
-repository = ""
+repository = "https://github.com/julesyoungberg/music-cluster"
 edition = "2021"
+rust-version = "1.70"
 
 [build-dependencies]
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "1.5", features = ["shell-open", "dialog-all"] }
+tauri = { version = "1.5", features = ["shell-open", "shell-sidecar", "dialog-open"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [features]
+# Enabled by `tauri build`; do not remove.
 custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+# The bundle already carries a Python runtime; keeping the shell small matters.
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

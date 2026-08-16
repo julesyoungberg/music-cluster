@@ -173,3 +173,17 @@ def test_legacy_database_is_migrated(temp_dir):
         }
     assert "clusterings" not in tables
     assert "collections" in tables
+
+
+def test_the_database_directory_is_created_on_demand(temp_dir):
+    """A fresh desktop install has no ~/.music-cluster; the first use makes it.
+
+    The CLI's `init` command creates it, but the packaged app has no such step,
+    so a missing directory here would fail every request on first run.
+    """
+    nested = temp_dir / "not" / "created" / "yet" / "library.db"
+
+    db = Database(str(nested))
+
+    assert nested.is_file()
+    assert db.count_tracks() == 0
