@@ -33,7 +33,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }
     });
-  } catch {
+  } catch (error) {
+    // A cancelled request is not a failure to report — the caller moved on.
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
     throw new ApiError(
       'Cannot reach the music-cluster API. Is it running on port 8000?',
       0
@@ -145,9 +147,10 @@ export const api = {
     return get<{ tracks: Track[]; total: number }>(`/api/tracks?${search}`);
   },
   getTrack: (id: number) => get<Track & { groups: Group[]; exists: boolean }>(`/api/tracks/${id}`),
-  waveform: (id: number, samples = 240) =>
-    get<{ peaks: number[]; duration: number; samples: number }>(
-      `/api/tracks/${id}/waveform?samples=${samples}`
+  waveform: (id: number, samples = 240, signal?: AbortSignal) =>
+    request<{ peaks: number[]; duration: number; samples: number }>(
+      `/api/tracks/${id}/waveform?samples=${samples}`,
+      { signal }
     ),
   artwork: (id: number) =>
     get<{ artwork: string; mime_type: string } | undefined>(`/api/tracks/${id}/artwork`),

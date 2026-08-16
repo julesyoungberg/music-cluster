@@ -149,6 +149,15 @@ class Config:
         )
         return os.path.expanduser(path)
 
+    def get_cache_dir(self) -> str:
+        """Where derived data (waveforms) lives — beside the database by default."""
+        path = os.environ.get("MUSIC_CLUSTER_CACHE") or self.get(
+            "database", "cache_dir", default=None
+        )
+        if not path:
+            path = os.path.join(os.path.dirname(self.get_db_path()), "cache")
+        return os.path.expanduser(path)
+
     def extractor_config(self) -> Dict[str, Any]:
         """Keyword arguments for :class:`~music_cluster.extractor.FeatureExtractor`."""
         return {

@@ -1,5 +1,15 @@
+/**
+ * A track's database ID.
+ *
+ * Branded so it cannot be confused with the other IDs floating around the sort
+ * flow — a sort item's ID is also a number, and passing one where a track was
+ * meant loads a different track's audio and waveform entirely.
+ */
+declare const trackIdBrand: unique symbol;
+export type TrackId = number & { readonly [trackIdBrand]: true };
+
 export interface Track {
-  id: number;
+  id: TrackId;
   filepath: string;
   filename: string;
   display?: string;
@@ -77,11 +87,18 @@ export interface RankedGroup {
   score: number;
 }
 
-/** One incoming track awaiting a decision. */
-export interface SortItem extends Track {
+/**
+ * One incoming track awaiting a decision.
+ *
+ * `id` identifies the *item* in the review queue; `track_id` identifies the
+ * audio. Anything that plays, draws or streams audio needs `track_id` — use
+ * `trackOf()` to get a Track from an item rather than passing the item along.
+ */
+export interface SortItem extends Omit<Track, 'id'> {
+  id: number;
   item_id?: number;
   session_id: number;
-  track_id: number;
+  track_id: TrackId;
   suggested_group_id: number | null;
   suggested_group_name?: string | null;
   final_group_id: number | null;

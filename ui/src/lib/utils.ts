@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { Track } from '$lib/types';
+import type { SortItem, Track } from '$lib/types';
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -17,7 +17,19 @@ export function formatDuration(seconds?: number | null): string {
     : `${minutes}:${String(secs).padStart(2, '0')}`;
 }
 
-export function trackLabel(track: Partial<Track>): string {
+/**
+ * The Track behind a sort item.
+ *
+ * A sort item carries the track's metadata but its own `id`, so it cannot be
+ * handed to anything that plays or draws audio without swapping the ID for the
+ * track's. Doing that in one place keeps the two from being mixed up again.
+ */
+export function trackOf(item: SortItem): Track {
+  return { ...item, id: item.track_id };
+}
+
+/** A display name. Takes metadata only, so sort items can be labelled too. */
+export function trackLabel(track: Partial<Omit<Track, 'id'>>): string {
   if (track.display) return track.display;
   if (track.artist && track.title) return `${track.artist} - ${track.title}`;
   return track.title ?? track.filename ?? 'Unknown track';

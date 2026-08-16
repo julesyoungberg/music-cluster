@@ -156,6 +156,73 @@ def test_audio_range_requests_are_supported(client, seeded, temp_dir):
     assert response.headers["content-range"] == "bytes 10-19/1000"
 
 
+def test_audio_can_be_revalidated_rather_than_refetched(client, seeded, temp_dir):
+    """Scrubbing issues a burst of range requests; re-downloading them is slow."""
+    db, _, _ = seeded
+    path = temp_dir / "clip.wav"
+    path.write_bytes(b"0123456789" * 100)
+    track_id = db.upsert_track(filepath=str(path), filename="clip.wav")
+
+    response = client.get(f"/api/tracks/{track_id}/audio")
+    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers["etag"]
+
+
+class TestWaveformEndpoint:
+    @pytest.fixture
+    def track_id(self, seeded, temp_dir):
+        pytest.importorskip("soundfile")
+        import soundfile as sf
+
+        db, _, _ = seeded
+        path = temp_dir / "wave.wav"
+        rate = 22050
+        t = np.arange(rate * 4) / rate
+        audio = np.sin(2 * np.pi * 220 * t) * np.concatenate(
+            [np.ones(rate * 2), np.full(rate * 2, 0.2)]
+        )
+        sf.write(str(path), audio.astype(np.float32), rate)
+        return db.upsert_track(filepath=str(path), filename="wave.wav")
+
+    def test_returns_an_envelope_and_the_full_duration(self, client, track_id):
+        payload = client.get(f"/api/tracks/{track_id}/waveform?samples=100").json()
+
+        assert len(payload["peaks"]) == 100
+        assert payload["duration"] == pytest.approx(4, abs=0.1)
+        assert max(payload["peaks"]) <= 1.0
+        assert np.mean(payload["peaks"][:40]) > np.mean(payload["peaks"][60:])
+
+    def test_repeat_requests_revalidate(self, client, track_id):
+        first = client.get(f"/api/tracks/{track_id}/waveform?samples=100")
+        etag = first.headers["etag"]
+        assert first.headers["cache-control"] == "private, max-age=86400"
+
+        again = client.get(
+            f"/api/tracks/{track_id}/waveform?samples=100", headers={"If-None-Match": etag}
+        )
+        assert again.status_code == 304
+        assert again.content == b""
+
+    def test_missing_track_and_missing_file_are_404s(self, client, seeded, temp_dir):
+        db, _, _ = seeded
+        assert client.get("/api/tracks/9999/waveform").status_code == 404
+
+        gone = db.upsert_track(filepath=str(temp_dir / "gone.wav"), filename="gone.wav")
+        assert client.get(f"/api/tracks/{gone}/waveform").status_code == 404
+
+    def test_undecodable_audio_is_a_422(self, client, seeded, temp_dir):
+        db, _, _ = seeded
+        path = temp_dir / "broken.wav"
+        path.write_bytes(b"not really a wav file")
+        track_id = db.upsert_track(filepath=str(path), filename="broken.wav")
+
+        assert client.get(f"/api/tracks/{track_id}/waveform").status_code == 422
+
+    def test_resolution_is_validated(self, client, track_id):
+        assert client.get(f"/api/tracks/{track_id}/waveform?samples=0").status_code == 422
+        assert client.get(f"/api/tracks/{track_id}/waveform?samples=99999").status_code == 422
+
+
 def test_missing_resources_are_404s(client):
     assert client.get("/api/tracks/999").status_code == 404
     assert client.get("/api/groups/999").status_code == 404
