@@ -112,7 +112,11 @@
       title="No sort sessions yet"
       description="A session takes a folder of incoming music, scores every track against your groups, and holds the suggestions until you have signed off on them."
     >
-      <button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50" onclick={() => (newOpen = true)} disabled={!collection}>
+      <button
+        class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+        onclick={() => (newOpen = true)}
+        disabled={!collection}
+      >
         Sort a folder
       </button>
     </EmptyState>
@@ -129,11 +133,15 @@
           </a>
 
           {#if (session.pending_count ?? 0) > 0}
-            <span class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            <span
+              class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+            >
               {session.pending_count} to review
             </span>
           {:else}
-            <span class="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
+            <span
+              class="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground"
+            >
               {session.status}
             </span>
           {/if}
@@ -154,7 +162,12 @@
   {/if}
 </div>
 
-<Modal bind:open={newOpen} title="Sort new music" description="Every track is analysed, then scored against the groups in {collection?.name ?? 'your collection'}.">
+<Modal
+  bind:open={newOpen}
+  title="Sort new music"
+  description="Every track is analysed, then scored against the groups in {collection?.name ??
+    'your collection'}."
+>
   <div class="space-y-4">
     <FolderPicker bind:value={sourcePath} label="Folder of new music" />
     <label class="block text-sm">
@@ -177,8 +190,15 @@
     </label>
   </div>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (newOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={startSort} disabled={!sourcePath}>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (newOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={startSort}
+      disabled={!sourcePath}
+    >
       Start
     </button>
   {/snippet}

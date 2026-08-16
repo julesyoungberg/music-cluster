@@ -91,7 +91,10 @@
         to audition — you name and keep the ones that are real, and throw away the rest.
       </p>
     </div>
-    <button class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onclick={() => (newOpen = true)}>
+    <button
+      class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+      onclick={() => (newOpen = true)}
+    >
       <Plus class="h-4 w-4" /> New run
     </button>
   </div>
@@ -108,7 +111,10 @@
       title="No discovery runs yet"
       description="Use this when you have a pile of music and no structure yet. Nothing becomes a group until you say so."
     >
-      <button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" onclick={() => (newOpen = true)}>
+      <button
+        class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+        onclick={() => (newOpen = true)}
+      >
         Break down a folder
       </button>
     </EmptyState>
@@ -126,7 +132,11 @@
           <span class="shrink-0 text-xs text-muted-foreground">
             {pluralize(run.candidate_count ?? 0, 'candidate')}
           </span>
-          <button class="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-destructive" onclick={() => remove(run)} aria-label="Delete run">
+          <button
+            class="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-destructive"
+            onclick={() => remove(run)}
+            aria-label="Delete run"
+          >
             <Trash2 class="h-4 w-4" />
           </button>
         </div>
@@ -135,19 +145,30 @@
   {/if}
 </div>
 
-<Modal bind:open={newOpen} title="Break down a folder" description="Candidates are proposals. Nothing is filed and no group is created until you promote one.">
+<Modal
+  bind:open={newOpen}
+  title="Break down a folder"
+  description="Candidates are proposals. Nothing is filed and no group is created until you promote one."
+>
   <div class="space-y-4">
     <FolderPicker bind:value={sourcePath} label="Unsorted folder" />
 
     <label class="block text-sm">
       <span class="font-medium">Run name</span>
-      <input class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={runName} placeholder="Defaults to the folder name" />
+      <input
+        class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+        bind:value={runName}
+        placeholder="Defaults to the folder name"
+      />
     </label>
 
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="block text-sm">
         <span class="font-medium">Method</span>
-        <select class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={algorithm}>
+        <select
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+          bind:value={algorithm}
+        >
           <option value="hdbscan">Density (finds its own count)</option>
           <option value="kmeans">K-means (fixed count)</option>
           <option value="hierarchical">Hierarchical (fixed count)</option>
@@ -157,7 +178,12 @@
       {#if algorithm === 'hdbscan'}
         <label class="block text-sm">
           <span class="font-medium">Smallest pile</span>
-          <input type="number" min="2" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={minGroupSize} />
+          <input
+            type="number"
+            min="2"
+            class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+            bind:value={minGroupSize}
+          />
         </label>
       {:else}
         <label class="block text-sm">
@@ -168,7 +194,8 @@
             class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
             placeholder="Auto"
             value={targetGroups ?? ''}
-            oninput={(event) => (targetGroups = event.currentTarget.value ? Number(event.currentTarget.value) : null)}
+            oninput={(event) =>
+              (targetGroups = event.currentTarget.value ? Number(event.currentTarget.value) : null)}
           />
         </label>
       {/if}
@@ -179,16 +206,23 @@
       <span>
         <span class="font-medium">Suggest names with an LLM</span>
         <span class="block text-xs text-muted-foreground">
-          Sends artist, title, genre tag and tempo for a few tracks per pile. Needs an API key —
-          see Settings. Without it, names come from tags and audio characteristics.
+          Sends artist, title, genre tag and tempo for a few tracks per pile. Needs an API key — see
+          Settings. Without it, names come from tags and audio characteristics.
         </span>
       </span>
     </label>
   </div>
 
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (newOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={start} disabled={!sourcePath}>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (newOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={start}
+      disabled={!sourcePath}
+    >
       Find groups
     </button>
   {/snippet}

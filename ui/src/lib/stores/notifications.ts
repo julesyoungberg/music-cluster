@@ -27,6 +27,7 @@ export function dismiss(id: number): void {
   notifications.update((list) => list.filter((n) => n.id !== id));
 }
 
-export const notifySuccess = (message: string, detail?: string) => notify('success', message, detail);
+export const notifySuccess = (message: string, detail?: string) =>
+  notify('success', message, detail);
 export const notifyError = (message: string, detail?: string) => notify('error', message, detail);
 export const notifyInfo = (message: string, detail?: string) => notify('info', message, detail);

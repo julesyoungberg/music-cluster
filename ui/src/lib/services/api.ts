@@ -36,10 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch (error) {
     // A cancelled request is not a failure to report — the caller moved on.
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    throw new ApiError(
-      'Cannot reach the music-cluster API. Is it running on port 8000?',
-      0
-    );
+    throw new ApiError('Cannot reach the music-cluster API. Is it running on port 8000?', 0);
   }
 
   if (response.status === 204) return undefined as T;
@@ -123,8 +120,10 @@ export const api = {
     ),
   updateGroup: (id: number, patch: Partial<Group>) => put<Group>(`/api/groups/${id}`, patch),
   deleteGroup: (id: number) => del<{ deleted: boolean }>(`/api/groups/${id}`),
-  addGroupMembers: (id: number, body: { track_ids?: number[]; filepaths?: string[]; role?: string }) =>
-    post<{ added: number; size: number }>(`/api/groups/${id}/members`, body),
+  addGroupMembers: (
+    id: number,
+    body: { track_ids?: number[]; filepaths?: string[]; role?: string }
+  ) => post<{ added: number; size: number }>(`/api/groups/${id}/members`, body),
   removeGroupMember: (groupId: number, trackId: number) =>
     del<{ removed: boolean }>(`/api/groups/${groupId}/members/${trackId}`),
 
@@ -132,13 +131,19 @@ export const api = {
     collectionId: number,
     body: { path: string; name?: string; recursive?: boolean; destination_path?: string }
   ) => post<{ task_id: string }>(`/api/collections/${collectionId}/import-folder`, body),
-  importTree: (collectionId: number, body: { path: string; min_tracks?: number; recursive?: boolean }) =>
-    post<{ task_id: string }>(`/api/collections/${collectionId}/import-tree`, body),
-  importPlaylist: (collectionId: number, body: { path: string; name?: string; destination_path?: string }) =>
-    post<{ task_id: string }>(`/api/collections/${collectionId}/import-playlist`, body),
+  importTree: (
+    collectionId: number,
+    body: { path: string; min_tracks?: number; recursive?: boolean }
+  ) => post<{ task_id: string }>(`/api/collections/${collectionId}/import-tree`, body),
+  importPlaylist: (
+    collectionId: number,
+    body: { path: string; name?: string; destination_path?: string }
+  ) => post<{ task_id: string }>(`/api/collections/${collectionId}/import-playlist`, body),
 
   // Tracks
-  listTracks: (params: { limit?: number; offset?: number; query?: string; unassignedIn?: number } = {}) => {
+  listTracks: (
+    params: { limit?: number; offset?: number; query?: string; unassignedIn?: number } = {}
+  ) => {
     const search = new URLSearchParams();
     search.set('limit', String(params.limit ?? 100));
     search.set('offset', String(params.offset ?? 0));
@@ -190,8 +195,14 @@ export const api = {
   },
   decideItem: (itemId: number, body: { group_id?: number | null; skip?: boolean }) =>
     put<SortItem>(`/api/items/${itemId}`, body),
-  decideItems: (sessionId: number, body: { item_ids: number[]; group_id?: number | null; skip?: boolean }) =>
-    put<{ updated: number; summary: Record<string, number> }>(`/api/sessions/${sessionId}/items`, body),
+  decideItems: (
+    sessionId: number,
+    body: { item_ids: number[]; group_id?: number | null; skip?: boolean }
+  ) =>
+    put<{ updated: number; summary: Record<string, number> }>(
+      `/api/sessions/${sessionId}/items`,
+      body
+    ),
   acceptConfident: (sessionId: number) =>
     post<{ accepted: number; summary: Record<string, number> }>(
       `/api/sessions/${sessionId}/accept-confident`
@@ -199,7 +210,13 @@ export const api = {
   rescore: (sessionId: number) => post<{ task_id: string }>(`/api/sessions/${sessionId}/rescore`),
   commit: (
     sessionId: number,
-    body: { mode?: OrganizeMode; playlist_dir?: string; on_conflict?: string; learn?: boolean; dry_run?: boolean }
+    body: {
+      mode?: OrganizeMode;
+      playlist_dir?: string;
+      on_conflict?: string;
+      learn?: boolean;
+      dry_run?: boolean;
+    }
   ) =>
     post<{ dry_run?: boolean; plan: CommitPlan; result?: any; learned?: number }>(
       `/api/sessions/${sessionId}/commit`,
@@ -238,7 +255,8 @@ export const api = {
       seeds_only?: boolean;
       target_group_id?: number;
     }
-  ) => post<{ group: Group; added: number }>(`/api/discovery/candidates/${candidateId}/promote`, body),
+  ) =>
+    post<{ group: Group; added: number }>(`/api/discovery/candidates/${candidateId}/promote`, body),
   rejectCandidate: (candidateId: number) =>
     post<{ rejected: boolean }>(`/api/discovery/candidates/${candidateId}/reject`),
 

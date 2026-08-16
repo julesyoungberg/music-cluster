@@ -32,7 +32,9 @@
     {#each filtered as group (group.id)}
       <button
         class="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors
-          {selectedId === group.id ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-secondary'}"
+          {selectedId === group.id
+          ? 'border-primary bg-primary/10'
+          : 'border-transparent hover:bg-secondary'}"
         onclick={() => onSelect(group)}
       >
         <span class="truncate">{group.name}</span>

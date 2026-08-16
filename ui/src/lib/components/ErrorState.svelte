@@ -8,7 +8,9 @@
   }: { title?: string; message?: string; onRetry?: (() => void) | undefined } = $props();
 </script>
 
-<div class="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
+<div
+  class="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center"
+>
   <AlertCircle class="h-6 w-6 text-destructive" />
   <div>
     <p class="font-medium">{title}</p>

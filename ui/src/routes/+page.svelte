@@ -118,7 +118,9 @@
       </section>
 
       {#if current && !current.fitted}
-        <div class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+        <div
+          class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4"
+        >
           <TriangleAlert class="h-5 w-5 text-amber-600 dark:text-amber-400" />
           <p class="flex-1 text-sm">
             <span class="font-medium">{current.name} has not been fitted.</span>
@@ -135,21 +137,30 @@
       {/if}
 
       <section class="grid gap-4 md:grid-cols-3">
-        <a href="/sort" class="group rounded-lg border border-border p-5 transition-colors hover:border-primary">
+        <a
+          href="/sort"
+          class="group rounded-lg border border-border p-5 transition-colors hover:border-primary"
+        >
           <Inbox class="h-6 w-6 text-muted-foreground group-hover:text-primary" />
           <p class="mt-3 font-medium">Sort new music</p>
           <p class="mt-1 text-sm text-muted-foreground">
             Point at a folder of new buys and decide where each track goes.
           </p>
         </a>
-        <a href="/discover" class="group rounded-lg border border-border p-5 transition-colors hover:border-primary">
+        <a
+          href="/discover"
+          class="group rounded-lg border border-border p-5 transition-colors hover:border-primary"
+        >
           <Compass class="h-6 w-6 text-muted-foreground group-hover:text-primary" />
           <p class="mt-3 font-medium">Break down a pile</p>
           <p class="mt-1 text-sm text-muted-foreground">
             Turn one big unsorted folder into candidate groups you can name and keep.
           </p>
         </a>
-        <a href="/groups" class="group rounded-lg border border-border p-5 transition-colors hover:border-primary">
+        <a
+          href="/groups"
+          class="group rounded-lg border border-border p-5 transition-colors hover:border-primary"
+        >
           <FolderTree class="h-6 w-6 text-muted-foreground group-hover:text-primary" />
           <p class="mt-3 font-medium">Manage groups</p>
           <p class="mt-1 text-sm text-muted-foreground">
@@ -165,14 +176,19 @@
           </h2>
           <div class="divide-y divide-border rounded-lg border border-border">
             {#each openSessions as session (session.id)}
-              <a href="/sort/{session.id}" class="flex items-center gap-4 px-4 py-3 hover:bg-secondary/50">
+              <a
+                href="/sort/{session.id}"
+                class="flex items-center gap-4 px-4 py-3 hover:bg-secondary/50"
+              >
                 <div class="min-w-0 flex-1">
                   <p class="truncate font-medium">{session.name ?? `Session ${session.id}`}</p>
                   <p class="truncate text-xs text-muted-foreground">
                     {session.collection_name} · {formatDate(session.created_at)}
                   </p>
                 </div>
-                <span class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                <span
+                  class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                >
                   {session.pending_count} to review
                 </span>
               </a>
@@ -188,7 +204,10 @@
           </h2>
           <div class="divide-y divide-border rounded-lg border border-border">
             {#each runs.slice(0, 5) as run (run.id)}
-              <a href="/discover/{run.id}" class="flex items-center gap-4 px-4 py-3 hover:bg-secondary/50">
+              <a
+                href="/discover/{run.id}"
+                class="flex items-center gap-4 px-4 py-3 hover:bg-secondary/50"
+              >
                 <div class="min-w-0 flex-1">
                   <p class="truncate font-medium">{run.name ?? `Run ${run.id}`}</p>
                   <p class="truncate text-xs text-muted-foreground">

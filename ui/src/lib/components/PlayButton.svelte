@@ -23,7 +23,9 @@
       : 'border-input hover:border-primary hover:text-primary'
   )}
   onclick={() => playTrack(track)}
-  aria-label={isPlaying ? `Pause ${track.display ?? track.filename}` : `Play ${track.display ?? track.filename}`}
+  aria-label={isPlaying
+    ? `Pause ${track.display ?? track.filename}`
+    : `Play ${track.display ?? track.filename}`}
 >
   {#if isLoading}
     <Loader2 class={cn(icons[size], 'animate-spin')} />

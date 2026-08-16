@@ -51,7 +51,11 @@
             <p class="mt-0.5 text-sm text-muted-foreground">{description}</p>
           {/if}
         </div>
-        <button class="rounded p-1 text-muted-foreground hover:bg-secondary" onclick={() => (open = false)} aria-label="Close">
+        <button
+          class="rounded p-1 text-muted-foreground hover:bg-secondary"
+          onclick={() => (open = false)}
+          aria-label="Close"
+        >
           <X class="h-4 w-4" />
         </button>
       </div>
@@ -61,7 +65,9 @@
       </div>
 
       {#if footer}
-        <div class="flex justify-end gap-2 border-t border-border px-5 py-3">{@render footer()}</div>
+        <div class="flex justify-end gap-2 border-t border-border px-5 py-3">
+          {@render footer()}
+        </div>
       {/if}
     </div>
   </div>

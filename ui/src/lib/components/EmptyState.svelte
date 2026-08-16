@@ -16,7 +16,9 @@
   } = $props();
 </script>
 
-<div class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-14 text-center">
+<div
+  class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-14 text-center"
+>
   {#if icon}
     {@const Icon = icon}
     <Icon class="h-7 w-7 text-muted-foreground" />

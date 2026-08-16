@@ -340,7 +340,9 @@
       class="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent"
     ></div>
   {:else if failed}
-    <div class="absolute inset-0 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+    <div
+      class="absolute inset-0 flex items-center justify-center gap-2 text-xs text-muted-foreground"
+    >
       <span>{failed}</span>
       <button class="underline underline-offset-2 hover:text-foreground" onclick={retry}>
         Retry

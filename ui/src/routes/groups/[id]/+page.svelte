@@ -98,7 +98,10 @@
 
 <svelte:head><title>{group?.name ?? 'Group'} · music-cluster</title></svelte:head>
 
-<a href="/groups" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+<a
+  href="/groups"
+  class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+>
   <ArrowLeft class="h-4 w-4" /> All groups
 </a>
 
@@ -112,7 +115,10 @@
       <div class="space-y-3 rounded-lg border border-border p-4">
         <label class="block text-sm">
           <span class="font-medium">Name</span>
-          <input class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={name} />
+          <input
+            class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+            bind:value={name}
+          />
         </label>
 
         <label class="block text-sm">
@@ -127,10 +133,15 @@
 
         <div class="text-sm">
           <span class="font-medium">Destination folder</span>
-          <p class="mt-1 break-all rounded-md border border-border bg-secondary/40 px-3 py-2 font-mono text-xs">
+          <p
+            class="mt-1 break-all rounded-md border border-border bg-secondary/40 px-3 py-2 font-mono text-xs"
+          >
             {destination || 'Not set — this group can only export playlists'}
           </p>
-          <button class="mt-2 text-xs text-primary hover:underline" onclick={() => (destinationOpen = true)}>
+          <button
+            class="mt-2 text-xs text-primary hover:underline"
+            onclick={() => (destinationOpen = true)}
+          >
             Choose folder
           </button>
         </div>
@@ -140,7 +151,8 @@
           onclick={save}
           disabled={saving}
         >
-          <Save class="h-4 w-4" /> {saving ? 'Saving...' : 'Save changes'}
+          <Save class="h-4 w-4" />
+          {saving ? 'Saving...' : 'Save changes'}
         </button>
       </div>
 
@@ -149,8 +161,8 @@
         {#if quality}
           <p class="mt-2 text-2xl font-semibold">{formatPercent(quality.accuracy)}</p>
           <p class="mt-1 text-xs text-muted-foreground">
-            {quality.correct} of {quality.size} reference tracks get filed back here when tested
-            against the other groups.
+            {quality.correct} of {quality.size} reference tracks get filed back here when tested against
+            the other groups.
           </p>
           {#if quality.accuracy < 0.6}
             <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
@@ -158,7 +170,9 @@
             </p>
           {/if}
         {:else}
-          <p class="mt-2 text-xs text-muted-foreground">Fit the collection to see how distinct this group is.</p>
+          <p class="mt-2 text-xs text-muted-foreground">
+            Fit the collection to see how distinct this group is.
+          </p>
         {/if}
       </div>
 
@@ -206,19 +220,37 @@
   </div>
 {/if}
 
-<Modal bind:open={destinationOpen} title="Destination folder" description="Where music sorted into this group should be filed.">
+<Modal
+  bind:open={destinationOpen}
+  title="Destination folder"
+  description="Where music sorted into this group should be filed."
+>
   <FolderPicker bind:value={destination} label="Folder" />
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (destinationOpen = false)}>Done</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (destinationOpen = false)}>Done</button
+    >
   {/snippet}
 </Modal>
 
-<Modal bind:open={deleteOpen} title="Delete this group?" description="Its tracks stay in your library and on disk." size="sm">
+<Modal
+  bind:open={deleteOpen}
+  title="Delete this group?"
+  description="Its tracks stay in your library and on disk."
+  size="sm"
+>
   <p class="text-sm text-muted-foreground">
     {group?.name} will be removed from this collection along with its {size} reference tracks.
   </p>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (deleteOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground" onclick={remove}>Delete</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (deleteOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground"
+      onclick={remove}>Delete</button
+    >
   {/snippet}
 </Modal>
