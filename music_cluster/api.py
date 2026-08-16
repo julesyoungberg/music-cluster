@@ -12,11 +12,9 @@ import os
 import threading
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -303,7 +301,7 @@ async def browse(path: Optional[str] = None):
                 continue
             entries.append({"name": entry.name, "path": entry.path})
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
+        raise HTTPException(status_code=403, detail="Permission denied") from None
 
     audio_count = len(find_audio_files(target, recursive=False))
     return {
@@ -452,10 +450,10 @@ def get_track_waveform(
                 track["filepath"], samples=samples, cache_dir=config.get_cache_dir()
             )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Waveform generation failed for track %s", track_id)
-        raise HTTPException(status_code=422, detail=f"Could not read audio: {exc}")
+        raise HTTPException(status_code=422, detail=f"Could not read audio: {exc}") from exc
 
     etag = f'"{key}"'
     headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
@@ -757,7 +755,9 @@ async def import_playlist(collection_id: int, request: ImportRequest):
 
 
 @app.post("/api/collections/{collection_id}/export")
-async def export_groups(collection_id: int, output: str = Query(...), playlist_format: str = "m3u8"):
+async def export_groups(
+    collection_id: int, output: str = Query(...), playlist_format: str = "m3u8"
+):
     """Write one playlist per group."""
     db = get_db()
     _require_collection(db, collection_id)
@@ -807,7 +807,7 @@ async def get_session(session_id: int):
     try:
         return sorting.session_overview(db, session_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -863,7 +863,7 @@ async def decide_item(item_id: int, request: DecisionRequest):
     try:
         return sorting.decide(db, item_id, group_id=request.group_id, skip=request.skip)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.put("/api/sessions/{session_id}/items")
@@ -917,7 +917,7 @@ async def commit_session(session_id: int, request: CommitRequest):
             learn=request.learn,
         )
     except (LookupError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/sessions/{session_id}/undo")
@@ -1017,7 +1017,7 @@ async def promote_candidate(candidate_id: int, request: PromoteRequest):
             target_group_id=request.target_group_id,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/api/discovery/candidates/{candidate_id}/reject")
@@ -1051,13 +1051,9 @@ async def find_similar(request: SeedExpandRequest):
             max_distance=request.max_distance,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {
-        "results": [
-            {**result, "track": _track_payload(result["track"])} for result in results
-        ]
-    }
+    return {"results": [{**result, "track": _track_payload(result["track"])} for result in results]}
 
 
 # ----------------------------------------------------------------------

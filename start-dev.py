@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Run the API and the desktop UI together for development.
 
-    python start-dev.py            # API + web UI at http://localhost:1420
-    python start-dev.py --tauri    # API + the Tauri desktop shell
+python start-dev.py            # API + web UI at http://localhost:1420
+python start-dev.py --tauri    # API + the Tauri desktop shell
 """
 
 import argparse
-import os
 import shutil
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parent
 UI = ROOT / "ui"
@@ -61,8 +61,15 @@ def main() -> None:
         print(f"{BLUE}Starting API on port {args.port}...{RESET}")
         processes.append(
             subprocess.Popen(
-                [python, "-m", "uvicorn", "music_cluster.api:app", "--reload",
-                 "--port", str(args.port)],
+                [
+                    python,
+                    "-m",
+                    "uvicorn",
+                    "music_cluster.api:app",
+                    "--reload",
+                    "--port",
+                    str(args.port),
+                ],
                 cwd=ROOT,
             )
         )

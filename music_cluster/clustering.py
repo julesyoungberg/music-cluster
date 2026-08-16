@@ -14,6 +14,7 @@ import numpy as np
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
+
 try:
     # scikit-learn ships HDBSCAN from 1.3 onwards; the standalone package is
     # only a fallback for older installs.
@@ -142,7 +143,7 @@ class ClusterEngine:
     @staticmethod
     def apply_granularity(k: int, granularity: str) -> int:
         multiplier = GRANULARITY_MULTIPLIERS.get(granularity, 1.0)
-        return max(2, int(round(k * multiplier)))
+        return max(2, round(k * multiplier))
 
     @staticmethod
     def _centroids(features: np.ndarray, labels: np.ndarray) -> np.ndarray:
@@ -155,7 +156,7 @@ class ClusterEngine:
         valid_mask = labels != NOISE_LABEL
         unique = np.unique(labels[valid_mask])
         metrics: Dict = {
-            "n_candidates": int(len(unique)),
+            "n_candidates": len(unique),
             "n_noise": int(np.sum(~valid_mask)),
             "noise_percentage": float(100 * np.sum(~valid_mask) / max(len(labels), 1)),
             "algorithm": self.algorithm,
@@ -178,9 +179,7 @@ class ClusterEngine:
         return metrics
 
 
-def select_exemplars(
-    features: np.ndarray, member_indices: List[int], count: int = 5
-) -> List[int]:
+def select_exemplars(features: np.ndarray, member_indices: List[int], count: int = 5) -> List[int]:
     """Pick tracks that show what a candidate pile contains.
 
     The medoid comes first (the most typical track), then greedily the members

@@ -119,7 +119,7 @@ class FeatureExtractor:
     def _extract_rhythmic_features(self, y: np.ndarray, sr: int) -> np.ndarray:
         try:
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            tempo_value = float(tempo) if np.isscalar(tempo) else float(np.atleast_1d(tempo)[0])
+            tempo_value = float(np.atleast_1d(np.asarray(tempo, dtype=float))[0])
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
             return np.array(
                 [

@@ -331,9 +331,16 @@ class Database:
                         checksum = ?, analysis_version = ?, analyzed_at = ?, {assignments}
                     WHERE id = ?
                     """,
-                    [filename, duration, file_size, checksum, analysis_version, utc_now()]
-                    + values
-                    + [track_id],
+                    [
+                        filename,
+                        duration,
+                        file_size,
+                        checksum,
+                        analysis_version,
+                        utc_now(),
+                        *values,
+                        track_id,
+                    ],
                 )
             else:
                 columns = ", ".join(TRACK_METADATA_COLUMNS)
@@ -345,8 +352,16 @@ class Database:
                          analysis_version, analyzed_at, {columns})
                     VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})
                     """,
-                    [filepath, filename, duration, file_size, checksum, analysis_version, utc_now()]
-                    + values,
+                    [
+                        filepath,
+                        filename,
+                        duration,
+                        file_size,
+                        checksum,
+                        analysis_version,
+                        utc_now(),
+                        *values,
+                    ],
                 )
                 track_id = cursor.lastrowid
             conn.commit()
@@ -558,7 +573,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE collections SET {assignments}, updated_at = ? WHERE id = ?",
-                list(updates.values()) + [utc_now(), collection_id],
+                [*list(updates.values()), utc_now(), collection_id],
             )
             conn.commit()
 
@@ -660,7 +675,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE groups SET {assignments}, updated_at = ? WHERE id = ?",
-                list(updates.values()) + [utc_now(), group_id],
+                [*list(updates.values()), utc_now(), group_id],
             )
             conn.commit()
 
@@ -825,9 +840,7 @@ class Database:
 
     def get_sort_session(self, session_id: int) -> Optional[Dict]:
         with self.connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM sort_sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM sort_sessions WHERE id = ?", (session_id,)).fetchone()
         return _with_json(row, "settings") if row else None
 
     def list_sort_sessions(self, collection_id: Optional[int] = None) -> List[Dict]:
@@ -858,7 +871,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE sort_sessions SET {assignments} WHERE id = ?",
-                list(updates.values()) + [session_id],
+                [*list(updates.values()), session_id],
             )
             conn.commit()
 
@@ -939,9 +952,7 @@ class Database:
             row = conn.execute("SELECT * FROM sort_items WHERE id = ?", (item_id,)).fetchone()
         return _with_json(row, "ranked", default=[]) if row else None
 
-    def decide_sort_item(
-        self, item_id: int, status: str, final_group_id: Optional[int]
-    ) -> None:
+    def decide_sort_item(self, item_id: int, status: str, final_group_id: Optional[int]) -> None:
         with self.connection() as conn:
             conn.execute(
                 """
@@ -1165,7 +1176,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE discovery_candidates SET {assignments} WHERE id = ?",
-                list(updates.values()) + [candidate_id],
+                [*list(updates.values()), candidate_id],
             )
             conn.commit()
 
@@ -1178,7 +1189,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE discovery_runs SET {assignments} WHERE id = ?",
-                list(updates.values()) + [run_id],
+                [*list(updates.values()), run_id],
             )
             conn.commit()
 

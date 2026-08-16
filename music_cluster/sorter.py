@@ -49,7 +49,7 @@ class SorterConfig:
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "SorterConfig":
         data = data or {}
-        known = {f for f in cls.__dataclass_fields__}
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in data.items() if k in known})
 
     def to_dict(self) -> Dict[str, Any]:
@@ -132,9 +132,7 @@ class GroupSorter:
 
         matrices = list(usable.values())
         all_features = np.vstack(matrices)
-        labels = np.concatenate(
-            [np.full(len(matrix), gid) for gid, matrix in usable.items()]
-        )
+        labels = np.concatenate([np.full(len(matrix), gid) for gid, matrix in usable.items()])
 
         self.embedding = EmbeddingSpace(
             projection=self.config.projection,
@@ -189,6 +187,12 @@ class GroupSorter:
     def group_ids(self) -> List[int]:
         return [profile.group_id for profile in self.profiles]
 
+    def _fitted_embedding(self) -> EmbeddingSpace:
+        """The embedding, or a clear error if this sorter was never fitted."""
+        if not self.is_fitted or self.embedding is None:
+            raise RuntimeError("GroupSorter must be fitted before use")
+        return self.embedding
+
     # ------------------------------------------------------------------
     # Scoring
     # ------------------------------------------------------------------
@@ -201,10 +205,8 @@ class GroupSorter:
         top_k: int = 5,
     ) -> Suggestion:
         """Rank groups for a single raw feature vector."""
-        if not self.is_fitted:
-            raise RuntimeError("GroupSorter must be fitted before use")
-
-        point = self.embedding.transform(np.asarray(feature_vector, dtype=float).reshape(1, -1))[0]
+        embedding = self._fitted_embedding()
+        point = embedding.transform(np.asarray(feature_vector, dtype=float).reshape(1, -1))[0]
         return self._suggest_projected(point, track_id, exclude_index, top_k)
 
     def suggest_batch(
@@ -214,18 +216,19 @@ class GroupSorter:
         top_k: int = 5,
     ) -> List[Suggestion]:
         """Rank groups for many tracks at once."""
-        if not self.is_fitted:
-            raise RuntimeError("GroupSorter must be fitted before use")
+        embedding = self._fitted_embedding()
 
         feature_matrix = np.asarray(feature_matrix, dtype=float)
         if feature_matrix.ndim == 1:
             feature_matrix = feature_matrix.reshape(1, -1)
-        projected = self.embedding.transform(feature_matrix)
+        projected = embedding.transform(feature_matrix)
 
-        ids = list(track_ids) if track_ids is not None else [None] * len(projected)
+        ids: List[Optional[int]] = (
+            list(track_ids) if track_ids is not None else [None] * len(projected)
+        )
         return [
             self._suggest_projected(point, track_id, None, top_k)
-            for point, track_id in zip(projected, ids)
+            for point, track_id in zip(projected, ids, strict=True)
         ]
 
     def _suggest_projected(
@@ -237,7 +240,9 @@ class GroupSorter:
     ) -> Suggestion:
         scored: List[Tuple[GroupProfile, float]] = []
         for profile in self.profiles:
-            skip = exclude_index[1] if exclude_index and exclude_index[0] == profile.group_id else None
+            skip = (
+                exclude_index[1] if exclude_index and exclude_index[0] == profile.group_id else None
+            )
             distance = self._distance_to_group(point, profile, skip)
             if distance is not None:
                 scored.append((profile, distance))
@@ -261,7 +266,7 @@ class GroupSorter:
                 "distance": float(distance),
                 "score": float(probability),
             }
-            for (profile, distance), probability in zip(scored, probabilities)
+            for (profile, distance), probability in zip(scored, probabilities, strict=True)
         ][:top_k]
 
         confidence = float(probabilities[0])
@@ -404,7 +409,8 @@ class GroupSorter:
         profile = next((p for p in self.profiles if p.group_id == group_id), None)
         if profile is None:
             return []
-        point = self.embedding.transform(np.asarray(feature_vector, dtype=float).reshape(1, -1))[0]
+        embedding = self._fitted_embedding()
+        point = embedding.transform(np.asarray(feature_vector, dtype=float).reshape(1, -1))[0]
         distances = np.linalg.norm(profile.vectors - point, axis=1)
         order = np.argsort(distances)[:k]
         return [(int(i), float(distances[i])) for i in order]

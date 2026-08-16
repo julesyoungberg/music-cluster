@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+
 logger = logging.getLogger(__name__)
 
 MEDIA_TYPES = {
@@ -128,7 +129,9 @@ def _resize_envelope(values: np.ndarray, samples: int) -> np.ndarray:
     return np.interp(target, source, values)
 
 
-def _windows_streaming(filepath: str, samples: int) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
+def _windows_streaming(
+    filepath: str, samples: int
+) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
     """Per-window peak and RMS read block by block, without decoding it all.
 
     Returns None when soundfile cannot handle the format, so the caller can fall
@@ -285,7 +288,7 @@ def cached_waveform(
     cache_file = os.path.join(cache_dir, f"{key}.json") if cache_dir else None
     if cache_file and os.path.isfile(cache_file):
         try:
-            with open(cache_file, "r") as handle:
+            with open(cache_file) as handle:
                 payload = json.load(handle)
             if isinstance(payload, dict) and payload.get("peaks"):
                 _remember(key, payload)
@@ -296,7 +299,7 @@ def cached_waveform(
     payload = compute_waveform(filepath, samples=samples)
     _remember(key, payload)
 
-    if cache_file:
+    if cache_file and cache_dir:
         try:
             os.makedirs(cache_dir, exist_ok=True)
             # Write then rename so a crash mid-write cannot leave a torn file

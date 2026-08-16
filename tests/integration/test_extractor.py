@@ -7,6 +7,7 @@ from music_cluster.extractor import FeatureExtractor
 from music_cluster.features import build_layout, describe_vector
 from music_cluster.metadata import read_metadata
 
+
 soundfile = pytest.importorskip("soundfile")
 
 

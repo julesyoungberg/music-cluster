@@ -8,7 +8,8 @@ Only track metadata (artist, title, genre tag, BPM) is sent — never audio.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,9 @@ def _render(candidates: List[Dict[str, Any]]) -> str:
         lines.append(f"\n## Candidate {candidate['candidate_index']} ({candidate['size']} tracks)")
         stats = candidate.get("stats") or {}
         if stats.get("tag_bpm_median") or stats.get("detected_bpm"):
-            lines.append(f"- tempo: ~{stats.get('tag_bpm_median') or stats.get('detected_bpm')} BPM")
+            lines.append(
+                f"- tempo: ~{stats.get('tag_bpm_median') or stats.get('detected_bpm')} BPM"
+            )
         if stats.get("descriptors"):
             lines.append(f"- character: {', '.join(stats['descriptors'])}")
         if stats.get("top_genres"):

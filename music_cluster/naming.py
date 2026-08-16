@@ -94,7 +94,7 @@ def bpm_range_label(
     ]
     if len(bpms) < max(2, len(tracks) // 4):
         detected = _representative_bpm(centroid, tracks)
-        return f"{int(round(detected))} BPM" if detected else None
+        return f"{round(detected)} BPM" if detected else None
 
     low, high = int(np.percentile(bpms, 10)), int(np.percentile(bpms, 90))
     if high - low > spread_limit:
@@ -167,7 +167,9 @@ def group_stats(centroid: np.ndarray, tracks: List[Dict[str, Any]]) -> Dict[str,
         if (track.get("genre") or "").strip()
     )
     artists = Counter(
-        (track.get("artist") or "").strip() for track in tracks if (track.get("artist") or "").strip()
+        (track.get("artist") or "").strip()
+        for track in tracks
+        if (track.get("artist") or "").strip()
     )
 
     return {

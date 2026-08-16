@@ -11,8 +11,9 @@ import pytest
 from music_cluster import media
 from music_cluster.media import compute_waveform, media_type_for, parse_range_header
 
+
 pytest.importorskip("soundfile")
-import soundfile as sf  # noqa: E402
+import soundfile as sf
 
 
 SR = 22050

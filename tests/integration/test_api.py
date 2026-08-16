@@ -5,8 +5,9 @@ import pytest
 
 from tests.conftest import FEATURE_DIM, make_centres, make_vector
 
+
 pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+
 try:
     from mutagen import File as MutagenFile
 
@@ -29,7 +30,7 @@ _TAG_KEYS = {
     "comment": ("comment", "COMM", "\xa9cmt", "COMM::eng"),
 }
 
-_FILENAME_SPLIT = re.compile(r"\s+-\s+|\s+–\s+|\s+_\s+")
+_FILENAME_SPLIT = re.compile(r"\s+-\s+|\s+–\s+|\s+_\s+")  # noqa: RUF001 - the en dash is a real separator in filenames
 
 
 def _first_value(tags: Any, keys) -> Optional[str]:

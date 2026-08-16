@@ -97,7 +97,7 @@ class Config:
         if not os.path.exists(self.config_path):
             return defaults
         try:
-            with open(self.config_path, "r") as handle:
+            with open(self.config_path) as handle:
                 user_config = yaml.safe_load(handle) or {}
             return self._merge_configs(defaults, user_config)
         except Exception as exc:

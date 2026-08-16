@@ -1,5 +1,7 @@
 """Persistence behaviour that the rest of the app relies on."""
 
+import sqlite3
+
 import numpy as np
 import pytest
 
@@ -128,7 +130,7 @@ def test_group_names_are_unique_per_collection(db):
     db.create_group(first, "House")
     db.create_group(second, "House")  # same name, different collection: fine
 
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         db.create_group(first, "House")
 
 
@@ -153,9 +155,7 @@ def test_legacy_database_is_migrated(temp_dir):
         CREATE TABLE cluster_members (cluster_id INTEGER, track_id INTEGER);
         """
     )
-    conn.execute(
-        "INSERT INTO tracks (filepath, filename) VALUES ('/fake/old.mp3', 'old.mp3')"
-    )
+    conn.execute("INSERT INTO tracks (filepath, filename) VALUES ('/fake/old.mp3', 'old.mp3')")
     conn.execute(
         "INSERT INTO features (track_id, feature_vector, feature_dim) VALUES (1, ?, ?)",
         (pickle.dumps(vector), FEATURE_DIM),
