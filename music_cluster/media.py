@@ -6,9 +6,14 @@ first-class.
 """
 
 import base64
+import hashlib
+import json
 import logging
+import os
+import threading
+from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -63,41 +68,261 @@ def parse_range_header(header: Optional[str], file_size: int) -> Optional[Tuple[
     return start, min(end, file_size - 1)
 
 
-def compute_waveform(filepath: str, samples: int = 240, max_seconds: float = 420.0) -> Dict[str, Any]:
-    """Peak envelope for drawing a waveform.
+MIN_WAVEFORM_SAMPLES = 16
+MAX_WAVEFORM_SAMPLES = 2000
 
-    Raises ValueError when the file cannot be decoded.
+# Bumped whenever the envelope maths changes, so cached waveforms from an older
+# version are recomputed rather than served.
+WAVEFORM_VERSION = 2
+
+# How much the envelope leans on window RMS rather than window peak. Peak alone
+# tracks the loudest transient in a window, which on a limited master is the
+# same value everywhere — the classic "every bar is the same height" waveform.
+RMS_WEIGHT = 0.5
+
+# The envelope is stretched between a low and a high percentile of itself. Using
+# percentiles rather than min/max keeps one stray transient from squashing the
+# rest of the track.
+HIGH_PERCENTILE = 99.0
+LOW_PERCENTILE = 5.0
+
+# ...but the floor never rises above this share of the ceiling, so genuinely
+# steady material stays flat instead of having its noise stretched into a shape
+# that is not in the audio.
+MAX_FLOOR_RATIO = 0.6
+
+# How much of the drawn height comes from that stretched envelope rather than
+# the plain one. Keeping some of the plain envelope means a quiet section still
+# reads as quiet-but-present instead of dropping out to nothing.
+EXPANSION_MIX = 0.7
+
+
+def _shape_envelope(peak: np.ndarray, rms: np.ndarray) -> np.ndarray:
+    """Blend peak and RMS windows into a 0-1 envelope with visible structure."""
+    envelope = RMS_WEIGHT * rms + (1.0 - RMS_WEIGHT) * peak
+
+    high = float(np.percentile(envelope, HIGH_PERCENTILE))
+    if high <= 0.0:
+        # Digital silence, or so close to it that there is nothing to draw.
+        return np.zeros_like(envelope)
+
+    plain = np.clip(envelope / high, 0.0, 1.0)
+    low = min(float(np.percentile(envelope, LOW_PERCENTILE)), MAX_FLOOR_RATIO * high)
+    stretched = np.clip((envelope - low) / (high - low), 0.0, 1.0)
+    return EXPANSION_MIX * stretched + (1.0 - EXPANSION_MIX) * plain
+
+
+def _resize_envelope(values: np.ndarray, samples: int) -> np.ndarray:
+    """Stretch a short envelope up to ``samples`` points.
+
+    Files shorter than the requested resolution used to be zero-padded, which
+    drew a sliver of audio against a long empty tail. Interpolating keeps the
+    shape spread across the whole width, which is what the duration says.
+    """
+    if len(values) == samples:
+        return values
+    if len(values) == 1:
+        return np.repeat(values, samples)
+    source = np.linspace(0.0, 1.0, len(values))
+    target = np.linspace(0.0, 1.0, samples)
+    return np.interp(target, source, values)
+
+
+def _windows_streaming(filepath: str, samples: int) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
+    """Per-window peak and RMS read block by block, without decoding it all.
+
+    Returns None when soundfile cannot handle the format, so the caller can fall
+    back to librosa. Memory stays bounded by one window, which matters for the
+    long DJ sets this app is pointed at.
+    """
+    try:
+        import soundfile as sf
+    except ImportError:  # pragma: no cover - soundfile is a hard dependency
+        return None
+
+    try:
+        info = sf.info(filepath)
+    except Exception as exc:
+        logger.debug("soundfile cannot read %s: %s", filepath, exc)
+        return None
+
+    frames, rate = int(info.frames), int(info.samplerate)
+    if frames <= 0 or rate <= 0:
+        return None
+
+    duration = frames / rate
+    window = max(1, frames // samples)
+
+    peaks: List[float] = []
+    rms: List[float] = []
+    try:
+        for block in sf.blocks(
+            filepath, blocksize=window, dtype="float32", always_2d=True, fill_value=0.0
+        ):
+            if len(peaks) >= samples or block.size == 0:
+                break
+            mono = block.mean(axis=1).astype(np.float64)
+            peaks.append(float(np.abs(mono).max()))
+            rms.append(float(np.sqrt(np.mean(np.square(mono)))))
+    except Exception as exc:
+        logger.debug("Streaming decode of %s failed: %s", filepath, exc)
+        return None
+
+    if not peaks:
+        return None
+    return np.asarray(peaks), np.asarray(rms), duration
+
+
+def _windows_decoded(filepath: str, samples: int) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Per-window peak and RMS via a full librosa decode.
+
+    Used for formats libsndfile will not open (m4a, opus, wma...). The decode
+    rate drops for very long files so memory stays reasonable; the envelope is
+    unaffected because each window still covers thousands of samples.
     """
     try:
         import librosa
     except ImportError as exc:  # pragma: no cover
         raise ValueError("librosa is required for waveform generation") from exc
 
-    y, sr = librosa.load(filepath, sr=11025, mono=True, duration=max_seconds)
+    try:
+        reported = float(librosa.get_duration(path=filepath))
+    except Exception:
+        reported = 0.0
+
+    rate = 11025
+    if reported > 5400:  # 90 minutes
+        rate = 2756
+    elif reported > 1800:  # 30 minutes
+        rate = 5512
+
+    try:
+        y, sr = librosa.load(filepath, sr=rate, mono=True)
+    except Exception as exc:
+        raise ValueError(f"Could not decode audio: {exc}") from exc
+
     if len(y) == 0:
         raise ValueError("Empty audio file")
 
-    magnitudes = np.abs(y)
-    samples = max(16, min(samples, 2000))
+    duration = len(y) / float(sr)
+    y = y.astype(np.float64)
 
-    if len(magnitudes) >= samples:
-        # Trim to a whole number of windows so the reshape is exact, then take
-        # the peak of each window.
-        window = len(magnitudes) // samples
-        trimmed = magnitudes[: window * samples].reshape(samples, window)
-        peaks = trimmed.max(axis=1)
-    else:
-        peaks = np.pad(magnitudes, (0, samples - len(magnitudes)))
+    if len(y) < samples:
+        return np.abs(y), np.abs(y), duration
 
-    ceiling = float(peaks.max())
-    if ceiling > 0:
-        peaks = peaks / ceiling
+    window = len(y) // samples
+    blocks = y[: window * samples].reshape(samples, window)
+    return np.abs(blocks).max(axis=1), np.sqrt(np.square(blocks).mean(axis=1)), duration
+
+
+def compute_waveform(filepath: str, samples: int = 240) -> Dict[str, Any]:
+    """Envelope for drawing a waveform, covering the whole track.
+
+    The result is normalised per track: 1.0 is that track's own loud passages,
+    0.0 its quiet ones. Raises ValueError when the file cannot be decoded.
+    """
+    samples = max(MIN_WAVEFORM_SAMPLES, min(int(samples), MAX_WAVEFORM_SAMPLES))
+
+    windows = _windows_streaming(filepath, samples)
+    if windows is None:
+        windows = _windows_decoded(filepath, samples)
+
+    peak, rms, duration = windows
+    if len(peak) == 0:
+        raise ValueError("Empty audio file")
+
+    values = _resize_envelope(_shape_envelope(peak, rms), samples)
 
     return {
-        "peaks": [round(float(value), 4) for value in peaks],
-        "duration": float(len(y) / sr),
+        "peaks": [round(float(value), 3) for value in values],
+        "duration": round(float(duration), 3),
         "samples": int(samples),
+        "version": WAVEFORM_VERSION,
     }
+
+
+MEMORY_CACHE_SIZE = 64
+
+_memory_cache: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+_memory_lock = threading.Lock()
+
+
+def waveform_cache_key(filepath: str, samples: int) -> str:
+    """Identity of a waveform: the file as it is now, at this resolution.
+
+    Includes mtime and size so replacing a file (a re-rip, a re-tag) invalidates
+    the cached envelope without anyone having to clear anything.
+    """
+    try:
+        stat = os.stat(filepath)
+        stamp = f"{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        stamp = "missing"
+    digest = hashlib.sha1(
+        f"{WAVEFORM_VERSION}|{filepath}|{stamp}|{samples}".encode("utf-8", "replace")
+    ).hexdigest()
+    return digest
+
+
+def cached_waveform(
+    filepath: str, samples: int = 240, cache_dir: Optional[str] = None
+) -> Tuple[Dict[str, Any], str]:
+    """A waveform plus its cache key, computing it only when needed.
+
+    Decoding a long track takes real time, and the UI asks for the same
+    waveforms over and over as you move through a review queue, so results are
+    kept in memory and on disk.
+    """
+    samples = max(MIN_WAVEFORM_SAMPLES, min(int(samples), MAX_WAVEFORM_SAMPLES))
+    key = waveform_cache_key(filepath, samples)
+
+    with _memory_lock:
+        payload = _memory_cache.get(key)
+        if payload is not None:
+            _memory_cache.move_to_end(key)
+            return payload, key
+
+    cache_file = os.path.join(cache_dir, f"{key}.json") if cache_dir else None
+    if cache_file and os.path.isfile(cache_file):
+        try:
+            with open(cache_file, "r") as handle:
+                payload = json.load(handle)
+            if isinstance(payload, dict) and payload.get("peaks"):
+                _remember(key, payload)
+                return payload, key
+        except Exception as exc:
+            logger.debug("Ignoring unreadable waveform cache %s: %s", cache_file, exc)
+
+    payload = compute_waveform(filepath, samples=samples)
+    _remember(key, payload)
+
+    if cache_file:
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            # Write then rename so a crash mid-write cannot leave a torn file
+            # that would be read back as a broken waveform.
+            temporary = f"{cache_file}.{os.getpid()}.tmp"
+            with open(temporary, "w") as handle:
+                json.dump(payload, handle)
+            os.replace(temporary, cache_file)
+        except Exception as exc:
+            logger.debug("Could not cache waveform to %s: %s", cache_file, exc)
+
+    return payload, key
+
+
+def _remember(key: str, payload: Dict[str, Any]) -> None:
+    with _memory_lock:
+        _memory_cache[key] = payload
+        _memory_cache.move_to_end(key)
+        while len(_memory_cache) > MEMORY_CACHE_SIZE:
+            _memory_cache.popitem(last=False)
+
+
+def clear_waveform_memory_cache() -> None:
+    """Drop in-process cached waveforms (used by tests)."""
+    with _memory_lock:
+        _memory_cache.clear()
 
 
 def extract_artwork(filepath: str) -> Optional[Dict[str, str]]:

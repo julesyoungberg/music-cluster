@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import discovery as discovery_mod
@@ -27,7 +27,7 @@ from . import organizer, sorting
 from .config import Config
 from .database import Database
 from .library import analyze_paths, prune_missing
-from .media import compute_waveform, extract_artwork, media_type_for, parse_range_header
+from .media import cached_waveform, extract_artwork, media_type_for, parse_range_header
 from .metadata import display_name
 from .utils import find_audio_files
 
@@ -380,14 +380,20 @@ async def get_track_audio(track_id: int, request: Request):
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     media_type = media_type_for(filepath)
-    file_size = os.path.getsize(filepath)
+    stat = os.stat(filepath)
+    file_size = stat.st_size
     byte_range = parse_range_header(request.headers.get("range"), file_size)
+
+    # Revalidate rather than refetch: scrubbing a track issues a burst of range
+    # requests, and re-downloading audio the browser already has is what makes
+    # seeking feel slow. The tag changes as soon as the file does.
+    etag = f'"{int(stat.st_mtime_ns)}-{file_size}"'
 
     if byte_range is None:
         return FileResponse(
             filepath,
             media_type=media_type,
-            headers={"Accept-Ranges": "bytes", "Cache-Control": "no-store"},
+            headers={"Accept-Ranges": "bytes", "Cache-Control": "no-cache", "ETag": etag},
         )
 
     start, end = byte_range
@@ -412,14 +418,28 @@ async def get_track_audio(track_id: int, request: Request):
             "Content-Range": f"bytes {start}-{end}/{file_size}",
             "Content-Length": str(length),
             "Accept-Ranges": "bytes",
-            "Cache-Control": "no-store",
+            "Cache-Control": "no-cache",
+            "ETag": etag,
         },
     )
 
 
+# Decoding audio is CPU-bound. This endpoint is deliberately synchronous so
+# FastAPI runs it in a worker thread instead of on the event loop, where a
+# single long track used to stall every other request — including the audio
+# stream feeding the player. The semaphore then keeps a screenful of waveform
+# requests from taking every core at once.
+_waveform_slots = threading.Semaphore(max(2, min(4, (os.cpu_count() or 2))))
+
+
 @app.get("/api/tracks/{track_id}/waveform")
-async def get_track_waveform(track_id: int, samples: int = Query(240, ge=16, le=2000)):
-    db = get_db()
+def get_track_waveform(
+    track_id: int,
+    request: Request,
+    samples: int = Query(240, ge=16, le=2000),
+):
+    """Envelope for drawing a track's waveform, cached between requests."""
+    config, db = get_context()
     track = db.get_track(track_id)
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
@@ -427,9 +447,21 @@ async def get_track_waveform(track_id: int, samples: int = Query(240, ge=16, le=
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     try:
-        return compute_waveform(track["filepath"], samples=samples)
+        with _waveform_slots:
+            payload, key = cached_waveform(
+                track["filepath"], samples=samples, cache_dir=config.get_cache_dir()
+            )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Waveform generation failed for track %s", track_id)
+        raise HTTPException(status_code=422, detail=f"Could not read audio: {exc}")
+
+    etag = f'"{key}"'
+    headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return JSONResponse(payload, headers=headers)
 
 
 @app.get("/api/tracks/{track_id}/artwork")

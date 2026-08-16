@@ -12,7 +12,7 @@
   import PlayButton from '$lib/components/PlayButton.svelte';
   import { playTrack } from '$lib/stores/player';
   import type { CommitPlan, Group, OrganizeMode, SortItem, SortSession } from '$lib/types';
-  import { formatDuration, pluralize, trackLabel } from '$lib/utils';
+  import { formatDuration, pluralize, trackLabel, trackOf } from '$lib/utils';
   import { ArrowLeft, Check, ChevronLeft, ChevronRight, FastForward, HelpCircle, Undo2 } from 'lucide-svelte';
 
   const sessionId = $derived(Number($page.params.id));
@@ -35,6 +35,9 @@
   let committing = $state(false);
 
   const current = $derived(items[cursor] ?? null);
+  // A sort item's own ID is not its track's — everything that touches audio
+  // goes through the track.
+  const currentTrack = $derived(current ? trackOf(current) : null);
   const groupsById = $derived(new Map(groups.map((group) => [group.id, group])));
   const pendingCount = $derived(summary.pending ?? 0);
   const acceptedCount = $derived(summary.accepted ?? 0);
@@ -172,7 +175,7 @@
       void decide(ranked[Number(event.key) - 1].group_id);
     } else if (event.key === ' ') {
       event.preventDefault();
-      if (current) void playTrack(current as never);
+      if (currentTrack) void playTrack(currentTrack);
     } else if (event.key === 's') {
       event.preventDefault();
       void decide(null, true);
@@ -271,7 +274,7 @@
       <div class="grid gap-5 lg:grid-cols-[1fr_22rem]">
         <section class="space-y-4 rounded-lg border border-border p-5">
           <div class="flex items-start gap-3">
-            <PlayButton track={current as never} size="lg" />
+            <PlayButton track={currentTrack!} size="lg" />
             <div class="min-w-0 flex-1">
               <h2 class="truncate text-lg font-semibold">{trackLabel(current)}</h2>
               <p class="truncate text-sm text-muted-foreground">
@@ -291,7 +294,7 @@
             </span>
           </div>
 
-          <Waveform track={current as never} height={56} />
+          <Waveform track={currentTrack!} height={56} />
 
           {#if current.status !== 'pending'}
             <p class="rounded-md bg-secondary/60 px-3 py-2 text-sm">
