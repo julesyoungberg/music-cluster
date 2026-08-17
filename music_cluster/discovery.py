@@ -15,11 +15,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 
+from . import profiles
 from .clustering import NOISE_LABEL, ClusterEngine, select_exemplars
 from .config import Config
 from .database import Database
 from .embedding import EmbeddingSpace
-from .groups import create_group
+from .groups import create_group, profile_of
 from .library import analyze_files, collect_files
 from .naming import group_stats, suggest_label
 
@@ -39,9 +40,17 @@ def run_discovery(
     workers: Optional[int] = None,
     progress: Optional[Callable[[int, int, str], None]] = None,
     use_llm: Optional[bool] = None,
+    profile: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Propose candidate groups from a folder or an explicit track list."""
-    settings = config.section("discovery")
+    """Propose candidate groups from a folder or an explicit track list.
+
+    Args:
+        profile: Which audio profile to analyse and cluster under. A sample
+            run additionally names its candidates from the sample taxonomy —
+            "Kicks", "Closed Hats" — instead of from genre tags and tempo.
+    """
+    profile = profiles.normalize(profile)
+    settings = config.section("discovery", profile)
     algorithm = algorithm or settings.get("algorithm", "hdbscan")
     granularity = granularity or settings.get("granularity", "normal")
     min_group_size = min_group_size or settings.get("min_group_size", 8)
@@ -54,10 +63,12 @@ def run_discovery(
         files = collect_files(paths, recursive=recursive)
         if not files:
             raise ValueError("No audio files found in the given path(s)")
-        analysis = analyze_files(db, config, files, workers=workers, progress=progress)
+        analysis = analyze_files(
+            db, config, files, workers=workers, progress=progress, profile=profile
+        )
         track_ids = analysis.track_ids
 
-    matrix, found_ids = db.get_feature_matrix(list(track_ids))
+    matrix, found_ids = db.get_feature_matrix(list(track_ids), profile)
     if len(found_ids) < min_group_size:
         raise ValueError(
             f"Need at least {min_group_size} analysed tracks to look for groups, "
@@ -65,11 +76,13 @@ def run_discovery(
         )
 
     # No labels exist yet, so the space is unsupervised: standardise and reduce.
+    sorting_settings = config.section("sorting", profile)
     space = EmbeddingSpace(
         projection="pca",
-        pca_variance=config.get("sorting", "pca_variance", default=0.95),
-        max_components=config.get("sorting", "max_components", default=40),
-        feature_weights=config.get("sorting", "feature_weights", default={}),
+        pca_variance=sorting_settings.get("pca_variance", 0.95),
+        max_components=sorting_settings.get("max_components", 40),
+        feature_weights=sorting_settings.get("feature_weights", {}),
+        profile=profile,
     ).fit(matrix)
     projected = space.transform(matrix)
 
@@ -97,6 +110,7 @@ def run_discovery(
         name=name or _default_run_name(paths),
         source_path=source_path,
         algorithm=algorithm,
+        profile=profile,
         params={
             "granularity": granularity,
             "min_group_size": min_group_size,
@@ -116,12 +130,13 @@ def run_discovery(
         labels,
         valid_labels,
         exemplar_count,
+        profile,
     )
 
     if use_llm is None:
         use_llm = config.get("labeling", "llm_enabled", default=False)
     if use_llm:
-        _apply_llm_names(db, config, candidates)
+        _apply_llm_names(db, config, candidates, profile)
 
     return {
         "run": db.get_discovery_run(run_id),
@@ -139,6 +154,7 @@ def _build_candidates(
     labels: np.ndarray,
     valid_labels: List[int],
     exemplar_count: int,
+    profile: str = profiles.MUSIC,
 ) -> List[Dict[str, Any]]:
     """Persist one candidate per cluster, with exemplars and a suggested name."""
     candidates: List[Dict[str, Any]] = []
@@ -157,8 +173,15 @@ def _build_candidates(
         exemplar_positions = select_exemplars(projected, member_positions, exemplar_count)
         exemplar_ids = [track_ids[i] for i in exemplar_positions]
 
-        stats = group_stats(raw_centroid, member_tracks)
-        suggested = suggest_label(raw_centroid, member_tracks, fallback=f"Candidate {index + 1}")
+        member_vectors = raw_matrix[member_positions]
+        stats = group_stats(raw_centroid, member_tracks, profile=profile, vectors=member_vectors)
+        suggested = suggest_label(
+            raw_centroid,
+            member_tracks,
+            fallback=f"Candidate {index + 1}",
+            profile=profile,
+            vectors=member_vectors,
+        )
 
         candidate_id = db.add_discovery_candidate(
             run_id=run_id,
@@ -189,11 +212,16 @@ def _build_candidates(
     return candidates
 
 
-def _apply_llm_names(db: Database, config: Config, candidates: List[Dict[str, Any]]) -> None:
+def _apply_llm_names(
+    db: Database,
+    config: Config,
+    candidates: List[Dict[str, Any]],
+    profile: Optional[str] = None,
+) -> None:
     """Overlay LLM-suggested names, keeping heuristic ones on any failure."""
     from .llm import suggest_names
 
-    names = suggest_names(candidates, config)
+    names = suggest_names(candidates, config, profile=profile)
     for candidate in candidates:
         suggested = names.get(candidate["candidate_index"])
         if suggested:
@@ -221,6 +249,19 @@ def promote_candidate(
     candidate = db.get_discovery_candidate(candidate_id)
     if not candidate:
         raise LookupError(f"No discovery candidate with ID {candidate_id}")
+
+    run = db.get_discovery_run(candidate["run_id"])
+    run_profile = profiles.normalize((run or {}).get("profile"))
+    collection_profile = profile_of(collection)
+    if run_profile != collection_profile:
+        # The candidate's members were analysed under one profile and this
+        # collection is fitted under another. Promoting anyway would add
+        # references the sorter cannot read.
+        raise ValueError(
+            f"This discovery run holds {run_profile} audio, but the collection "
+            f"{collection['name']!r} sorts {collection_profile}. Promote it into a "
+            f"{run_profile} collection instead."
+        )
 
     if target_group_id is not None:
         group = db.get_group(group_id=target_group_id)
@@ -266,34 +307,39 @@ def expand_seeds(
     pool_track_ids: Optional[Sequence[int]] = None,
     limit: int = 50,
     max_distance: Optional[float] = None,
+    profile: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Find pool tracks that sound like a handful of hand-picked seeds.
 
     This is the manual half of discovery made less manual: the DJ picks two or
     three tracks that capture an idea, and gets back the nearest candidates to
-    audition.
+    audition. Under the sample profile it answers the same question about
+    one-shots: "find me more kicks like this one".
     """
     if not seed_track_ids:
         raise ValueError("Provide at least one seed track")
 
+    profile = profiles.normalize(profile)
     if pool_track_ids is None:
-        _, pool_track_ids = db.get_all_features()
+        _, pool_track_ids = db.get_all_features(profile)
     pool_track_ids = [tid for tid in pool_track_ids if tid not in set(seed_track_ids)]
     if not pool_track_ids:
         return []
 
-    seed_matrix, seed_ids = db.get_feature_matrix(list(seed_track_ids))
-    pool_matrix, pool_ids = db.get_feature_matrix(pool_track_ids)
+    seed_matrix, seed_ids = db.get_feature_matrix(list(seed_track_ids), profile)
+    pool_matrix, pool_ids = db.get_feature_matrix(pool_track_ids, profile)
     if len(seed_ids) == 0 or len(pool_ids) == 0:
         return []
 
     # Fit the space on everything so scaling reflects the whole pool, not just
     # the handful of seeds.
+    sorting_settings = config.section("sorting", profile)
     space = EmbeddingSpace(
         projection="pca",
-        pca_variance=config.get("sorting", "pca_variance", default=0.95),
-        max_components=config.get("sorting", "max_components", default=40),
-        feature_weights=config.get("sorting", "feature_weights", default={}),
+        pca_variance=sorting_settings.get("pca_variance", 0.95),
+        max_components=sorting_settings.get("max_components", 40),
+        feature_weights=sorting_settings.get("feature_weights", {}),
+        profile=profile,
     ).fit(np.vstack([seed_matrix, pool_matrix]))
 
     seeds = space.transform(seed_matrix)

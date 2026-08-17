@@ -9,7 +9,7 @@
   import Modal from '$lib/components/Modal.svelte';
   import TaskProgress from '$lib/components/TaskProgress.svelte';
   import TrackRow from '$lib/components/TrackRow.svelte';
-  import type { TaskStatus, Track } from '$lib/types';
+  import type { AudioProfile, TaskStatus, Track } from '$lib/types';
   import { pluralize } from '$lib/utils';
   import { FolderPlus, Search, Sparkles } from 'lucide-svelte';
 
@@ -26,6 +26,11 @@
   let assignOpen = $state(false);
   let analyzeOpen = $state(false);
   let analyzePath = $state('');
+  let analyzeProfile = $state<AudioProfile>('music');
+
+  // 'all' is the default so the library stays one place; the filter is for
+  // when a database holds both a record collection and a sample library.
+  let profileFilter = $state<AudioProfile | 'all'>('all');
 
   let similarOpen = $state(false);
   let similarSeed = $state<Track | null>(null);
@@ -43,7 +48,8 @@
         limit: pageSize,
         offset,
         query: query.trim() || undefined,
-        unassignedIn: onlyUnassigned && collection ? collection.id : undefined
+        unassignedIn: onlyUnassigned && collection ? collection.id : undefined,
+        profile: profileFilter === 'all' ? undefined : profileFilter
       });
       tracks = result.tracks;
       total = result.total;
@@ -58,6 +64,7 @@
     // Re-runs whenever the filters change.
     query;
     onlyUnassigned;
+    profileFilter;
     offset;
     collection;
     void load();
@@ -87,7 +94,7 @@
     if (!analyzePath) return;
     analyzeOpen = false;
     try {
-      const { task_id } = await api.analyze([analyzePath]);
+      const { task_id } = await api.analyze([analyzePath], true, false, analyzeProfile);
       await pollTask(task_id, (status) => (task = status));
       task = null;
       notifySuccess('Analysis complete');
@@ -121,7 +128,7 @@
     <div>
       <h1 class="text-2xl font-semibold">Library</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        Every analysed track. Select tracks to make them references for a group.
+        Every analysed file. Select some to make them references for a group.
       </p>
     </div>
     <button class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary" onclick={() => (analyzeOpen = true)}>
@@ -143,6 +150,23 @@
           offset = 0;
         }}
       />
+    </div>
+
+    <div class="inline-flex overflow-hidden rounded-md border border-input text-sm">
+      {#each [{ value: 'all', label: 'All' }, { value: 'music', label: 'Music' }, { value: 'sample', label: 'Samples' }] as option (option.value)}
+        <button
+          type="button"
+          class="px-3 py-1.5 transition-colors {profileFilter === option.value
+            ? 'bg-primary text-primary-foreground'
+            : 'hover:bg-secondary'}"
+          onclick={() => {
+            profileFilter = option.value as AudioProfile | 'all';
+            offset = 0;
+          }}
+        >
+          {option.label}
+        </button>
+      {/each}
     </div>
 
     {#if collection}
@@ -224,8 +248,32 @@
   <GroupPicker groups={$groupStore} onSelect={(group) => assign(group.id)} />
 </Modal>
 
-<Modal bind:open={analyzeOpen} title="Analyse a folder" description="Extracts audio features so these tracks can be sorted and searched.">
+<Modal bind:open={analyzeOpen} title="Analyse a folder" description="Extracts audio features so these files can be sorted and searched.">
   <FolderPicker bind:value={analyzePath} label="Folder" />
+
+  <fieldset class="mt-4 text-sm">
+    <legend class="font-medium">Analyse as</legend>
+    <div class="mt-2 grid gap-2 sm:grid-cols-2">
+      {#each [{ value: 'music', title: 'Music', blurb: 'A representative excerpt from the middle of each track.' }, { value: 'sample', title: 'Samples', blurb: 'The whole file from its first sample, plus envelope and pitch.' }] as option (option.value)}
+        <label
+          class="cursor-pointer rounded-md border p-3 transition-colors {analyzeProfile ===
+          option.value
+            ? 'border-primary bg-primary/5'
+            : 'border-input hover:bg-muted/50'}"
+        >
+          <input
+            type="radio"
+            class="sr-only"
+            name="analyze-profile"
+            value={option.value}
+            bind:group={analyzeProfile}
+          />
+          <span class="block font-medium">{option.title}</span>
+          <span class="mt-0.5 block text-xs text-muted-foreground">{option.blurb}</span>
+        </label>
+      {/each}
+    </div>
+  </fieldset>
   {#snippet footer()}
     <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (analyzeOpen = false)}>Cancel</button>
     <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={analyze} disabled={!analyzePath}>

@@ -8,8 +8,9 @@
   import LoadingState from '$lib/components/LoadingState.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import TrackRow from '$lib/components/TrackRow.svelte';
+  import ProfileBadge from '$lib/components/ProfileBadge.svelte';
   import type { DiscoveryCandidate, DiscoveryRun, Track } from '$lib/types';
-  import { pluralize } from '$lib/utils';
+  import { formatSampleLength, pluralize } from '$lib/utils';
   import { ArrowLeft, Check, ChevronDown, ChevronUp, X } from 'lucide-svelte';
 
   const runId = $derived(Number($page.params.id));
@@ -118,13 +119,22 @@
 {:else}
   <div class="space-y-5">
     <div>
-      <h1 class="text-2xl font-semibold">{run.name ?? `Run ${run.id}`}</h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold">{run.name ?? `Run ${run.id}`}</h1>
+        <ProfileBadge profile={run.profile} />
+      </div>
       <p class="mt-1 text-sm text-muted-foreground">
         {pluralize(pending.length, 'candidate')} still to review · found with {run.algorithm}
       </p>
       {#if !collection}
         <p class="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
           Select or create a collection before promoting candidates into groups.
+        </p>
+      {:else if (run.profile ?? 'music') !== (collection.profile ?? 'music')}
+        <p class="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          This run holds {run.profile ?? 'music'} audio, but
+          <strong>{collection.name}</strong> sorts {collection.profile ?? 'music'}. Switch to a
+          {run.profile ?? 'music'} collection before promoting these candidates.
         </p>
       {/if}
     </div>
@@ -149,25 +159,49 @@
                 {/if}
               </div>
 
-              <p class="mt-1 text-sm text-muted-foreground">
-                {pluralize(candidate.size, 'track')}
-                {#if candidate.stats.tag_bpm_median || candidate.stats.detected_bpm}
-                  · ~{Math.round(candidate.stats.tag_bpm_median ?? candidate.stats.detected_bpm ?? 0)} BPM
+              {#if candidate.stats.kind === 'sample'}
+                <p class="mt-1 text-sm text-muted-foreground">
+                  {pluralize(candidate.size, 'sample')}
+                  {#if candidate.stats.median_duration}
+                    · {formatSampleLength(candidate.stats.median_duration)}
+                  {/if}
+                  {#if candidate.stats.attack_ms !== undefined}
+                    · {Math.round(candidate.stats.attack_ms)} ms attack
+                  {/if}
+                  · {candidate.stats.pitched ? 'pitched' : 'unpitched'}
+                  {#if candidate.stats.f0_hz}
+                    ({Math.round(candidate.stats.f0_hz)} Hz)
+                  {/if}
+                </p>
+                {#if candidate.stats.breakdown?.length}
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    contains: {candidate.stats.breakdown
+                      .slice(0, 4)
+                      .map((entry) => `${entry.label} (${entry.count})`)
+                      .join(', ')}
+                  </p>
                 {/if}
-                {#if candidate.stats.descriptors?.length}
-                  · {candidate.stats.descriptors.join(', ')}
-                {/if}
-              </p>
+              {:else}
+                <p class="mt-1 text-sm text-muted-foreground">
+                  {pluralize(candidate.size, 'track')}
+                  {#if candidate.stats.tag_bpm_median || candidate.stats.detected_bpm}
+                    · ~{Math.round(candidate.stats.tag_bpm_median ?? candidate.stats.detected_bpm ?? 0)} BPM
+                  {/if}
+                  {#if candidate.stats.descriptors?.length}
+                    · {candidate.stats.descriptors.join(', ')}
+                  {/if}
+                </p>
 
-              {#if candidate.stats.top_genres?.length}
-                <p class="mt-1 text-xs text-muted-foreground">
-                  tags: {candidate.stats.top_genres.map((genre) => `${genre.name} (${genre.count})`).join(', ')}
-                </p>
-              {/if}
-              {#if candidate.stats.top_artists?.length}
-                <p class="text-xs text-muted-foreground">
-                  artists: {candidate.stats.top_artists.map((artist) => artist.name).join(', ')}
-                </p>
+                {#if candidate.stats.top_genres?.length}
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    tags: {candidate.stats.top_genres.map((genre) => `${genre.name} (${genre.count})`).join(', ')}
+                  </p>
+                {/if}
+                {#if candidate.stats.top_artists?.length}
+                  <p class="text-xs text-muted-foreground">
+                    artists: {candidate.stats.top_artists.map((artist) => artist.name).join(', ')}
+                  </p>
+                {/if}
               {/if}
             </div>
 

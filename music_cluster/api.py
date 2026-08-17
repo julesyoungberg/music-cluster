@@ -23,10 +23,11 @@ from pydantic import BaseModel, Field
 
 from . import discovery as discovery_mod
 from . import groups as groups_mod
-from . import organizer, sorting
+from . import organizer, profiles, samples, sorting
 from .config import Config
 from .database import Database
 from .library import analyze_paths, prune_missing
+from .features import build_layout
 from .media import cached_waveform, extract_artwork, media_type_for, parse_range_header
 from .metadata import display_name
 from .utils import find_audio_files
@@ -137,6 +138,9 @@ async def list_tasks(limit: int = 20):
 class CollectionRequest(BaseModel):
     name: str
     description: Optional[str] = None
+    # Fixed at creation: everything stored for a collection assumes one kind
+    # of audio, so this is deliberately absent from CollectionUpdate.
+    profile: Optional[str] = None
 
 
 class CollectionUpdate(BaseModel):
@@ -186,6 +190,7 @@ class AnalyzeRequest(BaseModel):
     recursive: bool = True
     update: bool = False
     workers: Optional[int] = None
+    profile: Optional[str] = None
 
 
 class SortRequest(BaseModel):
@@ -227,6 +232,7 @@ class DiscoverRequest(BaseModel):
     recursive: bool = True
     use_llm: Optional[bool] = None
     workers: Optional[int] = None
+    profile: Optional[str] = None
 
 
 class PromoteRequest(BaseModel):
@@ -241,6 +247,7 @@ class SeedExpandRequest(BaseModel):
     seed_track_ids: List[int]
     limit: int = 50
     max_distance: Optional[float] = None
+    profile: Optional[str] = None
 
 
 class ConfigUpdate(BaseModel):
@@ -283,6 +290,8 @@ async def get_info():
         "database_path": config.get_db_path(),
         "track_count": db.count_tracks(),
         "analyzed_count": db.count_features(),
+        "analyzed_by_profile": db.count_features_by_profile(),
+        "profiles": profiles.describe_all(),
         "collections": enriched,
         "sessions": db.list_sort_sessions()[:10],
         "discovery_runs": db.list_discovery_runs()[:10],
@@ -314,6 +323,12 @@ async def browse(path: Optional[str] = None):
     }
 
 
+@app.get("/api/profiles")
+async def list_profiles():
+    """The audio profiles a collection can be created with."""
+    return {"profiles": profiles.describe_all(), "sample_categories": samples.taxonomy()}
+
+
 @app.get("/api/config")
 async def get_config():
     return Config().config
@@ -340,15 +355,25 @@ async def get_tracks(
     offset: int = Query(0, ge=0),
     query: Optional[str] = None,
     unassigned_in: Optional[int] = Query(None, description="Collection ID"),
+    profile: Optional[str] = Query(None, description="Only tracks analysed under this profile"),
 ):
     """List library tracks."""
     db = get_db()
+    try:
+        profile = profiles.normalize(profile) if profile else None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     tracks = db.list_tracks(
-        limit=limit, offset=offset, query=query, unassigned_in_collection=unassigned_in
+        limit=limit,
+        offset=offset,
+        query=query,
+        unassigned_in_collection=unassigned_in,
+        profile=profile,
     )
     return {
         "tracks": [_track_payload(track) for track in tracks],
-        "total": db.count_tracks(),
+        "total": db.count_tracks(profile),
         "limit": limit,
         "offset": offset,
     }
@@ -464,6 +489,37 @@ def get_track_waveform(
     return JSONResponse(payload, headers=headers)
 
 
+@app.get("/api/tracks/{track_id}/sample")
+async def get_track_sample_profile(track_id: int):
+    """What a track looks like as a one-shot: measurements and a guess.
+
+    Reads the vector already stored for the sample profile rather than
+    decoding again, so this is cheap enough for the review screen to call as
+    the queue advances. 404s for a track that has not been analysed as a
+    sample — analyse it into a sample collection first.
+    """
+    config, db = get_context()
+    track = db.get_track(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+
+    vector = db.get_features(track_id, profiles.SAMPLE)
+    if vector is None:
+        raise HTTPException(
+            status_code=404, detail="This track has not been analysed as a sample"
+        )
+
+    layout = build_layout(
+        config.get("feature_extraction", "mfcc_coefficients", default=20), profiles.SAMPLE
+    )
+    guess = samples.classify_vector(vector, filepath=track["filepath"], layout=layout)
+    return {
+        "track_id": track_id,
+        "guess": guess.to_dict(),
+        "descriptors": samples.describe_for_display(vector, layout),
+    }
+
+
 @app.get("/api/tracks/{track_id}/artwork")
 async def get_track_artwork(track_id: int):
     db = get_db()
@@ -493,6 +549,7 @@ async def analyze(request: AnalyzeRequest):
             update=request.update,
             workers=request.workers,
             progress=progress_updater(update, "Analysing"),
+            profile=request.profile,
         )
         return result.to_dict()
 
@@ -521,7 +578,12 @@ async def create_collection(request: CollectionRequest):
     db = get_db()
     if db.get_collection(name=request.name):
         raise HTTPException(status_code=409, detail="A collection with that name already exists")
-    collection_id = db.create_collection(request.name, request.description)
+    try:
+        collection_id = db.create_collection(
+            request.name, request.description, profile=request.profile
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return db.get_collection(collection_id=collection_id)
 
 
@@ -960,6 +1022,7 @@ async def create_discovery_run(request: DiscoverRequest):
             workers=request.workers,
             progress=progress_updater(update, "Analysing"),
             use_llm=request.use_llm,
+            profile=request.profile,
         )
 
     return {"task_id": start_task("discover", worker)}
@@ -1018,6 +1081,8 @@ async def promote_candidate(candidate_id: int, request: PromoteRequest):
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/api/discovery/candidates/{candidate_id}/reject")
@@ -1049,6 +1114,7 @@ async def find_similar(request: SeedExpandRequest):
             request.seed_track_ids,
             limit=request.limit,
             max_distance=request.max_distance,
+            profile=request.profile,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

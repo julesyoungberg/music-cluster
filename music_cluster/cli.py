@@ -25,13 +25,20 @@ from .config import Config
 from .database import Database
 from . import discovery as discovery_mod
 from . import groups as groups_mod
-from . import organizer, sorting
+from . import organizer, profiles, samples, sorting
 from .library import analyze_paths, prune_missing
 from .metadata import display_name
 from .utils import parse_extensions
 
 
 DEFAULT_COLLECTION = "My Folders"
+
+PROFILE_OPTION = click.option(
+    "--profile",
+    type=click.Choice(profiles.names()),
+    default=None,
+    help="Audio profile: music (tracks) or sample (one-shots and loops)",
+)
 
 
 # ----------------------------------------------------------------------
@@ -94,7 +101,8 @@ def cli():
 
 @cli.command()
 @click.option("--db-path", type=str, default=None, help="Database path")
-def init(db_path):
+@PROFILE_OPTION
+def init(db_path, profile):
     """Create the database and config file."""
     config = Config()
     if db_path:
@@ -104,12 +112,16 @@ def init(db_path):
     path = config.get_db_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     db = Database(path)
-    groups_mod.ensure_collection(db, DEFAULT_COLLECTION, "Default sorting scheme")
+    name = "My Samples" if profiles.is_sample(profile) else DEFAULT_COLLECTION
+    groups_mod.ensure_collection(db, name, "Default sorting scheme", profile=profile)
 
     click.echo(f"Database:   {path}")
     click.echo(f"Config:     {config.config_path}")
-    click.echo(f"Collection: {DEFAULT_COLLECTION}")
-    click.echo("\nNext: music-cluster groups import-tree ~/Music/YourDJFolders")
+    click.echo(f"Collection: {name} ({profiles.normalize(profile)})")
+    if profiles.is_sample(profile):
+        click.echo("\nNext: music-cluster groups import-tree ~/Samples/YourFolders --collection 'My Samples'")
+    else:
+        click.echo("\nNext: music-cluster groups import-tree ~/Music/YourDJFolders")
 
 
 @cli.command()
@@ -117,7 +129,9 @@ def info():
     """Show what is in the library."""
     config, db = get_context()
     click.echo(f"Database: {config.get_db_path()}")
-    click.echo(f"Tracks:   {db.count_tracks()} ({db.count_features()} analysed)")
+    counts = db.count_features_by_profile()
+    breakdown = ", ".join(f"{count} as {name}" for name, count in sorted(counts.items()))
+    click.echo(f"Tracks:   {db.count_tracks()} ({breakdown or 'none analysed'})")
 
     collections = db.list_collections()
     if not collections:
@@ -132,7 +146,8 @@ def info():
             f"fitted, {accuracy * 100:.0f}% self-check" if accuracy is not None else "not fitted"
         )
         click.echo(
-            f"  {collection['name']}: {collection['group_count']} groups, "
+            f"  {collection['name']} [{groups_mod.profile_of(collection)}]: "
+            f"{collection['group_count']} groups, "
             f"{collection['track_count']} reference tracks ({fitted})"
         )
 
@@ -143,7 +158,8 @@ def info():
 @click.option("-u", "--update", is_flag=True, help="Re-analyse tracks already in the library")
 @click.option("--extensions", type=str, default=None, help="Comma-separated extensions")
 @click.option("--workers", type=int, default=None, help="Parallel workers (-1 = all CPUs)")
-def analyze(paths, recursive, update, extensions, workers):
+@PROFILE_OPTION
+def analyze(paths, recursive, update, extensions, workers, profile):
     """Extract audio features for files, without sorting them."""
     config, db = get_context()
     result = analyze_paths(
@@ -155,6 +171,7 @@ def analyze(paths, recursive, update, extensions, workers):
         extensions=parse_extensions(extensions) if extensions else None,
         workers=workers,
         progress=progress_bar("Analysing"),
+        profile=profile,
     )
     click.echo(
         f"\nAnalysed {result.analyzed}, skipped {result.skipped} (already known), "
@@ -185,13 +202,22 @@ def collection():
 @collection.command("create")
 @click.argument("name")
 @click.option("--description", type=str, default=None)
-def collection_create(name, description):
-    """Create a collection."""
+@PROFILE_OPTION
+def collection_create(name, description, profile):
+    """Create a collection.
+
+    The profile is fixed at creation: a collection's stored features, fitted
+    space and group references all assume one kind of audio. Sort samples as
+    well as tracks by making a second collection.
+    """
     _, db = get_context()
     if db.get_collection(name=name):
         raise click.ClickException(f"A collection named {name!r} already exists")
-    db.create_collection(name, description)
-    click.echo(f"Created collection {name!r}.")
+    try:
+        db.create_collection(name, description, profile=profile)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    click.echo(f"Created {profiles.normalize(profile)} collection {name!r}.")
 
 
 @collection.command("list")
@@ -204,8 +230,8 @@ def collection_list():
         return
     for item in collections:
         click.echo(
-            f"{item['id']:>4}  {item['name']:<30} {item['group_count']:>3} groups"
-            f"  {item['track_count']:>6} tracks"
+            f"{item['id']:>4}  {item['name']:<28} {groups_mod.profile_of(item):<7}"
+            f" {item['group_count']:>3} groups  {item['track_count']:>6} tracks"
         )
 
 
@@ -238,13 +264,17 @@ def groups():
 @click.option("--min-tracks", type=int, default=1, help="Skip folders with fewer tracks")
 @click.option("-r/--no-recursive", "recursive", default=True)
 @click.option("--workers", type=int, default=None)
-def groups_import_tree(parent, collection_name, min_tracks, recursive, workers):
+@PROFILE_OPTION
+def groups_import_tree(parent, collection_name, min_tracks, recursive, workers, profile):
     """Import every subfolder of PARENT as a group.
 
-    The fast path when your library is already a folder of genre folders.
+    The fast path when your library is already a folder of genre folders — or
+    of Kicks/Snares/Claps/Hats folders, with --profile sample.
     """
     config, db = get_context()
-    target = groups_mod.ensure_collection(db, collection_name or DEFAULT_COLLECTION)
+    target = groups_mod.ensure_collection(
+        db, collection_name or DEFAULT_COLLECTION, profile=profile
+    )
 
     reports = groups_mod.import_folders_as_groups(
         db,
@@ -262,7 +292,10 @@ def groups_import_tree(parent, collection_name, min_tracks, recursive, workers):
     click.echo("")
     for report in reports:
         click.echo(f"  {report.group_name:<32} {report.added:>5} reference tracks")
-    click.echo(f"\nImported {len(reports)} group(s) into {target['name']!r}.")
+    click.echo(
+        f"\nImported {len(reports)} group(s) into {target['name']!r} "
+        f"({groups_mod.profile_of(target)})."
+    )
     click.echo("Next: music-cluster fit")
 
 
@@ -277,10 +310,14 @@ def groups_import_tree(parent, collection_name, min_tracks, recursive, workers):
               help="Folder new music assigned to this group should go to")
 @click.option("--description", type=str, default=None)
 @click.option("--workers", type=int, default=None)
-def groups_add(name, collection_name, folder, playlist, tracks, destination, description, workers):
+@PROFILE_OPTION
+def groups_add(name, collection_name, folder, playlist, tracks, destination, description,
+               workers, profile):
     """Create a group from a folder, a playlist, or a few seed tracks."""
     config, db = get_context()
-    target = groups_mod.ensure_collection(db, collection_name or DEFAULT_COLLECTION)
+    target = groups_mod.ensure_collection(
+        db, collection_name or DEFAULT_COLLECTION, profile=profile
+    )
     callback = progress_bar("Analysing")
 
     try:
@@ -730,14 +767,20 @@ def undo(session_id, remove_playlists):
 @click.option("--min-size", type=int, default=None, help="Smallest candidate group to report")
 @click.option("--llm/--no-llm", default=None, help="Use an LLM to suggest names")
 @click.option("--workers", type=int, default=None)
-def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, workers):
-    """Propose candidate groups from an unsorted pile."""
+@PROFILE_OPTION
+def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, workers, profile):
+    """Propose candidate groups from an unsorted pile.
+
+    With --profile sample the candidates come back named from the sample
+    taxonomy — Kicks, Closed Hats, Basses — rather than by genre and tempo.
+    """
     config, db = get_context()
     try:
         outcome = discovery_mod.run_discovery(
             db, config, paths=list(paths), name=name, algorithm=algorithm,
             granularity=granularity, target_groups=target_groups, min_group_size=min_size,
             workers=workers, progress=progress_bar("Analysing"), use_llm=llm,
+            profile=profile,
         )
     except (ValueError, ImportError) as exc:
         raise click.ClickException(str(exc))
@@ -749,11 +792,15 @@ def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, 
     click.echo("")
     for candidate in outcome["candidates"]:
         stats = candidate["stats"]
-        bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
         line = (
             f"  [{candidate['candidate_index']:>2}] {candidate['suggested_name']:<34} "
             f"{candidate['size']:>5} tracks"
         )
+        if stats.get("kind") == "sample":
+            share = stats.get("category_share") or 0
+            click.echo(f"{line}  {share:.0%} {stats.get('category_label', '')}")
+            continue
+        bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
         click.echo(f"{line}  ~{bpm:.0f} BPM" if bpm else line)
     click.echo(f"\nNext: music-cluster candidates {run['id']}")
 
@@ -768,7 +815,10 @@ def candidates_cmd(run_id):
         raise click.ClickException(f"No discovery run with ID {run_id}")
 
     target = resolve_collection_or_exit(db, None)
-    click.echo(f"Run {run_id} ({run['name']}) — promoting into {target['name']!r}\n")
+    click.echo(
+        f"Run {run_id} ({run['name']}) [{run.get('profile', 'music')}] "
+        f"— promoting into {target['name']!r}\n"
+    )
 
     for candidate in db.list_discovery_candidates(run_id):
         if candidate["status"] != "pending":
@@ -777,13 +827,29 @@ def candidates_cmd(run_id):
         click.echo("─" * 72)
         click.echo(click.style(candidate["suggested_name"], bold=True)
                    + f"   {candidate['size']} tracks")
-        descriptors = ", ".join(stats.get("descriptors", []))
-        bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
-        tempo = f"~{bpm:.0f} BPM   " if bpm else ""
-        click.echo(click.style(f"  {tempo}{descriptors}", dim=True))
-        if stats.get("top_genres"):
-            tags = ", ".join(f"{g['name']} ({g['count']})" for g in stats["top_genres"])
-            click.echo(click.style(f"  tags: {tags}", dim=True))
+        if stats.get("kind") == "sample":
+            share = stats.get("category_share") or 0
+            summary = f"{share:.0%} {stats.get('category_label', 'unsorted')}"
+            shape = (
+                f"{stats.get('median_duration', 0):.2f}s   "
+                f"attack {stats.get('attack_ms', 0):.0f} ms   "
+                f"{stats.get('brightness_hz', 0):.0f} Hz   "
+                + ("pitched" if stats.get("pitched") else "unpitched")
+            )
+            click.echo(click.style(f"  {summary}   {shape}", dim=True))
+            mix = ", ".join(
+                f"{item['label']} ({item['count']})" for item in stats.get("breakdown", [])[:4]
+            )
+            if mix:
+                click.echo(click.style(f"  contains: {mix}", dim=True))
+        else:
+            descriptors = ", ".join(stats.get("descriptors", []))
+            bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
+            tempo = f"~{bpm:.0f} BPM   " if bpm else ""
+            click.echo(click.style(f"  {tempo}{descriptors}", dim=True))
+            if stats.get("top_genres"):
+                tags = ", ".join(f"{g['name']} ({g['count']})" for g in stats["top_genres"])
+                click.echo(click.style(f"  tags: {tags}", dim=True))
 
         click.echo("\n  Representative tracks:")
         for track_id in candidate["exemplars"]:
@@ -803,10 +869,13 @@ def candidates_cmd(run_id):
             group_name = click.prompt("  Group name", default=candidate["suggested_name"])
             destination = click.prompt("  Destination folder (blank for none)", default="",
                                        show_default=False).strip()
-            outcome = discovery_mod.promote_candidate(
-                db, config, target, candidate["id"], name=group_name,
-                destination_path=destination or None, seeds_only=(choice == "s"),
-            )
+            try:
+                outcome = discovery_mod.promote_candidate(
+                    db, config, target, candidate["id"], name=group_name,
+                    destination_path=destination or None, seeds_only=(choice == "s"),
+                )
+            except ValueError as exc:
+                raise click.ClickException(str(exc))
             click.echo(f"  Created {group_name!r} with {outcome['added']} reference track(s).\n")
 
     click.echo("\nDone. Next: music-cluster fit")
@@ -815,7 +884,8 @@ def candidates_cmd(run_id):
 @cli.command(name="similar")
 @click.argument("query")
 @click.option("--limit", type=int, default=20)
-def similar_cmd(query, limit):
+@PROFILE_OPTION
+def similar_cmd(query, limit, profile):
     """Find tracks that sound like a track matching QUERY."""
     config, db = get_context()
     matches = db.list_tracks(limit=5, query=query)
@@ -824,7 +894,9 @@ def similar_cmd(query, limit):
 
     seed = matches[0]
     click.echo(f"Tracks similar to {display_name(seed)}:\n")
-    results = discovery_mod.expand_seeds(db, config, [seed["id"]], limit=limit)
+    results = discovery_mod.expand_seeds(
+        db, config, [seed["id"]], limit=limit, profile=profile
+    )
     for result in results:
         click.echo(f"  {result['relative_distance']:.2f}  {display_name(result['track'])}")
 
@@ -891,6 +963,84 @@ def _coerce(raw: str):
         return float(raw)
     except ValueError:
         return raw
+
+
+# ----------------------------------------------------------------------
+# Samples
+# ----------------------------------------------------------------------
+
+
+@cli.group("samples")
+def samples_group():
+    """Inspect how one-shots are being read."""
+
+
+@samples_group.command("categories")
+def samples_categories():
+    """List the sample categories used to name discovered groups."""
+    for entry in samples.taxonomy():
+        click.echo(f"  {entry['key']:<12} {entry['plural']}")
+    click.echo(
+        "\nThese name discovery candidates. They are suggestions: groups are "
+        "still whatever you decide to keep."
+    )
+
+
+@samples_group.command("classify")
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("--limit", type=int, default=50, help="Stop after this many files")
+@click.option("--names/--no-names", default=True, help="Let filenames inform the guess")
+@click.option("--workers", type=int, default=None)
+def samples_classify(paths, limit, names, workers):
+    """Report what a folder of one-shots looks like, without changing anything.
+
+    Analyses the files under PATHS as samples and prints what each one appears
+    to be. Nothing is filed and no groups are created — this answers "does the
+    tool hear my library the way I do?" before you point a workflow at it.
+    """
+    from .features import build_layout
+    from .library import analyze_paths as _analyze
+
+    config, db = get_context()
+    result = _analyze(
+        db,
+        config,
+        list(paths),
+        workers=workers,
+        progress=progress_bar("Analysing"),
+        profile=profiles.SAMPLE,
+    )
+    if not result.track_ids:
+        raise click.ClickException("None of those files could be analysed")
+
+    track_ids = result.track_ids[:limit]
+    matrix, found = db.get_feature_matrix(track_ids, profiles.SAMPLE)
+    if len(found) == 0:
+        raise click.ClickException("No sample features were stored for those files")
+
+    tracks = db.get_tracks(found)
+    layout = build_layout(
+        config.get("feature_extraction", "mfcc_coefficients", default=20), profiles.SAMPLE
+    )
+
+    click.echo("")
+    tally = {}
+    for row, track_id in zip(matrix, found):
+        track = tracks.get(track_id, {})
+        filepath = track.get("filepath") if names else None
+        guess = samples.classify_vector(row, filepath=filepath, layout=layout)
+        tally[guess.label] = tally.get(guess.label, 0) + 1
+        click.echo(
+            f"  {format_confidence(guess.confidence)}  {guess.label:<12}"
+            f" {os.path.basename(track.get('filepath', '')):<40}"
+            + click.style(f"  {'; '.join(guess.evidence)}", dim=True)
+        )
+
+    click.echo("")
+    for label, count in sorted(tally.items(), key=lambda item: -item[1]):
+        click.echo(f"  {count:>5}  {label}")
+    if len(found) < len(result.track_ids):
+        click.echo(f"\n({len(found)} of {len(result.track_ids)} shown; raise --limit for more)")
 
 
 def main():

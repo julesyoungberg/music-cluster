@@ -8,7 +8,8 @@
   import LoadingState from '$lib/components/LoadingState.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import TaskProgress from '$lib/components/TaskProgress.svelte';
-  import type { DiscoveryRun, TaskStatus } from '$lib/types';
+  import ProfileBadge from '$lib/components/ProfileBadge.svelte';
+  import type { AudioProfile, DiscoveryRun, TaskStatus } from '$lib/types';
   import { formatDate, pluralize } from '$lib/utils';
   import { Compass, Plus, Trash2 } from 'lucide-svelte';
 
@@ -24,6 +25,14 @@
   let targetGroups = $state<number | null>(null);
   let minGroupSize = $state(8);
   let useLlm = $state(false);
+  let profile = $state<AudioProfile>('music');
+
+  // Sample packs come in smaller piles than record crates, so the default
+  // moves with the profile — until the user sets it themselves.
+  let minGroupSizeTouched = $state(false);
+  $effect(() => {
+    if (!minGroupSizeTouched) minGroupSize = profile === 'sample' ? 5 : 8;
+  });
 
   async function load() {
     loading = true;
@@ -51,7 +60,8 @@
         algorithm,
         target_groups: algorithm === 'hdbscan' ? undefined : (targetGroups ?? undefined),
         min_group_size: minGroupSize,
-        use_llm: useLlm
+        use_llm: useLlm,
+        profile
       });
       const finished = await pollTask(task_id, (status) => (task = status));
       task = null;
@@ -117,7 +127,10 @@
       {#each runs as run (run.id)}
         <div class="flex items-center gap-4 px-4 py-3">
           <a href="/discover/{run.id}" class="min-w-0 flex-1">
-            <p class="truncate font-medium">{run.name ?? `Run ${run.id}`}</p>
+            <p class="flex items-center gap-2 truncate font-medium">
+              <span class="truncate">{run.name ?? `Run ${run.id}`}</span>
+              {#if run.profile === 'sample'}<ProfileBadge profile={run.profile} size="sm" />{/if}
+            </p>
             <p class="truncate text-xs text-muted-foreground">
               {run.algorithm} · {formatDate(run.created_at)}
               {#if run.source_path}· <span class="font-mono">{run.source_path}</span>{/if}
@@ -139,6 +152,29 @@
   <div class="space-y-4">
     <FolderPicker bind:value={sourcePath} label="Unsorted folder" />
 
+    <fieldset class="text-sm">
+      <legend class="font-medium">What is in it</legend>
+      <div class="mt-2 grid gap-2 sm:grid-cols-2">
+        {#each [{ value: 'music', title: 'Music', blurb: 'Named by genre, tempo and character.' }, { value: 'sample', title: 'Samples', blurb: 'Named as kicks, snares, hats, basses, chords.' }] as option (option.value)}
+          <label
+            class="cursor-pointer rounded-md border p-3 transition-colors {profile === option.value
+              ? 'border-primary bg-primary/5'
+              : 'border-input hover:bg-muted/50'}"
+          >
+            <input
+              type="radio"
+              class="sr-only"
+              name="discover-profile"
+              value={option.value}
+              bind:group={profile}
+            />
+            <span class="block font-medium">{option.title}</span>
+            <span class="mt-0.5 block text-xs text-muted-foreground">{option.blurb}</span>
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+
     <label class="block text-sm">
       <span class="font-medium">Run name</span>
       <input class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={runName} placeholder="Defaults to the folder name" />
@@ -157,7 +193,13 @@
       {#if algorithm === 'hdbscan'}
         <label class="block text-sm">
           <span class="font-medium">Smallest pile</span>
-          <input type="number" min="2" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={minGroupSize} />
+          <input
+            type="number"
+            min="2"
+            class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+            bind:value={minGroupSize}
+            oninput={() => (minGroupSizeTouched = true)}
+          />
         </label>
       {:else}
         <label class="block text-sm">
