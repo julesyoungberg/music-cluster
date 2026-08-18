@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Set
 
+from . import profiles
 from .config import Config
 from .database import Database
 from .extractor import FeatureExtractor
@@ -93,21 +94,28 @@ def analyze_files(
     update: bool = False,
     workers: Optional[int] = None,
     progress: Optional[ProgressCallback] = None,
+    profile: Optional[str] = None,
 ) -> AnalysisResult:
     """Analyse the given files, skipping ones already in the database.
 
     Tracks that are already analysed still have their IDs returned, so callers
     can use this as "make sure these files are usable" rather than only as an
     import step.
+
+    Args:
+        profile: Which audio profile to analyse under. A file already analysed
+            as music is still re-analysed for the sample profile — the two
+            produce different vectors and both are kept.
     """
     result = AnalysisResult()
-    extractor_config = config.extractor_config()
+    profile = profiles.normalize(profile)
+    extractor_config = config.extractor_config(profile)
     analysis_version = config.get("feature_extraction", "analysis_version", default="2.0.0")
 
     pending: List[str] = []
     for filepath in filepaths:
         existing = db.get_track_by_filepath(filepath)
-        if existing and not update and db.get_features(existing["id"]) is not None:
+        if existing and not update and db.get_features(existing["id"], profile) is not None:
             result.skipped += 1
             result.track_ids.append(existing["id"])
         else:
@@ -140,7 +148,7 @@ def analyze_files(
                 analysis_version=analysis_version,
                 metadata=payload["metadata"],
             )
-            db.add_features(track_id, payload["features"])
+            db.add_features(track_id, payload["features"], profile)
             result.analyzed += 1
             result.track_ids.append(track_id)
         if progress:
@@ -177,10 +185,19 @@ def analyze_paths(
     extensions: Optional[Set[str]] = None,
     workers: Optional[int] = None,
     progress: Optional[ProgressCallback] = None,
+    profile: Optional[str] = None,
 ) -> AnalysisResult:
     """Analyse every audio file under the given paths."""
     files = collect_files(paths, recursive=recursive, extensions=extensions)
-    return analyze_files(db, config, files, update=update, workers=workers, progress=progress)
+    return analyze_files(
+        db,
+        config,
+        files,
+        update=update,
+        workers=workers,
+        progress=progress,
+        profile=profile,
+    )
 
 
 def prune_missing(db: Database) -> List[int]:

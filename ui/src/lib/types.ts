@@ -24,10 +24,55 @@ export interface Track {
   role?: string;
 }
 
+/**
+ * What kind of audio a collection holds.
+ *
+ * Fixed when the collection is created: its stored features, fitted space and
+ * group references all assume one profile, so this is never part of an update.
+ */
+export type AudioProfile = 'music' | 'sample';
+
+export interface Profile {
+  name: AudioProfile;
+  label: string;
+  description: string;
+}
+
+export interface SampleCategory {
+  key: string;
+  label: string;
+  plural: string;
+}
+
+/** What a one-shot appears to be, and how sure the guess is. */
+export interface SampleGuess {
+  category: string;
+  label: string;
+  confidence: number;
+  evidence: string[];
+  alternatives: { category: string; label: string; score: number }[];
+}
+
+export interface SampleDescriptors {
+  duration: number;
+  attack_ms: number;
+  decay_ms: number;
+  sustain_ratio: number;
+  brightness_hz: number;
+  low_energy: number;
+  mid_energy: number;
+  high_energy: number;
+  f0_hz: number | null;
+  pitched: boolean;
+  percussive_ratio: number;
+  onset_count: number;
+}
+
 export interface Collection {
   id: number;
   name: string;
   description?: string | null;
+  profile?: AudioProfile;
   settings?: Record<string, unknown>;
   group_count?: number;
   track_count?: number;
@@ -125,6 +170,19 @@ export interface SortSession {
 }
 
 export interface CandidateStats {
+  /** Present only for sample-profile runs; music candidates omit it. */
+  kind?: 'sample';
+  category?: string;
+  category_label?: string;
+  category_share?: number;
+  breakdown?: { category: string; label: string; count: number }[];
+  median_duration?: number;
+  attack_ms?: number;
+  low_energy?: number;
+  high_energy?: number;
+  pitched?: boolean;
+  f0_hz?: number | null;
+  onset_count?: number;
   detected_bpm?: number;
   tag_bpm_median?: number | null;
   tag_bpm_range?: [number, number] | null;
@@ -153,6 +211,7 @@ export interface DiscoveryRun {
   name: string | null;
   source_path: string | null;
   algorithm: string;
+  profile?: AudioProfile;
   params: Record<string, unknown>;
   metrics: Record<string, unknown>;
   status: string;

@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from . import profiles
 from .embedding import EmbeddingSpace
 
 
@@ -98,8 +99,13 @@ class Suggestion:
 class GroupSorter:
     """Fits reference groups and scores new tracks against them."""
 
-    def __init__(self, config: Optional[SorterConfig] = None):
+    def __init__(
+        self, config: Optional[SorterConfig] = None, profile: Optional[str] = None
+    ):
         self.config = config or SorterConfig()
+        # Named apart from `self.profiles`, which is the list of *group*
+        # profiles this sorter scores against — a different thing entirely.
+        self.audio_profile = profiles.normalize(profile)
         self.embedding: Optional[EmbeddingSpace] = None
         self.profiles: List[GroupProfile] = []
         self._global_scale: float = 1.0
@@ -142,6 +148,7 @@ class GroupSorter:
             max_components=self.config.max_components,
             discriminant_weight=self.config.discriminant_weight,
             feature_weights=self.config.feature_weights,
+            profile=self.audio_profile,
         ).fit(all_features, labels)
 
         projected_all = self.embedding.transform(all_features)
@@ -420,6 +427,7 @@ class GroupSorter:
         return pickle.dumps(
             {
                 "format": MODEL_FORMAT,
+                "audio_profile": self.audio_profile,
                 "config": self.config.to_dict(),
                 "embedding": self.embedding,
                 "global_scale": self._global_scale,
@@ -444,7 +452,7 @@ class GroupSorter:
         if data.get("format") != MODEL_FORMAT:
             raise ValueError("Stored sorter was written by an incompatible version; refit it")
 
-        sorter = cls(SorterConfig.from_dict(data["config"]))
+        sorter = cls(SorterConfig.from_dict(data["config"]), data.get("audio_profile"))
         sorter.embedding = data["embedding"]
         sorter._global_scale = data.get("global_scale", 1.0)
         sorter.profiles = [GroupProfile(**profile) for profile in data["profiles"]]

@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlparse
 
 import numpy as np
 
+from . import profiles
 from .config import Config
 from .database import Database
 from .library import AnalysisResult, analyze_files, collect_files
@@ -50,13 +51,29 @@ class ImportReport:
 # ----------------------------------------------------------------------
 
 
-def ensure_collection(db: Database, name: str, description: Optional[str] = None) -> Dict:
+def ensure_collection(
+    db: Database,
+    name: str,
+    description: Optional[str] = None,
+    profile: Optional[str] = None,
+) -> Dict:
     """Fetch a collection by name, creating it if necessary."""
     collection = db.get_collection(name=name)
     if collection:
         return collection
-    db.create_collection(name=name, description=description)
+    db.create_collection(name=name, description=description, profile=profile)
     return db.get_collection(name=name)
+
+
+def profile_of(collection: Optional[Dict]) -> str:
+    """The audio profile a collection sorts, defaulting to music.
+
+    Fixed when the collection is created: the stored feature vectors, the
+    fitted embedding and the group references all assume one profile, so
+    switching would invalidate every one of them. Sorting samples as well as
+    tracks means a second collection, not a setting.
+    """
+    return profiles.normalize((collection or {}).get("profile"))
 
 
 def resolve_collection(
@@ -79,8 +96,8 @@ def resolve_collection(
 
 
 def sorter_config_for(collection: Dict, config: Config) -> SorterConfig:
-    """Per-collection sorting settings layered over the global defaults."""
-    merged = config.section("sorting")
+    """Per-collection sorting settings over the profile's, over the global."""
+    merged = config.section("sorting", profile_of(collection))
     merged.update(collection.get("settings", {}).get("sorting", {}) or {})
     return SorterConfig.from_dict(merged)
 
@@ -145,8 +162,15 @@ def add_tracks_to_group(
     """Analyse files if needed and register them as references for a group."""
     report = ImportReport(group_id=group["id"], group_name=group["name"])
 
+    collection = db.get_collection(collection_id=group["collection_id"])
     analysis = analyze_files(
-        db, config, filepaths, update=update, workers=workers, progress=progress
+        db,
+        config,
+        filepaths,
+        update=update,
+        workers=workers,
+        progress=progress,
+        profile=profile_of(collection),
     )
     report.analysis = analysis
 
@@ -301,13 +325,14 @@ def looks_like_playlist(path: str) -> bool:
 
 
 def load_group_features(
-    db: Database, collection_id: int
+    db: Database, collection_id: int, profile: Optional[str] = None
 ) -> Tuple[Dict[int, np.ndarray], Dict[int, str], Dict[int, List[int]], List[Dict]]:
     """Load reference features for every group in a collection.
 
     Returns ``(features_by_group, names_by_group, track_ids_by_group, problems)``
     where *problems* lists groups that are empty or missing features.
     """
+    profile = profiles.normalize(profile)
     groups = db.list_groups(collection_id)
     features: Dict[int, np.ndarray] = {}
     names: Dict[int, str] = {}
@@ -323,10 +348,14 @@ def load_group_features(
             )
             continue
 
-        matrix, found_ids = db.get_feature_matrix(member_ids)
+        matrix, found_ids = db.get_feature_matrix(member_ids, profile)
         if len(found_ids) == 0:
             problems.append(
-                {"group_id": group["id"], "name": group["name"], "issue": "no analysed tracks"}
+                {
+                    "group_id": group["id"],
+                    "name": group["name"],
+                    "issue": f"no tracks analysed for the {profile} profile",
+                }
             )
             continue
         if len(found_ids) < len(member_ids):
@@ -352,16 +381,21 @@ def fit_collection(
     Returns the evaluation report, which doubles as feedback on whether the
     DJ's folders are actually distinguishable from each other.
     """
-    features, names, track_ids, problems = load_group_features(db, collection["id"])
+    features, names, track_ids, problems = load_group_features(
+        db, collection["id"], profile_of(collection)
+    )
     if len(features) < 2:
         raise ValueError(
             "At least two groups with analysed reference tracks are required. "
             + (f"Problems: {problems}" if problems else "")
         )
 
-    sorter = GroupSorter(sorter_config_for(collection, config)).fit(features, names)
+    sorter = GroupSorter(
+        sorter_config_for(collection, config), profile_of(collection)
+    ).fit(features, names)
     metrics = sorter.evaluate() if evaluate else {}
     metrics["problems"] = problems
+    metrics["profile"] = profile_of(collection)
     metrics["group_track_ids"] = {str(gid): ids for gid, ids in track_ids.items()}
 
     db.save_model(

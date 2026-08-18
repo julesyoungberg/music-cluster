@@ -18,7 +18,9 @@
       onchange={onChange}
     >
       {#each $collections as collection (collection.id)}
-        <option value={collection.id}>{collection.name}</option>
+        <option value={collection.id}>
+          {collection.name}{collection.profile === 'sample' ? ' · samples' : ''}
+        </option>
       {/each}
     </select>
   </label>

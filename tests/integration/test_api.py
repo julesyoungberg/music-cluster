@@ -236,3 +236,106 @@ def test_config_updates_persist(client):
     ).json()
     assert updated["sorting"]["auto_accept_confidence"] == 0.85
     assert client.get("/api/config").json()["sorting"]["auto_accept_confidence"] == 0.85
+
+
+# ----------------------------------------------------------------------
+# Audio profiles
+# ----------------------------------------------------------------------
+
+
+def test_profiles_are_advertised(client):
+    body = client.get("/api/profiles").json()
+    assert [profile["name"] for profile in body["profiles"]] == ["music", "sample"]
+    categories = {entry["key"] for entry in body["sample_categories"]}
+    assert {"kick", "snare", "clap", "hat_closed", "bass", "chord"} <= categories
+
+
+def test_a_collection_can_be_created_for_samples(client):
+    created = client.post("/api/collections", json={"name": "Drums", "profile": "sample"}).json()
+    assert created["profile"] == "sample"
+    assert client.get(f"/api/collections/{created['id']}").json()["collection"]["profile"] == "sample"
+
+
+def test_a_collection_defaults_to_music(client):
+    assert client.post("/api/collections", json={"name": "Records"}).json()["profile"] == "music"
+
+
+def test_an_unknown_profile_is_a_client_error(client):
+    response = client.post("/api/collections", json={"name": "Nope", "profile": "drums"})
+    assert response.status_code == 400
+    assert "Unknown audio profile" in response.json()["detail"]
+
+
+def test_tracks_can_be_filtered_by_profile(client, rng):
+    from music_cluster.config import Config
+    from music_cluster.database import Database
+    from music_cluster.features import build_layout
+
+    db = Database(Config().get_db_path())
+    music_id = db.upsert_track("/fake/track.mp3", "track.mp3")
+    db.add_features(music_id, rng.normal(0, 1, FEATURE_DIM), "music")
+    sample_id = db.upsert_track("/fake/kick.wav", "kick.wav")
+    db.add_features(sample_id, rng.normal(0, 1, build_layout(20, "sample").dim), "sample")
+
+    everything = client.get("/api/tracks").json()
+    assert everything["total"] == 2
+
+    only_samples = client.get("/api/tracks?profile=sample").json()
+    assert only_samples["total"] == 1
+    assert only_samples["tracks"][0]["filename"] == "kick.wav"
+
+    assert client.get("/api/tracks?profile=drums").status_code == 400
+
+
+def test_info_reports_what_was_analysed_under_each_profile(client, rng):
+    from music_cluster.config import Config
+    from music_cluster.database import Database
+
+    db = Database(Config().get_db_path())
+    track_id = db.upsert_track("/fake/one.mp3", "one.mp3")
+    db.add_features(track_id, rng.normal(0, 1, FEATURE_DIM), "music")
+
+    body = client.get("/api/info").json()
+    assert body["analyzed_by_profile"] == {"music": 1}
+    assert [profile["name"] for profile in body["profiles"]] == ["music", "sample"]
+
+
+def test_the_sample_view_of_a_music_only_track_is_a_404(client, rng):
+    from music_cluster.config import Config
+    from music_cluster.database import Database
+
+    db = Database(Config().get_db_path())
+    track_id = db.upsert_track("/fake/one.mp3", "one.mp3")
+    db.add_features(track_id, rng.normal(0, 1, FEATURE_DIM), "music")
+
+    response = client.get(f"/api/tracks/{track_id}/sample")
+    assert response.status_code == 404
+    assert "not been analysed as a sample" in response.json()["detail"]
+
+
+def test_a_sample_track_reports_its_category_and_measurements(client, rng):
+    from music_cluster.config import Config
+    from music_cluster.database import Database
+    from music_cluster.extractor import FeatureExtractor
+    from tests.integration.test_sample_profile import SAMPLE_RATE, kick
+
+    pytest.importorskip("soundfile")
+    config = Config()
+    db = Database(config.get_db_path())
+
+    import tempfile
+    from pathlib import Path
+
+    folder = Path(tempfile.mkdtemp())
+    path = kick(folder / "kick_01.wav")
+    extractor = FeatureExtractor(
+        sample_rate=SAMPLE_RATE, frame_size=2048, hop_size=256,
+        excerpt_seconds=0, profile="sample",
+    )
+    track_id = db.upsert_track(path, "kick_01.wav")
+    db.add_features(track_id, extractor.extract(path), "sample")
+
+    body = client.get(f"/api/tracks/{track_id}/sample").json()
+    assert body["guess"]["category"] == "kick"
+    assert body["descriptors"]["duration"] > 0
+    assert body["descriptors"]["low_energy"] > body["descriptors"]["high_energy"]

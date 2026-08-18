@@ -14,8 +14,10 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from . import profiles
 
-SCHEMA_VERSION = 2
+
+SCHEMA_VERSION = 3
 
 
 def utc_now() -> str:
@@ -55,6 +57,7 @@ class Database:
 
     def _init_database(self) -> None:
         self._migrate_legacy()
+        self._migrate_profiles()
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.executescript(
@@ -78,10 +81,15 @@ class Database:
                     comment TEXT
                 );
 
+                -- One row per (track, profile): the same file can be analysed
+                -- both as a track and as a sample, and the two vectors have
+                -- different widths and different meanings.
                 CREATE TABLE IF NOT EXISTS features (
-                    track_id INTEGER PRIMARY KEY,
+                    track_id INTEGER NOT NULL,
+                    profile TEXT NOT NULL DEFAULT 'music',
                     feature_vector BLOB NOT NULL,
                     feature_dim INTEGER,
+                    PRIMARY KEY (track_id, profile),
                     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
                 );
 
@@ -89,6 +97,7 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT UNIQUE NOT NULL,
                     description TEXT,
+                    profile TEXT NOT NULL DEFAULT 'music',
                     settings TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -179,6 +188,7 @@ class Database:
                     name TEXT,
                     source_path TEXT,
                     algorithm TEXT,
+                    profile TEXT NOT NULL DEFAULT 'music',
                     params TEXT,
                     metrics TEXT,
                     status TEXT DEFAULT 'open',
@@ -227,6 +237,59 @@ class Database:
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
                 (str(SCHEMA_VERSION),),
             )
+            conn.commit()
+
+    def _migrate_profiles(self) -> None:
+        """Upgrade a v2 (music-only) database to carry audio profiles.
+
+        v2 assumed one kind of audio, so a track had exactly one feature
+        vector and a collection had no opinion about what it held. Everything
+        already stored was music, and says so after this runs; nothing is
+        re-analysed.
+        """
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            tables = {
+                row[0]
+                for row in cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "features" not in tables:
+                return  # New database; the schema script builds it correctly.
+
+            columns = {row[1] for row in cursor.execute("PRAGMA table_info(features)").fetchall()}
+            if "profile" not in columns:
+                # The primary key changes from (track_id) to (track_id, profile),
+                # which SQLite cannot do in place.
+                cursor.executescript(
+                    """
+                    CREATE TABLE features_v3 (
+                        track_id INTEGER NOT NULL,
+                        profile TEXT NOT NULL DEFAULT 'music',
+                        feature_vector BLOB NOT NULL,
+                        feature_dim INTEGER,
+                        PRIMARY KEY (track_id, profile),
+                        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+                    );
+                    INSERT INTO features_v3 (track_id, profile, feature_vector, feature_dim)
+                        SELECT track_id, 'music', feature_vector, feature_dim FROM features;
+                    DROP TABLE features;
+                    ALTER TABLE features_v3 RENAME TO features;
+                    """
+                )
+
+            for table in ("collections", "discovery_runs"):
+                if table not in tables:
+                    continue
+                existing = {
+                    row[1] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()
+                }
+                if "profile" not in existing:
+                    cursor.execute(
+                        f"ALTER TABLE {table} ADD COLUMN profile TEXT NOT NULL DEFAULT 'music'"
+                    )
+
             conn.commit()
 
     def _migrate_legacy(self) -> None:
@@ -385,10 +448,22 @@ class Database:
         offset: int = 0,
         query: Optional[str] = None,
         unassigned_in_collection: Optional[int] = None,
+        profile: Optional[str] = None,
     ) -> List[Dict]:
-        """List tracks, optionally filtered by text or by lack of group membership."""
+        """List tracks, optionally filtered by text, membership, or profile.
+
+        Filtering by profile answers "what has been analysed as samples?",
+        which is how the library screen separates a one-shot collection from a
+        record collection living in the same database.
+        """
         clauses: List[str] = []
         params: List[Any] = []
+
+        if profile is not None:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM features f WHERE f.track_id = t.id AND f.profile = ?)"
+            )
+            params.append(profiles.normalize(profile))
 
         if query:
             like = f"%{query}%"
@@ -416,9 +491,14 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def count_tracks(self) -> int:
+    def count_tracks(self, profile: Optional[str] = None) -> int:
         with self.connection() as conn:
-            return conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+            if profile is None:
+                return conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+            return conn.execute(
+                "SELECT COUNT(DISTINCT track_id) FROM features WHERE profile = ?",
+                (profiles.normalize(profile),),
+            ).fetchone()[0]
 
     def delete_track(self, track_id: int) -> bool:
         with self.connection() as conn:
@@ -430,33 +510,43 @@ class Database:
     # Features
     # ------------------------------------------------------------------
 
-    def add_features(self, track_id: int, feature_vector: np.ndarray) -> None:
+    def add_features(
+        self, track_id: int, feature_vector: np.ndarray, profile: Optional[str] = None
+    ) -> None:
         vector = np.asarray(feature_vector, dtype=np.float64)
         with self.connection() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO features (track_id, feature_vector, feature_dim)
-                VALUES (?, ?, ?)
+                INSERT OR REPLACE INTO features (track_id, profile, feature_vector, feature_dim)
+                VALUES (?, ?, ?, ?)
                 """,
-                (track_id, vector.tobytes(), len(vector)),
+                (track_id, profiles.normalize(profile), vector.tobytes(), len(vector)),
             )
             conn.commit()
 
-    def get_features(self, track_id: int) -> Optional[np.ndarray]:
+    def get_features(
+        self, track_id: int, profile: Optional[str] = None
+    ) -> Optional[np.ndarray]:
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT feature_vector FROM features WHERE track_id = ?", (track_id,)
+                "SELECT feature_vector FROM features WHERE track_id = ? AND profile = ?",
+                (track_id, profiles.normalize(profile)),
             ).fetchone()
             return np.frombuffer(row[0], dtype=np.float64).copy() if row else None
 
-    def get_feature_matrix(self, track_ids: Sequence[int]) -> Tuple[np.ndarray, List[int]]:
+    def get_feature_matrix(
+        self, track_ids: Sequence[int], profile: Optional[str] = None
+    ) -> Tuple[np.ndarray, List[int]]:
         """Return features for the given tracks, dropping any without features.
 
         Row order matches the returned ID list, not the requested order.
+        Vectors from different profiles are never mixed: they have different
+        widths and different meanings, and a matrix of both would be neither.
         """
         if not track_ids:
             return np.empty((0, 0)), []
 
+        name = profiles.normalize(profile)
         vectors: List[np.ndarray] = []
         found: List[int] = []
         ids = list(track_ids)
@@ -465,8 +555,9 @@ class Database:
                 chunk = ids[start : start + 500]
                 placeholders = ",".join("?" for _ in chunk)
                 rows = conn.execute(
-                    f"SELECT track_id, feature_vector FROM features WHERE track_id IN ({placeholders})",
-                    chunk,
+                    "SELECT track_id, feature_vector FROM features"
+                    f" WHERE profile = ? AND track_id IN ({placeholders})",
+                    [name] + chunk,
                 ).fetchall()
                 for row in rows:
                     vectors.append(np.frombuffer(row[1], dtype=np.float64))
@@ -474,28 +565,46 @@ class Database:
 
         return _stack(vectors, found)
 
-    def get_all_features(self) -> Tuple[np.ndarray, List[int]]:
+    def get_all_features(self, profile: Optional[str] = None) -> Tuple[np.ndarray, List[int]]:
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT track_id, feature_vector FROM features ORDER BY track_id"
+                "SELECT track_id, feature_vector FROM features WHERE profile = ?"
+                " ORDER BY track_id",
+                (profiles.normalize(profile),),
             ).fetchall()
         return _stack(
             [np.frombuffer(row[1], dtype=np.float64) for row in rows],
             [row[0] for row in rows],
         )
 
-    def count_features(self) -> int:
+    def count_features(self, profile: Optional[str] = None) -> int:
+        """How many feature vectors exist, for one profile or across all."""
         with self.connection() as conn:
-            return conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+            if profile is None:
+                return conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+            return conn.execute(
+                "SELECT COUNT(*) FROM features WHERE profile = ?",
+                (profiles.normalize(profile),),
+            ).fetchone()[0]
 
-    def tracks_without_features(self, track_ids: Sequence[int]) -> List[int]:
+    def count_features_by_profile(self) -> Dict[str, int]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT profile, COUNT(*) FROM features GROUP BY profile"
+            ).fetchall()
+        return {row[0]: row[1] for row in rows}
+
+    def tracks_without_features(
+        self, track_ids: Sequence[int], profile: Optional[str] = None
+    ) -> List[int]:
         if not track_ids:
             return []
         with self.connection() as conn:
             placeholders = ",".join("?" for _ in track_ids)
             rows = conn.execute(
-                f"SELECT track_id FROM features WHERE track_id IN ({placeholders})",
-                list(track_ids),
+                "SELECT track_id FROM features"
+                f" WHERE profile = ? AND track_id IN ({placeholders})",
+                [profiles.normalize(profile)] + list(track_ids),
             ).fetchall()
         have = {row[0] for row in rows}
         return [tid for tid in track_ids if tid not in have]
@@ -509,11 +618,13 @@ class Database:
         name: str,
         description: Optional[str] = None,
         settings: Optional[Dict[str, Any]] = None,
+        profile: Optional[str] = None,
     ) -> int:
         with self.connection() as conn:
             cursor = conn.execute(
-                "INSERT INTO collections (name, description, settings) VALUES (?, ?, ?)",
-                (name, description, json.dumps(settings or {})),
+                "INSERT INTO collections (name, description, profile, settings)"
+                " VALUES (?, ?, ?, ?)",
+                (name, description, profiles.normalize(profile), json.dumps(settings or {})),
             )
             conn.commit()
             return cursor.lastrowid
@@ -1037,14 +1148,23 @@ class Database:
         algorithm: str,
         params: Dict[str, Any],
         metrics: Dict[str, Any],
+        profile: Optional[str] = None,
     ) -> int:
         with self.connection() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO discovery_runs (name, source_path, algorithm, params, metrics)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO discovery_runs
+                    (name, source_path, algorithm, profile, params, metrics)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (name, source_path, algorithm, json.dumps(params), json.dumps(metrics)),
+                (
+                    name,
+                    source_path,
+                    algorithm,
+                    profiles.normalize(profile),
+                    json.dumps(params),
+                    json.dumps(metrics),
+                ),
             )
             conn.commit()
             return cursor.lastrowid
