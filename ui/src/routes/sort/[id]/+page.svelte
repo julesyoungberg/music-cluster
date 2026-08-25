@@ -13,7 +13,15 @@
   import { playTrack } from '$lib/stores/player';
   import type { CommitPlan, Group, OrganizeMode, SortItem, SortSession } from '$lib/types';
   import { formatDuration, pluralize, trackLabel, trackOf } from '$lib/utils';
-  import { ArrowLeft, Check, ChevronLeft, ChevronRight, FastForward, HelpCircle, Undo2 } from 'lucide-svelte';
+  import {
+    ArrowLeft,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    FastForward,
+    HelpCircle,
+    Undo2
+  } from 'lucide-svelte';
 
   const sessionId = $derived(Number($page.params.id));
 
@@ -57,7 +65,8 @@
       });
       items = result.items;
       summary = result.summary;
-      if (!keepCursor || cursor >= items.length) cursor = Math.min(cursor, Math.max(items.length - 1, 0));
+      if (!keepCursor || cursor >= items.length)
+        cursor = Math.min(cursor, Math.max(items.length - 1, 0));
     } catch (err) {
       error = err instanceof ApiError ? err.message : String(err);
     } finally {
@@ -146,7 +155,11 @@
           'Re-fit the collection to fold them in.'
         );
       }
-      await Promise.all([load(), loadCollections(), session ? loadGroups(session.collection_id) : Promise.resolve([])]);
+      await Promise.all([
+        load(),
+        loadCollections(),
+        session ? loadGroups(session.collection_id) : Promise.resolve([])
+      ]);
     } catch (err) {
       notifyError('Commit failed', err instanceof ApiError ? err.message : String(err));
     } finally {
@@ -197,7 +210,10 @@
 <svelte:head><title>{session?.name ?? 'Review'} · music-cluster</title></svelte:head>
 <svelte:window on:keydown={onKeydown} />
 
-<a href="/sort" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+<a
+  href="/sort"
+  class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+>
   <ArrowLeft class="h-4 w-4" /> All sessions
 </a>
 
@@ -215,7 +231,10 @@
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary" onclick={() => (helpOpen = true)}>
+        <button
+          class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+          onclick={() => (helpOpen = true)}
+        >
           <HelpCircle class="inline h-4 w-4" /> Shortcuts
         </button>
         <button
@@ -233,7 +252,11 @@
         >
           Commit {acceptedCount || ''}
         </button>
-        <button class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary" onclick={undo} title="Reverse this session's file operations">
+        <button
+          class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+          onclick={undo}
+          title="Reverse this session's file operations"
+        >
           <Undo2 class="inline h-4 w-4" />
         </button>
       </div>
@@ -249,11 +272,15 @@
     <div class="flex flex-wrap gap-1 text-sm">
       {#each [['pending', 'To review'], ['accepted', 'Filed'], ['unmatched', 'No match'], ['skipped', 'Skipped'], ['all', 'Everything']] as [value, label]}
         <button
-          class="rounded-md px-3 py-1.5 transition-colors {filter === value ? 'bg-secondary font-medium' : 'text-muted-foreground hover:bg-secondary/60'}"
+          class="rounded-md px-3 py-1.5 transition-colors {filter === value
+            ? 'bg-secondary font-medium'
+            : 'text-muted-foreground hover:bg-secondary/60'}"
           onclick={() => (filter = value as typeof filter)}
         >
           {label}
-          {#if value !== 'all' && summary[value]}<span class="ml-1 text-xs opacity-70">{summary[value]}</span>{/if}
+          {#if value !== 'all' && summary[value]}<span class="ml-1 text-xs opacity-70"
+              >{summary[value]}</span
+            >{/if}
         </button>
       {/each}
     </div>
@@ -313,8 +340,8 @@
 
             {#if current.ranked.length === 0}
               <p class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm">
-                Nothing in this collection sounds close to this track. It may need a group of its own —
-                or it may just be unlike anything you have filed so far.
+                Nothing in this collection sounds close to this track. It may need a group of its
+                own — or it may just be unlike anything you have filed so far.
               </p>
             {:else}
               {#each current.ranked as entry, index (entry.group_id)}
@@ -322,13 +349,16 @@
                   class="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:border-primary hover:bg-secondary/50"
                   onclick={() => decide(entry.group_id)}
                 >
-                  <kbd class="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border text-xs">
+                  <kbd
+                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border text-xs"
+                  >
                     {index + 1}
                   </kbd>
                   <span class="min-w-0 flex-1">
                     <span class="block truncate font-medium">{entry.group_name}</span>
                     <span class="mt-1 block h-1 w-full overflow-hidden rounded-full bg-secondary">
-                      <span class="block h-full bg-primary" style="width: {entry.score * 100}%"></span>
+                      <span class="block h-full bg-primary" style="width: {entry.score * 100}%"
+                      ></span>
                     </span>
                   </span>
                   <ConfidenceBadge confidence={entry.score} />
@@ -353,13 +383,24 @@
           </div>
 
           <div class="flex items-center justify-between border-t border-border pt-3">
-            <button class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40" onclick={previous} disabled={cursor === 0}>
+            <button
+              class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
+              onclick={previous}
+              disabled={cursor === 0}
+            >
               <ChevronLeft class="h-4 w-4" /> Previous
             </button>
-            <p class="truncate px-3 font-mono text-xs text-muted-foreground" title={current.filepath}>
+            <p
+              class="truncate px-3 font-mono text-xs text-muted-foreground"
+              title={current.filepath}
+            >
               {current.filename}
             </p>
-            <button class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40" onclick={next} disabled={cursor >= items.length - 1}>
+            <button
+              class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
+              onclick={next}
+              disabled={cursor >= items.length - 1}
+            >
               Next <ChevronRight class="h-4 w-4" />
             </button>
           </div>
@@ -367,10 +408,15 @@
 
         <aside class="space-y-2">
           <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Queue</p>
-          <div class="max-h-[32rem] divide-y divide-border overflow-y-auto rounded-lg border border-border">
+          <div
+            class="max-h-[32rem] divide-y divide-border overflow-y-auto rounded-lg border border-border"
+          >
             {#each items as item, index (item.id)}
               <button
-                class="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors {index === cursor ? 'bg-secondary' : 'hover:bg-secondary/50'}"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors {index ===
+                cursor
+                  ? 'bg-secondary'
+                  : 'hover:bg-secondary/50'}"
                 onclick={() => (cursor = index)}
               >
                 <span class="min-w-0 flex-1">
@@ -402,12 +448,19 @@
   />
 </Modal>
 
-<Modal bind:open={commitOpen} title="Commit this session" description="Nothing has been written yet — this is what would happen." size="lg">
+<Modal
+  bind:open={commitOpen}
+  title="Commit this session"
+  description="Nothing has been written yet — this is what would happen."
+  size="lg"
+>
   <div class="space-y-4">
     <div class="flex flex-wrap gap-2">
       {#each [['playlist', 'Playlists only'], ['copy', 'Copy files'], ['move', 'Move files'], ['symlink', 'Symlink']] as [value, label]}
         <button
-          class="rounded-md border px-3 py-1.5 text-sm transition-colors {mode === value ? 'border-primary bg-primary/10' : 'border-input hover:bg-secondary'}"
+          class="rounded-md border px-3 py-1.5 text-sm transition-colors {mode === value
+            ? 'border-primary bg-primary/10'
+            : 'border-input hover:bg-secondary'}"
           onclick={async () => {
             mode = value as OrganizeMode;
             const result = await api.commit(sessionId, { mode, dry_run: true });
@@ -439,7 +492,9 @@
           <div class="border-b border-border px-3 py-2 text-sm last:border-0">
             <span class="font-medium">{action.group_name}</span>
             <span class="ml-2 font-mono text-xs text-muted-foreground">{action.dest_path}</span>
-            {#if action.note}<span class="ml-2 text-xs text-amber-600 dark:text-amber-400">{action.note}</span>{/if}
+            {#if action.note}<span class="ml-2 text-xs text-amber-600 dark:text-amber-400"
+                >{action.note}</span
+              >{/if}
           </div>
         {/each}
         {#if plan.actions.length === 0 && plan.playlists.length === 0}
@@ -452,7 +507,9 @@
           <p class="font-medium">{pluralize(plan.problems.length, 'track')} will be skipped</p>
           <ul class="mt-1 space-y-0.5 text-xs">
             {#each plan.problems.slice(0, 6) as problem}
-              <li>{problem.group_name ?? problem.filepath ?? `Track ${problem.track_id}`}: {problem.issue}</li>
+              <li>
+                {problem.group_name ?? problem.filepath ?? `Track ${problem.track_id}`}: {problem.issue}
+              </li>
             {/each}
           </ul>
         </div>
@@ -461,7 +518,10 @@
   </div>
 
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (commitOpen = false)}>Cancel</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (commitOpen = false)}>Cancel</button
+    >
     <button
       class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-60"
       onclick={commit}

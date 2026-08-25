@@ -1,2 +1,4 @@
 target
-Cargo.lock
+# Cargo.lock is committed: this crate is a binary that ships to users, so its
+# builds should be reproducible.
+binaries/

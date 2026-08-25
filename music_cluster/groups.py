@@ -62,7 +62,10 @@ def ensure_collection(
     if collection:
         return collection
     db.create_collection(name=name, description=description, profile=profile)
-    return db.get_collection(name=name)
+    created = db.get_collection(name=name)
+    if created is None:  # pragma: no cover - the row was just written
+        raise RuntimeError(f"Collection {name!r} vanished immediately after being created")
+    return created
 
 
 def profile_of(collection: Optional[Dict]) -> str:
@@ -76,18 +79,23 @@ def profile_of(collection: Optional[Dict]) -> str:
     return profiles.normalize((collection or {}).get("profile"))
 
 
-def resolve_collection(
-    db: Database, identifier: Optional[Any] = None, required: bool = True
-) -> Optional[Dict]:
-    """Resolve a collection from an ID, a name, or the most recent one."""
-    if identifier is None:
-        collection = db.get_collection()
-    elif isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
-        collection = db.get_collection(collection_id=int(identifier))
-    else:
-        collection = db.get_collection(name=str(identifier))
+def find_collection(db: Database, identifier: Optional[Any] = None) -> Optional[Dict]:
+    """Resolve a collection from an ID, a name, or the most recent one.
 
-    if collection is None and required:
+    Returns ``None`` when nothing matches; see :func:`resolve_collection` for
+    the variant that insists.
+    """
+    if identifier is None:
+        return db.get_collection()
+    if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
+        return db.get_collection(collection_id=int(identifier))
+    return db.get_collection(name=str(identifier))
+
+
+def resolve_collection(db: Database, identifier: Optional[Any] = None) -> Dict:
+    """Like :func:`find_collection`, but raises when nothing matches."""
+    collection = find_collection(db, identifier)
+    if collection is None:
         raise LookupError(
             f"No collection found for {identifier!r}. Create one with "
             "`music-cluster collection create <name>`."
@@ -146,7 +154,10 @@ def create_group(
         source_path=os.path.abspath(os.path.expanduser(source_path)) if source_path else None,
     )
     db.touch_collection(collection_id)
-    return db.get_group(group_id=group_id)
+    created = db.get_group(group_id=group_id)
+    if created is None:  # pragma: no cover - the row was just written
+        raise RuntimeError(f"Group {name!r} vanished immediately after being created")
+    return created
 
 
 def add_tracks_to_group(
@@ -293,7 +304,7 @@ def read_playlist(playlist_path: str) -> List[str]:
     base = os.path.dirname(playlist_path)
     entries: List[str] = []
 
-    with open(playlist_path, "r", encoding="utf-8", errors="replace") as handle:
+    with open(playlist_path, encoding="utf-8", errors="replace") as handle:
         for raw in handle:
             line = raw.strip()
             if not line or line.startswith("#"):
@@ -390,9 +401,9 @@ def fit_collection(
             + (f"Problems: {problems}" if problems else "")
         )
 
-    sorter = GroupSorter(
-        sorter_config_for(collection, config), profile_of(collection)
-    ).fit(features, names)
+    sorter = GroupSorter(sorter_config_for(collection, config), profile_of(collection)).fit(
+        features, names
+    )
     metrics = sorter.evaluate() if evaluate else {}
     metrics["problems"] = problems
     metrics["profile"] = profile_of(collection)
@@ -416,7 +427,8 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
     """
     model = db.load_model(collection["id"])
     stale = model is None or (
-        collection.get("updated_at") and model.get("fitted_at")
+        collection.get("updated_at")
+        and model.get("fitted_at")
         and str(model["fitted_at"]) < str(collection["updated_at"])
     )
 
@@ -427,5 +439,8 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
             )
         fit_collection(db, collection, config)
         model = db.load_model(collection["id"])
+
+    if model is None:  # pragma: no cover - fit_collection either saves or raises
+        raise LookupError("No sorter could be fitted for this collection")
 
     return GroupSorter.loads(model["payload"]), model

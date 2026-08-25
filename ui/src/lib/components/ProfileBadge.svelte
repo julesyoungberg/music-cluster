@@ -10,10 +10,8 @@
   import type { AudioProfile } from '$lib/types';
   import { AudioWaveform, Disc3 } from 'lucide-svelte';
 
-  let {
-    profile = 'music',
-    size = 'md'
-  }: { profile?: AudioProfile | null; size?: 'sm' | 'md' } = $props();
+  let { profile = 'music', size = 'md' }: { profile?: AudioProfile | null; size?: 'sm' | 'md' } =
+    $props();
 
   const resolved = $derived(profile === 'sample' ? 'sample' : 'music');
   const label = $derived(resolved === 'sample' ? 'Samples' : 'Music');

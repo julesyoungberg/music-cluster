@@ -8,10 +8,7 @@
    * The desktop shell cannot hand a directory path to the API from an
    * `<input type="file">`, so the API exposes a browse endpoint and this walks it.
    */
-  let {
-    value = $bindable(''),
-    label = 'Folder'
-  }: { value?: string; label?: string } = $props();
+  let { value = $bindable(''), label = 'Folder' }: { value?: string; label?: string } = $props();
 
   let current = $state<string>('');
   let parent = $state<string | null>(null);

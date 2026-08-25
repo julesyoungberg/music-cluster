@@ -1,59 +1,61 @@
 {
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm --prefix ui run dev",
+    "beforeBuildCommand": "npm --prefix ui run build",
     "devPath": "http://localhost:1420",
-    "distDir": "../build",
+    "distDir": "../ui/build",
     "withGlobalTauri": false
   },
   "package": {
     "productName": "Music Cluster",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "tauri": {
     "allowlist": {
       "all": false,
       "shell": {
         "all": false,
-        "open": true
-      },
-      "dialog": {
-        "all": false,
-        "open": true
-      },
-      "fs": {
-        "all": false,
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true,
-        "scope": ["$APPDATA/**", "$HOME/**"]
+        "sidecar": true,
+        "scope": [
+          {
+            "name": "binaries/music-cluster-api",
+            "sidecar": true,
+            "args": ["--host", { "validator": "\\S+" }, "--port", { "validator": "\\d+" }]
+          }
+        ]
       }
     },
     "bundle": {
       "active": true,
-      "targets": "all",
+      "targets": ["deb", "appimage", "msi", "app", "dmg", "updater"],
       "identifier": "com.musiccluster.app",
+      "publisher": "Music Cluster",
+      "category": "Music",
+      "shortDescription": "Sort new music into the folders you already keep",
+      "longDescription": "music-cluster learns what your existing genre folders sound like and, for every new track, tells you where it thinks it belongs and how sure it is.",
+      "copyright": "MIT",
+      "externalBin": ["binaries/music-cluster-api"],
+      "resources": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
-      ]
+      ],
+      "deb": {
+        "depends": ["ffmpeg"]
+      },
+      "macOS": {
+        "minimumSystemVersion": "10.15"
+      }
+    },
+    "updater": {
+      "active": false
     },
     "security": {
       "csp": null
     },
-    "windows": [
-      {
-        "fullscreen": false,
-        "resizable": true,
-        "title": "Music Cluster",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 800,
-        "minHeight": 600
-      }
-    ]
+    "windows": []
   }
 }

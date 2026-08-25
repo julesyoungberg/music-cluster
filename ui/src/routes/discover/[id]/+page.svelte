@@ -108,7 +108,10 @@
 
 <svelte:head><title>{run?.name ?? 'Candidates'} · music-cluster</title></svelte:head>
 
-<a href="/discover" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+<a
+  href="/discover"
+  class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+>
   <ArrowLeft class="h-4 w-4" /> All runs
 </a>
 
@@ -151,11 +154,15 @@
               <div class="flex flex-wrap items-center gap-2">
                 <h2 class="font-medium">{candidate.suggested_name}</h2>
                 {#if candidate.status === 'promoted'}
-                  <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+                  <span
+                    class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400"
+                  >
                     kept
                   </span>
                 {:else if candidate.status === 'rejected'}
-                  <span class="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">discarded</span>
+                  <span class="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
+                    >discarded</span
+                  >
                 {/if}
               </div>
 
@@ -185,7 +192,9 @@
                 <p class="mt-1 text-sm text-muted-foreground">
                   {pluralize(candidate.size, 'track')}
                   {#if candidate.stats.tag_bpm_median || candidate.stats.detected_bpm}
-                    · ~{Math.round(candidate.stats.tag_bpm_median ?? candidate.stats.detected_bpm ?? 0)} BPM
+                    · ~{Math.round(
+                      candidate.stats.tag_bpm_median ?? candidate.stats.detected_bpm ?? 0
+                    )} BPM
                   {/if}
                   {#if candidate.stats.descriptors?.length}
                     · {candidate.stats.descriptors.join(', ')}
@@ -194,7 +203,9 @@
 
                 {#if candidate.stats.top_genres?.length}
                   <p class="mt-1 text-xs text-muted-foreground">
-                    tags: {candidate.stats.top_genres.map((genre) => `${genre.name} (${genre.count})`).join(', ')}
+                    tags: {candidate.stats.top_genres
+                      .map((genre) => `${genre.name} (${genre.count})`)
+                      .join(', ')}
                   </p>
                 {/if}
                 {#if candidate.stats.top_artists?.length}
@@ -214,7 +225,10 @@
                 >
                   <Check class="h-4 w-4" /> Keep as group
                 </button>
-                <button class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary" onclick={() => reject(candidate)}>
+                <button
+                  class="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+                  onclick={() => reject(candidate)}
+                >
                   <X class="h-4 w-4" />
                 </button>
               </div>
@@ -243,7 +257,9 @@
             </button>
 
             {#if expanded === candidate.id}
-              <div class="mt-2 max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border px-3">
+              <div
+                class="mt-2 max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border px-3"
+              >
                 {#each members[candidate.id] ?? [] as track (track.id)}
                   <TrackRow {track} dense />
                 {:else}
@@ -258,19 +274,32 @@
   </div>
 {/if}
 
-<Modal bind:open={promoteOpen} title="Keep this as a group" description="It becomes a real group in {collection?.name ?? 'your collection'}, and new music can be sorted into it.">
+<Modal
+  bind:open={promoteOpen}
+  title="Keep this as a group"
+  description="It becomes a real group in {collection?.name ??
+    'your collection'}, and new music can be sorted into it."
+>
   <div class="space-y-4">
     <label class="block text-sm">
       <span class="font-medium">Group name</span>
-      <input class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" bind:value={groupName} />
+      <input
+        class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+        bind:value={groupName}
+      />
     </label>
 
     <div class="text-sm">
       <span class="font-medium">Destination folder</span>
-      <p class="mt-1 break-all rounded-md border border-border bg-secondary/40 px-3 py-2 font-mono text-xs">
+      <p
+        class="mt-1 break-all rounded-md border border-border bg-secondary/40 px-3 py-2 font-mono text-xs"
+      >
         {destination || 'Not set — playlists only'}
       </p>
-      <button class="mt-1 text-xs text-primary hover:underline" onclick={() => (destinationOpen = true)}>
+      <button
+        class="mt-1 text-xs text-primary hover:underline"
+        onclick={() => (destinationOpen = true)}
+      >
         Choose folder
       </button>
     </div>
@@ -289,14 +318,23 @@
   </div>
 
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (promoteOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onclick={promote}>Create group</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (promoteOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+      onclick={promote}>Create group</button
+    >
   {/snippet}
 </Modal>
 
 <Modal bind:open={destinationOpen} title="Destination folder">
   <FolderPicker bind:value={destination} label="Folder" />
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (destinationOpen = false)}>Done</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (destinationOpen = false)}>Done</button
+    >
   {/snippet}
 </Modal>

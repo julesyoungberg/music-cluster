@@ -102,8 +102,16 @@
   ];
 
   const weightFields = [
-    ['sorting.feature_weights.timbre', 'Timbre', 'Texture and tone colour — what most genre boundaries follow.'],
-    ['sorting.feature_weights.rhythm', 'Rhythm', 'Tempo and groove. Raise it if BPM matters most to your folders.'],
+    [
+      'sorting.feature_weights.timbre',
+      'Timbre',
+      'Texture and tone colour — what most genre boundaries follow.'
+    ],
+    [
+      'sorting.feature_weights.rhythm',
+      'Rhythm',
+      'Tempo and groove. Raise it if BPM matters most to your folders.'
+    ],
     ['sorting.feature_weights.harmony', 'Harmony', 'Key and chord content.'],
     ['sorting.feature_weights.dynamics', 'Dynamics', 'Loudness and energy.']
   ] as const;
@@ -119,7 +127,8 @@
   <div>
     <h1 class="text-2xl font-semibold">Settings</h1>
     <p class="mt-1 text-sm text-muted-foreground">
-      Everything here is also in <span class="font-mono text-xs">~/.music-cluster/config.yaml</span>.
+      Everything here is also in <span class="font-mono text-xs">~/.music-cluster/config.yaml</span
+      >.
     </p>
   </div>
 
@@ -128,7 +137,10 @@
     <div class="flex gap-2">
       {#each ['light', 'dark', 'system'] as option}
         <button
-          class="rounded-md border px-3 py-1.5 text-sm capitalize transition-colors {theme === option ? 'border-primary bg-primary/10' : 'border-input hover:bg-secondary'}"
+          class="rounded-md border px-3 py-1.5 text-sm capitalize transition-colors {theme ===
+          option
+            ? 'border-primary bg-primary/10'
+            : 'border-input hover:bg-secondary'}"
           onclick={() => setTheme(option as typeof theme)}
         >
           {option}
@@ -222,7 +234,11 @@
           <div class="mt-1 flex flex-wrap gap-2">
             {#each [['playlist', 'Playlists only'], ['copy', 'Copy'], ['move', 'Move'], ['symlink', 'Symlink']] as [value, label]}
               <button
-                class="rounded-md border px-3 py-1.5 text-sm transition-colors {read('organize.mode') === value ? 'border-primary bg-primary/10' : 'border-input hover:bg-secondary'}"
+                class="rounded-md border px-3 py-1.5 text-sm transition-colors {read(
+                  'organize.mode'
+                ) === value
+                  ? 'border-primary bg-primary/10'
+                  : 'border-input hover:bg-secondary'}"
                 onclick={() => save({ 'organize.mode': value })}
               >
                 {label}
@@ -248,7 +264,11 @@
           <div class="mt-1 flex gap-2">
             {#each [['skip', 'Skip it'], ['rename', 'Rename'], ['overwrite', 'Overwrite']] as [value, label]}
               <button
-                class="rounded-md border px-3 py-1.5 text-sm transition-colors {read('organize.on_conflict') === value ? 'border-primary bg-primary/10' : 'border-input hover:bg-secondary'}"
+                class="rounded-md border px-3 py-1.5 text-sm transition-colors {read(
+                  'organize.on_conflict'
+                ) === value
+                  ? 'border-primary bg-primary/10'
+                  : 'border-input hover:bg-secondary'}"
                 onclick={() => save({ 'organize.on_conflict': value })}
               >
                 {label}
@@ -270,12 +290,13 @@
             step="15"
             class="mt-1 w-32 rounded-md border border-input bg-background px-3 py-2"
             value={read('feature_extraction.excerpt_seconds')}
-            onchange={(event) => save({ 'feature_extraction.excerpt_seconds': Number(event.currentTarget.value) })}
+            onchange={(event) =>
+              save({ 'feature_extraction.excerpt_seconds': Number(event.currentTarget.value) })}
           />
           <span class="mt-1 block text-xs text-muted-foreground">
-            Taken from the middle of the track, where the material is most representative. 0 analyses
-            the whole file — slower, rarely better. Changing this means re-analysing to compare
-            like with like.
+            Taken from the middle of the track, where the material is most representative. 0
+            analyses the whole file — slower, rarely better. Changing this means re-analysing to
+            compare like with like.
           </span>
         </label>
 
@@ -286,7 +307,8 @@
             min="-1"
             class="mt-1 w-32 rounded-md border border-input bg-background px-3 py-2"
             value={read('performance.num_workers')}
-            onchange={(event) => save({ 'performance.num_workers': Number(event.currentTarget.value) })}
+            onchange={(event) =>
+              save({ 'performance.num_workers': Number(event.currentTarget.value) })}
           />
           <span class="mt-1 block text-xs text-muted-foreground">-1 uses every CPU core.</span>
         </label>
@@ -307,8 +329,8 @@
             <span class="font-medium">Use an LLM to suggest names for discovered groups</span>
             <span class="block text-xs text-muted-foreground">
               Only track metadata is sent — artist, title, genre tag, tempo — never audio. Set
-              <span class="font-mono">ANTHROPIC_API_KEY</span> in the environment where the API runs,
-              and install the <span class="font-mono">anthropic</span> package.
+              <span class="font-mono">ANTHROPIC_API_KEY</span> in the environment where the API
+              runs, and install the <span class="font-mono">anthropic</span> package.
             </span>
           </span>
         </label>

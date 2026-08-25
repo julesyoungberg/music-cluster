@@ -1,5 +1,7 @@
 """Persistence behaviour that the rest of the app relies on."""
 
+import sqlite3
+
 import numpy as np
 import pytest
 
@@ -128,7 +130,7 @@ def test_group_names_are_unique_per_collection(db):
     db.create_group(first, "House")
     db.create_group(second, "House")  # same name, different collection: fine
 
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         db.create_group(first, "House")
 
 
@@ -153,9 +155,7 @@ def test_legacy_database_is_migrated(temp_dir):
         CREATE TABLE cluster_members (cluster_id INTEGER, track_id INTEGER);
         """
     )
-    conn.execute(
-        "INSERT INTO tracks (filepath, filename) VALUES ('/fake/old.mp3', 'old.mp3')"
-    )
+    conn.execute("INSERT INTO tracks (filepath, filename) VALUES ('/fake/old.mp3', 'old.mp3')")
     conn.execute(
         "INSERT INTO features (track_id, feature_vector, feature_dim) VALUES (1, ?, ?)",
         (pickle.dumps(vector), FEATURE_DIM),
@@ -173,3 +173,17 @@ def test_legacy_database_is_migrated(temp_dir):
         }
     assert "clusterings" not in tables
     assert "collections" in tables
+
+
+def test_the_database_directory_is_created_on_demand(temp_dir):
+    """A fresh desktop install has no ~/.music-cluster; the first use makes it.
+
+    The CLI's `init` command creates it, but the packaged app has no such step,
+    so a missing directory here would fail every request on first run.
+    """
+    nested = temp_dir / "not" / "created" / "yet" / "library.db"
+
+    db = Database(str(nested))
+
+    assert nested.is_file()
+    assert db.count_tracks() == 0

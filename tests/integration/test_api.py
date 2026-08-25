@@ -5,8 +5,9 @@ import pytest
 
 from tests.conftest import FEATURE_DIM, make_centres, make_vector
 
+
 pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -253,7 +254,9 @@ def test_profiles_are_advertised(client):
 def test_a_collection_can_be_created_for_samples(client):
     created = client.post("/api/collections", json={"name": "Drums", "profile": "sample"}).json()
     assert created["profile"] == "sample"
-    assert client.get(f"/api/collections/{created['id']}").json()["collection"]["profile"] == "sample"
+    assert (
+        client.get(f"/api/collections/{created['id']}").json()["collection"]["profile"] == "sample"
+    )
 
 
 def test_a_collection_defaults_to_music(client):
@@ -329,8 +332,11 @@ def test_a_sample_track_reports_its_category_and_measurements(client, rng):
     folder = Path(tempfile.mkdtemp())
     path = kick(folder / "kick_01.wav")
     extractor = FeatureExtractor(
-        sample_rate=SAMPLE_RATE, frame_size=2048, hop_size=256,
-        excerpt_seconds=0, profile="sample",
+        sample_rate=SAMPLE_RATE,
+        frame_size=2048,
+        hop_size=256,
+        excerpt_seconds=0,
+        profile="sample",
     )
     track_id = db.upsert_track(path, "kick_01.wav")
     db.add_features(track_id, extractor.extract(path), "sample")

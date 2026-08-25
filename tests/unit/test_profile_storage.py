@@ -75,8 +75,11 @@ def test_counts_are_reported_per_profile(db, rng):
 def test_tracks_can_be_listed_by_profile(db, rng):
     for index in range(3):
         track_id = db.upsert_track(f"/a/{index}.wav", f"{index}.wav")
-        db.add_features(track_id, rng.normal(0, 1, SAMPLE_DIM if index else MUSIC_DIM),
-                        "sample" if index else "music")
+        db.add_features(
+            track_id,
+            rng.normal(0, 1, SAMPLE_DIM if index else MUSIC_DIM),
+            "sample" if index else "music",
+        )
 
     assert len(db.list_tracks(profile="sample")) == 2
     assert len(db.list_tracks(profile="music")) == 1
@@ -173,9 +176,7 @@ def test_a_v2_database_opens_and_keeps_its_vectors(temp_dir, rng):
     assert db.count_features() == 2
 
     with db.connection() as conn:
-        version = conn.execute(
-            "SELECT value FROM schema_meta WHERE key = 'version'"
-        ).fetchone()[0]
+        version = conn.execute("SELECT value FROM schema_meta WHERE key = 'version'").fetchone()[0]
     assert int(version) == SCHEMA_VERSION
 
 

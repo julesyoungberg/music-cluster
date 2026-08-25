@@ -339,7 +339,7 @@ def describe_sample_vector(
     layout = layout or layout_for_dim(len(vector), profiles.SAMPLE)
 
     bands = np.asarray(layout.slice(vector, "band_energy"), dtype=float)
-    band_map = {label: float(value) for label, value in zip(BAND_LABELS, bands)}
+    band_map = {label: float(value) for label, value in zip(BAND_LABELS, bands, strict=True)}
     duration = float(np.expm1(layout.scalar(vector, "log_duration")))
 
     return {

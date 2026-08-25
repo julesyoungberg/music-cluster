@@ -6,6 +6,7 @@ records suggestions and human decisions for a batch of incoming music.
 """
 
 import json
+import os
 import pickle
 import sqlite3
 from contextlib import contextmanager
@@ -49,6 +50,12 @@ class Database:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        # The CLI's `init` command creates this directory, but the desktop app
+        # has no such step: the first request a fresh install serves would
+        # otherwise fail with "unable to open database file".
+        directory = os.path.dirname(os.path.abspath(db_path))
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         self._init_database()
 
     # ------------------------------------------------------------------
@@ -394,9 +401,16 @@ class Database:
                         checksum = ?, analysis_version = ?, analyzed_at = ?, {assignments}
                     WHERE id = ?
                     """,
-                    [filename, duration, file_size, checksum, analysis_version, utc_now()]
-                    + values
-                    + [track_id],
+                    [
+                        filename,
+                        duration,
+                        file_size,
+                        checksum,
+                        analysis_version,
+                        utc_now(),
+                        *values,
+                        track_id,
+                    ],
                 )
             else:
                 columns = ", ".join(TRACK_METADATA_COLUMNS)
@@ -408,8 +422,16 @@ class Database:
                          analysis_version, analyzed_at, {columns})
                     VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})
                     """,
-                    [filepath, filename, duration, file_size, checksum, analysis_version, utc_now()]
-                    + values,
+                    [
+                        filepath,
+                        filename,
+                        duration,
+                        file_size,
+                        checksum,
+                        analysis_version,
+                        utc_now(),
+                        *values,
+                    ],
                 )
                 track_id = cursor.lastrowid
             conn.commit()
@@ -524,9 +546,7 @@ class Database:
             )
             conn.commit()
 
-    def get_features(
-        self, track_id: int, profile: Optional[str] = None
-    ) -> Optional[np.ndarray]:
+    def get_features(self, track_id: int, profile: Optional[str] = None) -> Optional[np.ndarray]:
         with self.connection() as conn:
             row = conn.execute(
                 "SELECT feature_vector FROM features WHERE track_id = ? AND profile = ?",
@@ -557,7 +577,7 @@ class Database:
                 rows = conn.execute(
                     "SELECT track_id, feature_vector FROM features"
                     f" WHERE profile = ? AND track_id IN ({placeholders})",
-                    [name] + chunk,
+                    [name, *chunk],
                 ).fetchall()
                 for row in rows:
                     vectors.append(np.frombuffer(row[1], dtype=np.float64))
@@ -568,8 +588,7 @@ class Database:
     def get_all_features(self, profile: Optional[str] = None) -> Tuple[np.ndarray, List[int]]:
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT track_id, feature_vector FROM features WHERE profile = ?"
-                " ORDER BY track_id",
+                "SELECT track_id, feature_vector FROM features WHERE profile = ? ORDER BY track_id",
                 (profiles.normalize(profile),),
             ).fetchall()
         return _stack(
@@ -602,9 +621,8 @@ class Database:
         with self.connection() as conn:
             placeholders = ",".join("?" for _ in track_ids)
             rows = conn.execute(
-                "SELECT track_id FROM features"
-                f" WHERE profile = ? AND track_id IN ({placeholders})",
-                [profiles.normalize(profile)] + list(track_ids),
+                f"SELECT track_id FROM features WHERE profile = ? AND track_id IN ({placeholders})",
+                [profiles.normalize(profile), *list(track_ids)],
             ).fetchall()
         have = {row[0] for row in rows}
         return [tid for tid in track_ids if tid not in have]
@@ -669,7 +687,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE collections SET {assignments}, updated_at = ? WHERE id = ?",
-                list(updates.values()) + [utc_now(), collection_id],
+                [*list(updates.values()), utc_now(), collection_id],
             )
             conn.commit()
 
@@ -771,7 +789,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE groups SET {assignments}, updated_at = ? WHERE id = ?",
-                list(updates.values()) + [utc_now(), group_id],
+                [*list(updates.values()), utc_now(), group_id],
             )
             conn.commit()
 
@@ -936,9 +954,7 @@ class Database:
 
     def get_sort_session(self, session_id: int) -> Optional[Dict]:
         with self.connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM sort_sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM sort_sessions WHERE id = ?", (session_id,)).fetchone()
         return _with_json(row, "settings") if row else None
 
     def list_sort_sessions(self, collection_id: Optional[int] = None) -> List[Dict]:
@@ -969,7 +985,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE sort_sessions SET {assignments} WHERE id = ?",
-                list(updates.values()) + [session_id],
+                [*list(updates.values()), session_id],
             )
             conn.commit()
 
@@ -1050,9 +1066,7 @@ class Database:
             row = conn.execute("SELECT * FROM sort_items WHERE id = ?", (item_id,)).fetchone()
         return _with_json(row, "ranked", default=[]) if row else None
 
-    def decide_sort_item(
-        self, item_id: int, status: str, final_group_id: Optional[int]
-    ) -> None:
+    def decide_sort_item(self, item_id: int, status: str, final_group_id: Optional[int]) -> None:
         with self.connection() as conn:
             conn.execute(
                 """
@@ -1285,7 +1299,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE discovery_candidates SET {assignments} WHERE id = ?",
-                list(updates.values()) + [candidate_id],
+                [*list(updates.values()), candidate_id],
             )
             conn.commit()
 
@@ -1298,7 +1312,7 @@ class Database:
         with self.connection() as conn:
             conn.execute(
                 f"UPDATE discovery_runs SET {assignments} WHERE id = ?",
-                list(updates.values()) + [run_id],
+                [*list(updates.values()), run_id],
             )
             conn.commit()
 

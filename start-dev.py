@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Run the API and the desktop UI together for development.
 
-    python start-dev.py            # API + web UI at http://localhost:1420
-    python start-dev.py --tauri    # API + the Tauri desktop shell
+python start-dev.py            # API + web UI at http://localhost:1420
+python start-dev.py --tauri    # API + the Tauri desktop shell
 """
 
 import argparse
-import os
 import shutil
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parent
 UI = ROOT / "ui"
@@ -46,6 +46,12 @@ def main() -> None:
         print(f"{BLUE}Installing UI dependencies...{RESET}")
         subprocess.run(["npm", "install"], cwd=UI, check=True)
 
+    # The Tauri CLI lives at the repository root, because it can only find
+    # src-tauri by looking *down* from where it is run.
+    if args.tauri and not (ROOT / "node_modules").exists():
+        print(f"{BLUE}Installing the desktop shell's dependencies...{RESET}")
+        subprocess.run(["npm", "install"], cwd=ROOT, check=True)
+
     python = python_executable()
     try:
         subprocess.run(
@@ -61,17 +67,25 @@ def main() -> None:
         print(f"{BLUE}Starting API on port {args.port}...{RESET}")
         processes.append(
             subprocess.Popen(
-                [python, "-m", "uvicorn", "music_cluster.api:app", "--reload",
-                 "--port", str(args.port)],
+                [
+                    python,
+                    "-m",
+                    "uvicorn",
+                    "music_cluster.api:app",
+                    "--reload",
+                    "--port",
+                    str(args.port),
+                ],
                 cwd=ROOT,
             )
         )
         time.sleep(2)
 
         print(f"{BLUE}Starting UI...{RESET}")
-        processes.append(
-            subprocess.Popen(["npm", "run", "tauri:dev" if args.tauri else "dev"], cwd=UI)
-        )
+        # `tauri dev` starts the Vite server itself (beforeDevCommand), so only
+        # the plain web mode launches it here.
+        command = ["npm", "run", "tauri:dev"] if args.tauri else ["npm", "run", "dev"]
+        processes.append(subprocess.Popen(command, cwd=ROOT if args.tauri else UI))
 
         print(f"\n{GREEN}Running. Press Ctrl+C to stop.{RESET}")
         if not args.tauri:

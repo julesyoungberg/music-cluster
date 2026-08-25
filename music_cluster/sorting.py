@@ -58,9 +58,7 @@ def create_session(
     session_id = db.create_sort_session(
         collection_id=collection["id"],
         name=name or _default_session_name(paths),
-        source_path=os.path.abspath(os.path.expanduser(source))
-        if len(paths) == 1
-        else None,
+        source_path=os.path.abspath(os.path.expanduser(source)) if len(paths) == 1 else None,
         settings={"auto_accept": auto_accept},
     )
 
@@ -148,12 +146,18 @@ def decide(
     else:
         db.decide_sort_item(item_id, STATUS_ACCEPTED, group_id)
 
-    return db.get_sort_item(item_id)
+    decided = db.get_sort_item(item_id)
+    if decided is None:  # pragma: no cover - the row was read at the top of this call
+        raise LookupError(f"No sort item with ID {item_id}")
+    return decided
 
 
 def accept_all_confident(db: Database, config: Config, session_id: int) -> int:
     """Accept every pending item whose suggestion cleared the auto threshold."""
     session = db.get_sort_session(session_id)
+    if not session:
+        raise LookupError(f"No sort session with ID {session_id}")
+
     collection = resolve_collection(db, session["collection_id"])
     from .groups import sorter_config_for  # local import avoids a cycle at module load
 
@@ -163,10 +167,9 @@ def accept_all_confident(db: Database, config: Config, session_id: int) -> int:
     for item in db.list_sort_items(session_id, status=STATUS_PENDING, limit=10**6):
         if item["suggested_group_id"] is None:
             continue
-        if (
-            (item["confidence"] or 0) >= thresholds.auto_accept_confidence
-            and (item["margin"] or 0) >= thresholds.min_margin
-        ):
+        if (item["confidence"] or 0) >= thresholds.auto_accept_confidence and (
+            item["margin"] or 0
+        ) >= thresholds.min_margin:
             db.decide_sort_item(item["id"], STATUS_ACCEPTED, item["suggested_group_id"])
             accepted += 1
     return accepted
@@ -275,9 +278,7 @@ def _learn_from_commit(
     assignments: Sequence[Dict[str, Any]],
 ) -> int:
     """Add successfully filed tracks to their groups as confirmed references."""
-    applied = {assignment["item_id"] for assignment in assignments} & set(
-        result.applied_item_ids
-    )
+    applied = {assignment["item_id"] for assignment in assignments} & set(result.applied_item_ids)
     by_group: Dict[int, List[int]] = {}
     for assignment in assignments:
         if assignment["item_id"] in applied:

@@ -1,0 +1,14 @@
+{
+  "name": "music-cluster-desktop",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Desktop shell for music-cluster",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.6.3"
+  }
+}

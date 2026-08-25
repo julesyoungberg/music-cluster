@@ -17,7 +17,7 @@ the DJ has already drawn.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Union
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -55,7 +55,9 @@ class EmbeddingSpace:
 
     # ------------------------------------------------------------------
 
-    def fit(self, features: np.ndarray, labels: Optional[Sequence[Any]] = None) -> "EmbeddingSpace":
+    def fit(
+        self, features: np.ndarray, labels: Union[Sequence[Any], np.ndarray, None] = None
+    ) -> "EmbeddingSpace":
         """Fit on reference vectors, using group labels for supervision if given."""
         features = np.asarray(features, dtype=float)
         if features.ndim != 2 or features.shape[0] == 0:
@@ -133,8 +135,6 @@ class EmbeddingSpace:
         if projection == "none":
             return None
 
-        n_samples, n_features = scaled.shape
-
         if projection == "pca":
             return self._fit_pca(scaled)
 
@@ -142,6 +142,11 @@ class EmbeddingSpace:
         # basis, so they run as a two-stage pipeline.
         pca = self._fit_pca(scaled)
         reduced = pca.transform(scaled) if pca is not None else scaled
+
+        # _resolve_projection only returns a supervised projection when
+        # _supervision_viable passed, which requires labels.
+        if labels is None:
+            raise ValueError(f"The {projection!r} projection needs group labels")
 
         supervised = None
         if projection == "lda":

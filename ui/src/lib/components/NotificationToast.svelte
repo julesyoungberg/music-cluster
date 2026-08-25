@@ -16,7 +16,9 @@
   {#each $notifications as item (item.id)}
     {@const Icon = icons[item.kind]}
     <div
-      class="pointer-events-auto flex items-start gap-3 rounded-lg border p-3 shadow-lg {tones[item.kind]}"
+      class="pointer-events-auto flex items-start gap-3 rounded-lg border p-3 shadow-lg {tones[
+        item.kind
+      ]}"
       role="status"
       transition:fly={{ y: 12, duration: 150 }}
     >

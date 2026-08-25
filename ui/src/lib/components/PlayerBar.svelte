@@ -12,7 +12,9 @@
 </script>
 
 {#if $player.track}
-  <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur">
+  <div
+    class="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur"
+  >
     <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2.5">
       <button
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"

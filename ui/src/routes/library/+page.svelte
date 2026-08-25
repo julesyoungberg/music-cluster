@@ -1,6 +1,11 @@
 <script lang="ts">
   import { api, ApiError, pollTask } from '$lib/services/api';
-  import { activeCollection, groups as groupStore, loadCollections, loadGroups } from '$lib/stores/app';
+  import {
+    activeCollection,
+    groups as groupStore,
+    loadCollections,
+    loadGroups
+  } from '$lib/stores/app';
   import { notifyError, notifySuccess } from '$lib/stores/notifications';
   import ErrorState from '$lib/components/ErrorState.svelte';
   import FolderPicker from '$lib/components/FolderPicker.svelte';
@@ -131,7 +136,10 @@
         Every analysed file. Select some to make them references for a group.
       </p>
     </div>
-    <button class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary" onclick={() => (analyzeOpen = true)}>
+    <button
+      class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+      onclick={() => (analyzeOpen = true)}
+    >
       <FolderPlus class="h-4 w-4" /> Analyse a folder
     </button>
   </div>
@@ -185,7 +193,10 @@
     {/if}
 
     {#if selected.size > 0}
-      <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onclick={() => (assignOpen = true)}>
+      <button
+        class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+        onclick={() => (assignOpen = true)}
+      >
         Add {selected.size} to a group
       </button>
     {/if}
@@ -223,7 +234,9 @@
         </div>
       {:else}
         <p class="py-10 text-center text-sm text-muted-foreground">
-          {query ? 'No tracks match that search.' : 'No tracks yet — analyse a folder to get started.'}
+          {query
+            ? 'No tracks match that search.'
+            : 'No tracks yet — analyse a folder to get started.'}
         </p>
       {/each}
     </div>
@@ -233,10 +246,18 @@
         Showing {tracks.length ? offset + 1 : 0}–{offset + tracks.length} of {total}
       </span>
       <div class="flex gap-2">
-        <button class="rounded-md border border-input px-3 py-1 disabled:opacity-40" onclick={() => (offset = Math.max(0, offset - pageSize))} disabled={offset === 0}>
+        <button
+          class="rounded-md border border-input px-3 py-1 disabled:opacity-40"
+          onclick={() => (offset = Math.max(0, offset - pageSize))}
+          disabled={offset === 0}
+        >
           Previous
         </button>
-        <button class="rounded-md border border-input px-3 py-1 disabled:opacity-40" onclick={() => (offset += pageSize)} disabled={tracks.length < pageSize}>
+        <button
+          class="rounded-md border border-input px-3 py-1 disabled:opacity-40"
+          onclick={() => (offset += pageSize)}
+          disabled={tracks.length < pageSize}
+        >
           Next
         </button>
       </div>
@@ -244,11 +265,20 @@
   {/if}
 </div>
 
-<Modal bind:open={assignOpen} title="Add to a group" description="{selected.size} track(s) will become references defining that group." size="sm">
+<Modal
+  bind:open={assignOpen}
+  title="Add to a group"
+  description="{selected.size} track(s) will become references defining that group."
+  size="sm"
+>
   <GroupPicker groups={$groupStore} onSelect={(group) => assign(group.id)} />
 </Modal>
 
-<Modal bind:open={analyzeOpen} title="Analyse a folder" description="Extracts audio features so these files can be sorted and searched.">
+<Modal
+  bind:open={analyzeOpen}
+  title="Analyse a folder"
+  description="Extracts audio features so these files can be sorted and searched."
+>
   <FolderPicker bind:value={analyzePath} label="Folder" />
 
   <fieldset class="mt-4 text-sm">
@@ -275,14 +305,25 @@
     </div>
   </fieldset>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (analyzeOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={analyze} disabled={!analyzePath}>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (analyzeOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={analyze}
+      disabled={!analyzePath}
+    >
       Analyse
     </button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={similarOpen} title="Sounds like" description={similarSeed ? (similarSeed.display ?? similarSeed.filename) : ''}>
+<Modal
+  bind:open={similarOpen}
+  title="Sounds like"
+  description={similarSeed ? (similarSeed.display ?? similarSeed.filename) : ''}
+>
   {#if similarLoading}
     <LoadingState message="Searching..." compact />
   {:else}
@@ -291,7 +332,11 @@
     </p>
     <div class="max-h-96 divide-y divide-border overflow-y-auto">
       {#each similarResults as result (result.track.id)}
-        <TrackRow track={result.track} dense subtitle="distance {result.relative_distance.toFixed(2)}" />
+        <TrackRow
+          track={result.track}
+          dense
+          subtitle="distance {result.relative_distance.toFixed(2)}"
+        />
       {:else}
         <p class="py-6 text-center text-sm text-muted-foreground">Nothing similar found.</p>
       {/each}

@@ -46,7 +46,10 @@
 
 <svelte:head><title>Overlap report · music-cluster</title></svelte:head>
 
-<a href="/groups" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+<a
+  href="/groups"
+  class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+>
   <ArrowLeft class="h-4 w-4" /> All groups
 </a>
 
@@ -100,11 +103,17 @@
             <div class="flex items-center gap-4 px-4 py-3 text-sm">
               <p class="min-w-0 flex-1">
                 <span class="font-medium">{pair.count}</span> tracks from
-                <a href="/groups/{pair.from_group_id}" class="text-primary hover:underline">{pair.from_name}</a>
+                <a href="/groups/{pair.from_group_id}" class="text-primary hover:underline"
+                  >{pair.from_name}</a
+                >
                 look like
-                <a href="/groups/{pair.to_group_id}" class="text-primary hover:underline">{pair.to_name}</a>
+                <a href="/groups/{pair.to_group_id}" class="text-primary hover:underline"
+                  >{pair.to_name}</a
+                >
               </p>
-              <span class="shrink-0 tabular-nums text-muted-foreground">{formatPercent(pair.rate)}</span>
+              <span class="shrink-0 tabular-nums text-muted-foreground"
+                >{formatPercent(pair.rate)}</span
+              >
             </div>
           {/each}
         </div>
@@ -120,7 +129,10 @@
       <div class="divide-y divide-border rounded-lg border border-border">
         {#each [...metrics.per_group].sort((a, b) => a.accuracy - b.accuracy) as entry (entry.group_id)}
           <div class="flex items-center gap-4 px-4 py-3">
-            <a href="/groups/{entry.group_id}" class="min-w-0 flex-1 truncate text-sm hover:underline">
+            <a
+              href="/groups/{entry.group_id}"
+              class="min-w-0 flex-1 truncate text-sm hover:underline"
+            >
               {entry.name}
             </a>
             <div class="hidden h-2 w-40 overflow-hidden rounded-full bg-secondary sm:block">
@@ -129,7 +141,9 @@
             <span class="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
               {entry.correct}/{entry.size}
             </span>
-            <span class="w-14 shrink-0 text-right text-sm tabular-nums">{formatPercent(entry.accuracy)}</span>
+            <span class="w-14 shrink-0 text-right text-sm tabular-nums"
+              >{formatPercent(entry.accuracy)}</span
+            >
           </div>
         {/each}
       </div>
@@ -137,7 +151,9 @@
 
     <section>
       <h2 class="mb-3 font-medium">Confusion matrix</h2>
-      <p class="mb-2 text-xs text-muted-foreground">Rows are where a track is filed; columns are where it would land.</p>
+      <p class="mb-2 text-xs text-muted-foreground">
+        Rows are where a track is filed; columns are where it would land.
+      </p>
       <div class="overflow-x-auto rounded-lg border border-border">
         <table class="w-full text-xs">
           <thead>
@@ -145,7 +161,9 @@
               <th class="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">Filed in</th>
               {#each metrics.group_names as name}
                 <th class="px-2 py-2 text-center font-medium">
-                  <span class="inline-block max-w-[6rem] truncate align-bottom" title={name}>{name}</span>
+                  <span class="inline-block max-w-[6rem] truncate align-bottom" title={name}
+                    >{name}</span
+                  >
                 </th>
               {/each}
             </tr>
@@ -154,11 +172,18 @@
             {#each metrics.confusion as row, i}
               {@const rowTotal = row.reduce((sum, value) => sum + value, 0)}
               <tr class="border-t border-border">
-                <th class="sticky left-0 z-10 max-w-[10rem] truncate bg-card px-3 py-2 text-left font-normal" title={metrics.group_names[i]}>
+                <th
+                  class="sticky left-0 z-10 max-w-[10rem] truncate bg-card px-3 py-2 text-left font-normal"
+                  title={metrics.group_names[i]}
+                >
                   {metrics.group_names[i]}
                 </th>
                 {#each row as value, j}
-                  <td class="px-2 py-2 text-center tabular-nums {i === j ? 'font-semibold' : ''} {cellTone(value, rowTotal)}">
+                  <td
+                    class="px-2 py-2 text-center tabular-nums {i === j
+                      ? 'font-semibold'
+                      : ''} {cellTone(value, rowTotal)}"
+                  >
                     {value || ''}
                   </td>
                 {/each}

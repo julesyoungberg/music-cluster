@@ -119,12 +119,10 @@ def plan_commit(
     by_group: Dict[int, List[Dict[str, Any]]] = {}
 
     for assignment in assignments:
-        group_id = assignment.get("group_id")
-        group = groups_by_id.get(group_id)
-        if group is None:
-            plan.problems.append(
-                {"track_id": assignment.get("track_id"), "issue": "unknown group"}
-            )
+        group_id: Optional[int] = assignment.get("group_id")
+        group = groups_by_id.get(group_id) if group_id is not None else None
+        if group_id is None or group is None:
+            plan.problems.append({"track_id": assignment.get("track_id"), "issue": "unknown group"})
             continue
         if not os.path.exists(assignment["filepath"]):
             plan.problems.append(
@@ -265,6 +263,8 @@ def execute_plan(
 
     for action in plan.actions:
         try:
+            if not action.dest_path:
+                raise ValueError(f"Action {action.action!r} has no destination path")
             ensure_directory(os.path.dirname(action.dest_path))
             if action.action == "copy":
                 shutil.copy2(action.source_path, action.dest_path)
@@ -362,9 +362,7 @@ def write_playlist(
             duration = int(track.get("duration") or 0)
             label = track.get("display") or track.get("filename") or Path(filepath).name
             handle.write(f"#EXTINF:{duration},{label}\n")
-            handle.write(
-                f"{get_relative_path(filepath, base) if relative_paths else filepath}\n"
-            )
+            handle.write(f"{get_relative_path(filepath, base) if relative_paths else filepath}\n")
     return path
 
 

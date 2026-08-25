@@ -18,7 +18,7 @@ def build_sorter(rng, sizes=(20, 20, 20), separation=4.0, config=None):
     centres = make_centres(rng, len(sizes), separation=separation)
     features = {}
     names = {}
-    for index, (centre, size) in enumerate(zip(centres, sizes)):
+    for index, (centre, size) in enumerate(zip(centres, sizes, strict=True)):
         gid = index + 1
         features[gid] = np.vstack([make_vector(rng, centre) for _ in range(size)])
         names[gid] = f"Group {index}"
@@ -28,7 +28,7 @@ def build_sorter(rng, sizes=(20, 20, 20), separation=4.0, config=None):
 
 def test_separated_groups_are_sorted_correctly(rng):
     sorter, centres, group_ids = build_sorter(rng)
-    for expected_gid, centre in zip(group_ids, centres):
+    for expected_gid, centre in zip(group_ids, centres, strict=True):
         suggestion = sorter.suggest(make_vector(rng, centre))
         assert suggestion.group_id == expected_gid
         assert suggestion.status == STATUS_AUTO
@@ -136,8 +136,7 @@ def test_thresholds_move_the_decision(rng):
         lenient.suggest(make_vector(rng, centres[0])).status == STATUS_AUTO for _ in range(15)
     )
     strict_auto = sum(
-        strict.suggest(make_vector(rng, strict_centres[0])).status == STATUS_AUTO
-        for _ in range(15)
+        strict.suggest(make_vector(rng, strict_centres[0])).status == STATUS_AUTO for _ in range(15)
     )
     assert strict_auto < lenient_auto
 
@@ -145,9 +144,7 @@ def test_thresholds_move_the_decision(rng):
 class TestEmbedding:
     def test_supervision_is_used_when_groups_are_labelled(self, rng):
         centres = make_centres(rng, 3)
-        features = np.vstack(
-            [make_vector(rng, centre) for centre in centres for _ in range(15)]
-        )
+        features = np.vstack([make_vector(rng, centre) for centre in centres for _ in range(15)])
         labels = np.repeat([1, 2, 3], 15)
 
         space = EmbeddingSpace(projection="auto").fit(features, labels)
@@ -181,8 +178,6 @@ class TestEmbedding:
     def test_feature_weights_change_the_geometry(self, rng):
         features = rng.normal(0, 1, (30, FEATURE_DIM))
         plain = EmbeddingSpace(projection="none").fit(features)
-        weighted = EmbeddingSpace(
-            projection="none", feature_weights={"rhythm": 5.0}
-        ).fit(features)
+        weighted = EmbeddingSpace(projection="none", feature_weights={"rhythm": 5.0}).fit(features)
 
         assert not np.allclose(plain.transform(features), weighted.transform(features))

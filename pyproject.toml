@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Package metadata still lives in setup.py; this file configures the tools.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "ui", "src-tauri", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",   # line length is enforced by the formatter
+    "B008",   # FastAPI depends on calls in argument defaults
+    "SIM105", # contextlib.suppress is not always clearer than try/except
+    # The codebase spells container and optional types with `typing`, and does so
+    # consistently. Rewriting every signature to PEP 585/604 is churn, not a fix.
+    "UP006",
+    "UP007",
+    "UP035",
+    "UP045",
+    # Several helpers return documented tuples that callers unpack in full even
+    # when they only need part of it; renaming those to `_x` reads worse.
+    "RUF059",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately poke at private helpers and re-import inside functions.
+"tests/**" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["music_cluster"]
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["music_cluster"]
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+# The codebase is progressively typed: annotations are trusted where present,
+# but missing ones are not yet an error.
+disallow_untyped_defs = false
+
+[[mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: tests that decode or synthesise real audio",
+    "e2e: tests that drive the whole application against real audio",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+    "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["music_cluster"]
+branch = true
+omit = ["*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

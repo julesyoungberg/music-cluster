@@ -10,6 +10,7 @@ gone 20 ms in — and measures an extra block of descriptors that only mean
 something for a single sonic event.
 """
 
+import itertools
 import logging
 import warnings
 from typing import Optional
@@ -59,9 +60,7 @@ CHROMA_OCTAVES = 6
 CHROMA_FMIN = 32.703  # C1
 
 
-def _first_time_at_or_above(
-    envelope: np.ndarray, times: np.ndarray, threshold: float
-) -> float:
+def _first_time_at_or_above(envelope: np.ndarray, times: np.ndarray, threshold: float) -> float:
     """When the envelope first reaches a level, or its last time if never."""
     hits = np.flatnonzero(envelope >= threshold)
     index = int(hits[0]) if len(hits) else len(envelope) - 1
@@ -212,16 +211,14 @@ def _onset_count(envelope: np.ndarray, frame_seconds: float) -> float:
 
     # Two hits closer together than this are one hit with a texture — the
     # several micro-transients inside a clap, or a flammed snare.
-    spacing = max(1, int(round(MIN_HIT_SPACING_SECONDS / frame_seconds)))
+    spacing = max(1, round(MIN_HIT_SPACING_SECONDS / frame_seconds))
     try:
         from scipy.signal import find_peaks
 
         # Prominence is what keeps the ripple down the tail of a sustained
         # note from being counted as a second hit: a real onset rises clear of
         # the level it started from, a ripple does not.
-        found, _ = find_peaks(
-            envelope, height=0.35 * peak, prominence=0.2 * peak, distance=spacing
-        )
+        found, _ = find_peaks(envelope, height=0.35 * peak, prominence=0.2 * peak, distance=spacing)
         count = len(found)
     except Exception:
         count = 1
@@ -357,9 +354,7 @@ class FeatureExtractor:
                 tempo_value = 0.0
             else:
                 tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-                tempo_value = (
-                    float(tempo) if np.isscalar(tempo) else float(np.atleast_1d(tempo)[0])
-                )
+                tempo_value = float(np.atleast_1d(np.asarray(tempo, dtype=float))[0])
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
             return np.array(
                 [
@@ -405,16 +400,12 @@ class FeatureExtractor:
         break or an afternoon.
         """
         duration = len(y) / float(sr)
-        magnitude = np.abs(
-            librosa.stft(y, n_fft=self.frame_size, hop_length=self.hop_size)
-        )
+        magnitude = np.abs(librosa.stft(y, n_fft=self.frame_size, hop_length=self.hop_size))
         freqs = librosa.fft_frequencies(sr=sr, n_fft=self.frame_size)
-        envelope = librosa.feature.rms(
-            y=y, frame_length=self.frame_size, hop_length=self.hop_size
-        )[0]
-        times = librosa.frames_to_time(
-            np.arange(len(envelope)), sr=sr, hop_length=self.hop_size
-        )
+        envelope = librosa.feature.rms(y=y, frame_length=self.frame_size, hop_length=self.hop_size)[
+            0
+        ]
+        times = librosa.frames_to_time(np.arange(len(envelope)), sr=sr, hop_length=self.hop_size)
 
         frame_seconds = float(self.hop_size) / float(sr)
 
@@ -460,9 +451,7 @@ class FeatureExtractor:
         fall = envelope[peak_index:]
         fall_times = times[peak_index:]
         decay_time = _first_time_at_or_below(fall, fall_times, 0.5 * peak, duration) - peak_time
-        release_time = (
-            _first_time_at_or_below(fall, fall_times, 0.05 * peak, duration) - peak_time
-        )
+        release_time = _first_time_at_or_below(fall, fall_times, 0.05 * peak, duration) - peak_time
 
         sounding = envelope >= 0.1 * peak
         tail = envelope[peak_index:][sounding[peak_index:]]
@@ -560,7 +549,7 @@ class FeatureExtractor:
         totals = np.array(
             [
                 float(power[(freqs >= low) & (freqs < high)].sum())
-                for low, high in zip(BAND_EDGES[:-1], BAND_EDGES[1:])
+                for low, high in itertools.pairwise(BAND_EDGES)
             ]
         )
         grand_total = float(totals.sum())

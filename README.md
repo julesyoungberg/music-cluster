@@ -1,5 +1,10 @@
 # music-cluster
 
+[![Lint](https://github.com/julesyoungberg/music-cluster/actions/workflows/lint.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/lint.yml)
+[![Unit tests](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-unit.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-unit.yml)
+[![End-to-end tests](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-e2e.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-e2e.yml)
+[![Build desktop app](https://github.com/julesyoungberg/music-cluster/actions/workflows/build.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/build.yml)
+
 Sort new music into the folders you already keep.
 
 You buy fifteen tracks, and now you have to decide which crate each one goes in.
@@ -299,7 +304,11 @@ Without it, names come from genre tags, tempo, and measured audio character.
 
 ## Installation
 
-Python 3.10+ and FFmpeg. See [INSTALL.md](INSTALL.md) for details.
+Download an installer for macOS, Windows or Linux from the
+[releases page](https://github.com/julesyoungberg/music-cluster/releases) — those
+bundle the analysis server, so only FFmpeg is needed alongside them.
+
+From source, Python 3.10+ and FFmpeg. See [INSTALL.md](INSTALL.md) for details.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -324,10 +333,20 @@ AAC, WMA, APE, WavPack. See [FORMATS.md](FORMATS.md).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
 
-cd ui && npm install && npm run check
+ruff format . && ruff check --fix . && mypy   # format, lint, type check
+pytest tests/unit                             # fast, no audio decoding
+pytest tests/e2e tests/integration            # the whole app, real audio
+
+cd ui
+npm install
+npm run format:check && npm run lint && npm run check
+npm test                                      # vitest
+npx playwright test                           # the UI against a real API
 ```
+
+CI runs exactly these, plus a packaging job that produces installers for macOS,
+Windows and Linux. See [INSTALL.md](INSTALL.md#continuous-integration).
 
 ## License
 

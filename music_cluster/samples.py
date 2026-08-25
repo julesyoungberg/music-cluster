@@ -125,7 +125,9 @@ CATEGORIES: Tuple[Category, ...] = (
     Category("lead", "Lead", "Leads", ("lead", "leads", "melody", "synth", "saw"), ()),
     Category("pad", "Pad", "Pads", ("pad", "pads", "atmos", "atmosphere", "drone", "string"), ()),
     Category("key", "Key", "Keys", ("key", "keys", "piano", "rhodes", "organ", "epiano"), ()),
-    Category("vocal", "Vocal", "Vocals", ("vocal", "vocals", "vox", "voice", "acapella", "adlib"), ()),
+    Category(
+        "vocal", "Vocal", "Vocals", ("vocal", "vocals", "vox", "voice", "acapella", "adlib"), ()
+    ),
     Category("riser", "Riser", "Risers", ("riser", "risers", "uplifter", "sweep", "rise"), ()),
     Category(
         "downlifter",
@@ -136,7 +138,9 @@ CATEGORIES: Tuple[Category, ...] = (
     ),
     Category("impact", "Impact", "Impacts", ("impact", "impacts", "boom", "slam", "hitfx"), ()),
     Category("fx", "FX", "FX", ("fx", "sfx", "effect", "effects", "noise", "texture", "foley"), ()),
-    Category("drum_loop", "Drum Loop", "Drum Loops", ("drumloop", "beatloop", "breakbeat", "break"), ()),
+    Category(
+        "drum_loop", "Drum Loop", "Drum Loops", ("drumloop", "beatloop", "breakbeat", "break"), ()
+    ),
     Category("music_loop", "Loop", "Loops", ("loop", "loops", "riff", "groove", "phrase"), ()),
 )
 
@@ -560,9 +564,7 @@ def label_for(key: str, plural: bool = False) -> str:
     return category.plural if plural else category.label
 
 
-def classify(
-    descriptors: Optional[Dict[str, Any]] = None, filepath: Optional[str] = None
-) -> Guess:
+def classify(descriptors: Optional[Dict[str, Any]] = None, filepath: Optional[str] = None) -> Guess:
     """Guess what one sample is, from its audio, its filename, or both."""
     audio = audio_scores(descriptors) if descriptors else {}
     named = name_scores(filepath) if filepath else {}
@@ -643,10 +645,12 @@ def classify_vector(
 
 def summarize(guesses: Sequence[Guess]) -> Dict[str, Any]:
     """What a pile of samples mostly is, weighted by how sure each guess was."""
-    weighted: Counter = Counter()
+    # Confidences are floats, so this cannot be a Counter: Counter's values are
+    # declared as counts, and summing weights into one is a type error.
+    weighted: Dict[str, float] = {}
     for guess in guesses:
         if guess.known:
-            weighted[guess.key] += guess.confidence
+            weighted[guess.key] = weighted.get(guess.key, 0.0) + guess.confidence
 
     counts = Counter(guess.key for guess in guesses if guess.known)
     total = len(guesses)
@@ -660,7 +664,7 @@ def summarize(guesses: Sequence[Guess]) -> Dict[str, Any]:
             "total": total,
         }
 
-    best_key = weighted.most_common(1)[0][0]
+    best_key = max(weighted, key=lambda key: weighted[key])
     return {
         "category": best_key,
         "label": label_for(best_key),
@@ -760,7 +764,9 @@ def group_summary(
     return stats
 
 
-def describe_for_display(vector: np.ndarray, layout: Optional[FeatureLayout] = None) -> Dict[str, Any]:
+def describe_for_display(
+    vector: np.ndarray, layout: Optional[FeatureLayout] = None
+) -> Dict[str, Any]:
     """Everything worth showing about one sample, audio-side."""
     described = describe_vector(np.asarray(vector, dtype=float), layout)
     return {

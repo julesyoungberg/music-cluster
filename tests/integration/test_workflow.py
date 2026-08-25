@@ -37,7 +37,9 @@ def incoming(db, centre, rng, count, directory):
         path = directory / f"new_{index}.mp3"
         path.write_bytes(b"audio")
         track_id = db.upsert_track(
-            filepath=str(path), filename=path.name, duration=300.0,
+            filepath=str(path),
+            filename=path.name,
+            duration=300.0,
             metadata={"artist": "New", "title": f"New {index}"},
         )
         db.add_features(track_id, make_vector(rng, centre))
@@ -129,7 +131,7 @@ def test_auto_accept_only_takes_confident_suggestions(db, config, library, rng, 
     db.add_features(odd_id, np.full(FEATURE_DIM, 400.0))
 
     session_id = db.create_sort_session(collection["id"], "batch", str(inbox))
-    sorting.score_session(db, config, session_id, track_ids=clear + [odd_id], auto_accept=True)
+    sorting.score_session(db, config, session_id, track_ids=[*clear, odd_id], auto_accept=True)
 
     summary = db.sort_session_summary(session_id)
     assert summary.get("accepted") == 3
@@ -211,7 +213,10 @@ def test_discovery_proposes_groups_that_can_be_promoted(db, config, rng, temp_di
             track_id = db.upsert_track(
                 filepath=f"/pile/{index}_{position}.mp3",
                 filename=f"{index}_{position}.mp3",
-                metadata={"genre": ["House", "Techno", "Jungle"][index], "tag_bpm": 120 + index * 20},
+                metadata={
+                    "genre": ["House", "Techno", "Jungle"][index],
+                    "tag_bpm": 120 + index * 20,
+                },
             )
             db.add_features(track_id, make_vector(rng, centre))
             track_ids.append(track_id)

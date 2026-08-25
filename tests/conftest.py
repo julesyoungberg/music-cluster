@@ -5,7 +5,6 @@ extraction is slow, and nothing above the extractor cares where the numbers
 came from. The one test that does need real audio generates it.
 """
 
-import os
 import shutil
 import tempfile
 from pathlib import Path

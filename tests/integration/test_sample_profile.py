@@ -16,6 +16,7 @@ from music_cluster.extractor import FeatureExtractor
 from music_cluster.features import build_layout, describe_sample_vector
 from music_cluster.library import analyze_paths
 
+
 soundfile = pytest.importorskip("soundfile")
 
 
@@ -249,9 +250,7 @@ def test_new_one_shots_are_sorted_into_the_right_folders(db, config, temp_dir, p
     items = db.list_sort_items(outcome["session"]["id"], limit=100)
 
     assert len(items) == len(BUILDERS)
-    correct = sum(
-        1 for item in items if item["suggested_group_name"] == expected[item["filename"]]
-    )
+    correct = sum(1 for item in items if item["suggested_group_name"] == expected[item["filename"]])
     assert correct >= len(BUILDERS) - 1, [
         (item["filename"], item["suggested_group_name"]) for item in items
     ]

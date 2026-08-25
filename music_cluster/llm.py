@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from . import profiles
 
+
 logger = logging.getLogger(__name__)
 
 MUSIC_PROMPT = """You are helping a DJ name folders in their music library.
@@ -115,7 +116,9 @@ def _render(candidates: List[Dict[str, Any]], profile: Optional[str] = None) -> 
         lines.append(f"\n## Candidate {candidate['candidate_index']} ({candidate['size']} tracks)")
         stats = candidate.get("stats") or {}
         if stats.get("tag_bpm_median") or stats.get("detected_bpm"):
-            lines.append(f"- tempo: ~{stats.get('tag_bpm_median') or stats.get('detected_bpm')} BPM")
+            lines.append(
+                f"- tempo: ~{stats.get('tag_bpm_median') or stats.get('detected_bpm')} BPM"
+            )
         if stats.get("descriptors"):
             lines.append(f"- character: {', '.join(stats['descriptors'])}")
         if stats.get("top_genres"):
@@ -145,8 +148,10 @@ def _render_samples(candidates: List[Dict[str, Any]]) -> str:
             lines.append(
                 f"- energy: {stats['low_energy']:.0%} low, {stats.get('high_energy', 0):.0%} high"
             )
-        lines.append(f"- pitch: {'pitched' if stats.get('pitched') else 'unpitched'}"
-                     + (f", around {stats['f0_hz']:.0f} Hz" if stats.get("f0_hz") else ""))
+        lines.append(
+            f"- pitch: {'pitched' if stats.get('pitched') else 'unpitched'}"
+            + (f", around {stats['f0_hz']:.0f} Hz" if stats.get("f0_hz") else "")
+        )
         if stats.get("onset_count"):
             lines.append(f"- hits per file: {stats['onset_count']:.0f}")
         if stats.get("breakdown"):

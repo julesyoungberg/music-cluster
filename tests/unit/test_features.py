@@ -1,5 +1,7 @@
 """The feature layout is the contract between the extractor and everything else."""
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -30,7 +32,7 @@ def test_spans_are_contiguous_and_complete():
     spans = sorted(layout.spans.values())
     assert spans[0][0] == 0
     assert spans[-1][1] == layout.dim
-    for (_, end), (start, _) in zip(spans, spans[1:]):
+    for (_, end), (start, _) in itertools.pairwise(spans):
         assert end == start, "layout has a gap or an overlap"
 
 

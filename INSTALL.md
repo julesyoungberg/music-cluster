@@ -1,5 +1,24 @@
 # Installation
 
+## Download a build
+
+The quickest route, if you do not want to touch Python: grab the installer for
+your platform from the [releases page](https://github.com/julesyoungberg/music-cluster/releases).
+Each build bundles the analysis server, so nothing else needs installing except
+FFmpeg.
+
+| Platform | File |
+| --- | --- |
+| macOS (Apple silicon) | `.dmg` from the `macos-aarch64` build |
+| macOS (Intel) | `.dmg` from the `macos-x86_64` build |
+| Windows | `.msi` |
+| Linux | `.AppImage` or `.deb` |
+
+The builds are unsigned, so the first launch needs a right-click → Open on
+macOS, or "More info → Run anyway" on Windows.
+
+Everything below is for running from source or working on the project.
+
 ## Prerequisites
 
 - Python 3.10 or newer
@@ -48,18 +67,73 @@ The UI runs at <http://localhost:1420> and the API at <http://localhost:8000>
 — that also needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 for your platform.
 
-To build a distributable app:
+### Building a distributable app
+
+The packaged app has to work for someone who has never installed Python, so the
+API is frozen into a single binary and shipped inside the bundle as a Tauri
+sidecar. The desktop shell starts it on a free port and shuts it down with the
+window.
 
 ```bash
-cd ui && npm run tauri:build
+pip install -r requirements-build.txt
+python scripts/build_sidecar.py      # freezes the API (a few minutes, ~150 MB)
+python scripts/make_icons.py         # only needed if the icons are missing
+
+npm install --prefix ui              # the web UI
+npm install                          # the Tauri CLI, which must live at the root
+npm run tauri:build
 ```
+
+The Tauri CLI finds `src-tauri` by searching downwards, so it has to be run
+from the repository root — that is the only reason there is a `package.json`
+there as well as in `ui/`.
+
+Installers land in `src-tauri/target/release/bundle/`. This also needs the
+[Tauri prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)
+for your platform; on Linux that means `libwebkit2gtk-4.0-dev`, which is why CI
+builds Linux on Ubuntu 22.04.
+
+CI does all of this for you — see [Continuous integration](#continuous-integration).
 
 ## Optional extras
 
 ```bash
 pip install anthropic        # LLM-suggested names for discovered groups
 pip install -r requirements-dev.txt   # tests
+pip install -r requirements-build.txt # packaging the desktop app
 ```
+
+## Continuous integration
+
+Four workflows run in GitHub Actions. All of them can be run locally with the
+same commands.
+
+| Workflow | What it runs |
+| --- | --- |
+| `lint.yml` | `ruff format --check`, `ruff check`, `mypy`; prettier, eslint and `svelte-check` for the UI; `cargo fmt` and `clippy` for the desktop shell |
+| `test-unit.yml` | `pytest tests/unit` on Python 3.10–3.12 and on all three platforms, plus `npm test` (vitest) |
+| `test-e2e.yml` | `pytest tests/e2e tests/integration` against real audio, plus the Playwright browser suite against a real API and a real build |
+| `build.yml` | Freezes the API, builds the UI, and bundles installers for macOS (both architectures), Windows and Linux |
+
+`build.yml` runs the full matrix on `main` and on `v*` tags, and a single Linux
+build on pull requests that touch packaging. Tagging `v2.1.0` drafts a release
+with every installer attached, ready to review and publish.
+
+```bash
+# The same checks, locally
+ruff format --check . && ruff check . && mypy
+pytest tests/unit
+pytest tests/e2e tests/integration
+
+cd ui
+npm run format:check && npm run lint && npm run check
+npm test
+npx playwright install --with-deps chromium   # first time only
+npx playwright test
+```
+
+The browser suite seeds its own throwaway library and starts both servers
+itself; `scripts/seed_e2e_library.py` is what builds that fixture.
 
 ## Troubleshooting
 

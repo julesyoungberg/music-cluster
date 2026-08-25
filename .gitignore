@@ -48,17 +48,33 @@ htmlcov/
 /config.yaml
 
 # UI/Frontend
+# package-lock.json is committed, at the root and under ui/: CI installs with
+# `npm ci`, and a desktop app that ships to users should build from pinned
+# dependencies.
+node_modules/
 ui/node_modules/
 ui/.svelte-kit/
 ui/build/
 ui/dist/
-ui/package-lock.json
+ui/test-results/
+ui/playwright-report/
+ui/coverage/
 ui/yarn.lock
 ui/pnpm-lock.yaml
 
 # Tauri
+# Cargo.lock is committed for the same reason as package-lock.json.
 src-tauri/target/
-src-tauri/Cargo.lock
+src-tauri/gen/
+
+# Bundled Python sidecar, built by scripts/build_sidecar.py
+src-tauri/binaries/
+build/
+dist/
+*.spec.bak
 
 # Local dev venv
 .venv/
+
+# Browser end-to-end workspace, seeded by scripts/seed_e2e_library.py
+.e2e-workspace/

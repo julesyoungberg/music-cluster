@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, ApiError, pollTask } from '$lib/services/api';
-  import { activeCollection, collections, loadCollections, loadGroups, selectCollection } from '$lib/stores/app';
+  import { activeCollection, loadCollections, loadGroups, selectCollection } from '$lib/stores/app';
   import { notifyError, notifySuccess } from '$lib/stores/notifications';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
@@ -11,14 +11,7 @@
   import TaskProgress from '$lib/components/TaskProgress.svelte';
   import type { AudioProfile, CheckMetrics, Group, TaskStatus } from '$lib/types';
   import { formatPercent, pluralize } from '$lib/utils';
-  import {
-    FolderPlus,
-    FolderTree,
-    ListPlus,
-    Plus,
-    RefreshCw,
-    TriangleAlert
-  } from 'lucide-svelte';
+  import { FolderPlus, FolderTree, ListPlus, Plus, RefreshCw, TriangleAlert } from 'lucide-svelte';
 
   let groups = $state<Group[]>([]);
   let metrics = $state<CheckMetrics | null>(null);
@@ -124,7 +117,10 @@
       selectCollection(created.id);
       notifySuccess(`Created ${created.name}`);
     } catch (err) {
-      notifyError('Could not create collection', err instanceof ApiError ? err.message : String(err));
+      notifyError(
+        'Could not create collection',
+        err instanceof ApiError ? err.message : String(err)
+      );
     }
   }
 </script>
@@ -179,7 +175,10 @@
       title="No collection selected"
       description="Create a collection to hold your groups."
     >
-      <button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" onclick={() => (newCollectionOpen = true)}>
+      <button
+        class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+        onclick={() => (newCollectionOpen = true)}
+      >
         Create a collection
       </button>
     </EmptyState>
@@ -193,15 +192,23 @@
       title="No groups in {collection.name}"
       description="If your library is already a folder of genre folders, import the whole tree at once — each subfolder becomes a group with itself as its destination."
     >
-      <button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" onclick={() => (importTreeOpen = true)}>
+      <button
+        class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+        onclick={() => (importTreeOpen = true)}
+      >
         Import my folders
       </button>
-      <a href="/discover" class="rounded-md border border-input px-4 py-2 text-sm hover:bg-secondary">
+      <a
+        href="/discover"
+        class="rounded-md border border-input px-4 py-2 text-sm hover:bg-secondary"
+      >
         Or break down an unsorted pile
       </a>
     </EmptyState>
   {:else}
-    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
+    <div
+      class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm"
+    >
       <span>
         <span class="font-medium">{pluralize(groups.length, 'group')}</span>
         · {metrics ? `${formatPercent(metrics.accuracy)} self-check` : 'not fitted yet'}
@@ -214,7 +221,10 @@
       {/if}
       <div class="ml-auto flex gap-2">
         {#if metrics}
-          <a href="/groups/check" class="rounded-md border border-input px-3 py-1.5 hover:bg-secondary">
+          <a
+            href="/groups/check"
+            class="rounded-md border border-input px-3 py-1.5 hover:bg-secondary"
+          >
             Overlap report
           </a>
         {/if}
@@ -242,10 +252,10 @@
               <span
                 class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums
                   {quality.accuracy >= 0.8
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                    : quality.accuracy >= 0.5
-                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                      : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'}"
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                  : quality.accuracy >= 0.5
+                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'}"
                 title="Share of this group's own tracks that get filed back here"
               >
                 {formatPercent(quality.accuracy)}
@@ -262,12 +272,24 @@
   {/if}
 </div>
 
-<Modal bind:open={importTreeOpen} title="Import your folder tree" description="Every subfolder becomes a group, with itself as the destination for new music.">
+<Modal
+  bind:open={importTreeOpen}
+  title="Import your folder tree"
+  description="Every subfolder becomes a group, with itself as the destination for new music."
+>
   <div class="space-y-4">
-    <FolderPicker bind:value={treePath} label="Parent folder (the one containing your genre folders)" />
+    <FolderPicker
+      bind:value={treePath}
+      label="Parent folder (the one containing your genre folders)"
+    />
     <label class="block text-sm">
       <span class="font-medium">Skip folders with fewer than</span>
-      <input type="number" min="1" bind:value={treeMinTracks} class="ml-2 w-20 rounded-md border border-input bg-background px-2 py-1" />
+      <input
+        type="number"
+        min="1"
+        bind:value={treeMinTracks}
+        class="ml-2 w-20 rounded-md border border-input bg-background px-2 py-1"
+      />
       <span class="text-muted-foreground">tracks</span>
     </label>
     <p class="text-xs text-muted-foreground">
@@ -275,8 +297,15 @@
     </p>
   </div>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (importTreeOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={importTree} disabled={!treePath}>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (importTreeOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={importTree}
+      disabled={!treePath}
+    >
       Import
     </button>
   {/snippet}
@@ -295,14 +324,26 @@
     </label>
   </div>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (importFolderOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onclick={importFolder} disabled={!folderPath}>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (importFolderOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={importFolder}
+      disabled={!folderPath}
+    >
       Import
     </button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={newCollectionOpen} title="New collection" description="A collection is one sorting scheme — a set of groups that new music gets filed into." size="sm">
+<Modal
+  bind:open={newCollectionOpen}
+  title="New collection"
+  description="A collection is one sorting scheme — a set of groups that new music gets filed into."
+  size="sm"
+>
   <label class="block text-sm">
     <span class="font-medium">Name</span>
     <input
@@ -335,12 +376,18 @@
       {/each}
     </div>
     <p class="mt-2 text-xs text-muted-foreground">
-      Fixed once the collection exists — samples and tracks are measured differently, so
-      sorting both means two collections.
+      Fixed once the collection exists — samples and tracks are measured differently, so sorting
+      both means two collections.
     </p>
   </fieldset>
   {#snippet footer()}
-    <button class="rounded-md border border-input px-3 py-1.5 text-sm" onclick={() => (newCollectionOpen = false)}>Cancel</button>
-    <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onclick={createCollection}>Create</button>
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (newCollectionOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+      onclick={createCollection}>Create</button
+    >
   {/snippet}
 </Modal>

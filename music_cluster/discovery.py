@@ -195,7 +195,7 @@ def _build_candidates(
 
         distances = np.linalg.norm(projected[member_positions] - projected_centroid, axis=1)
         db.add_discovery_members(
-            candidate_id, [(tid, float(d)) for tid, d in zip(member_ids, distances)]
+            candidate_id, [(tid, float(d)) for tid, d in zip(member_ids, distances, strict=True)]
         )
 
         candidates.append(
@@ -276,9 +276,7 @@ def promote_candidate(
             source_kind="discovered",
         )
 
-    track_ids = (
-        candidate["exemplars"] if seeds_only else db.get_discovery_member_ids(candidate_id)
-    )
+    track_ids = candidate["exemplars"] if seeds_only else db.get_discovery_member_ids(candidate_id)
     existing = set(db.get_group_member_ids(group["id"]))
     fresh = [track_id for track_id in track_ids if track_id not in existing]
     if fresh:
@@ -347,9 +345,7 @@ def expand_seeds(
 
     # Distance to the closest seed, so a set of seeds spanning two moods still
     # finds matches for both rather than the midpoint between them.
-    distances = np.min(
-        np.linalg.norm(pool[:, None, :] - seeds[None, :, :], axis=2), axis=1
-    )
+    distances = np.min(np.linalg.norm(pool[:, None, :] - seeds[None, :, :], axis=2), axis=1)
     scale = float(np.median(distances)) or 1.0
     order = np.argsort(distances)[:limit]
 

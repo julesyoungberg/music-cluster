@@ -1,6 +1,7 @@
 """Filing decisions to disk: planning, conflicts, and undo."""
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -30,8 +31,14 @@ def scene(temp_dir, db):
         filepath = make_file(source, name)
         track_id = db.upsert_track(filepath=filepath, filename=name, duration=100.0)
         assignments.append(
-            {"item_id": len(assignments) + 1, "track_id": track_id, "group_id": group_id,
-             "filepath": filepath, "filename": name, "duration": 100.0}
+            {
+                "item_id": len(assignments) + 1,
+                "track_id": track_id,
+                "group_id": group_id,
+                "filepath": filepath,
+                "filename": name,
+                "duration": 100.0,
+            }
         )
 
     return db, assignments, {group_id: group}, source, destination
@@ -111,8 +118,14 @@ def test_a_group_without_a_destination_is_reported_not_silently_skipped(temp_dir
     track_id = db.upsert_track(filepath=filepath, filename="x.mp3")
 
     assignments = [
-        {"item_id": 1, "track_id": track_id, "group_id": group_id, "filepath": filepath,
-         "filename": "x.mp3", "duration": 1.0}
+        {
+            "item_id": 1,
+            "track_id": track_id,
+            "group_id": group_id,
+            "filepath": filepath,
+            "filename": "x.mp3",
+            "duration": 1.0,
+        }
     ]
     plan = organizer.plan_commit(
         db, assignments, {group_id: db.get_group(group_id=group_id)}, mode="copy"
@@ -141,7 +154,7 @@ def test_playlist_mode_writes_one_file_per_group(scene, temp_dir):
     result = organizer.execute_plan(db, plan, assignments)
 
     assert len(result.playlists) == 1
-    content = open(result.playlists[0], encoding="utf-8").read()
+    content = Path(result.playlists[0]).read_text(encoding="utf-8")
     assert content.startswith("#EXTM3U")
     assert assignments[0]["filepath"] in content
 

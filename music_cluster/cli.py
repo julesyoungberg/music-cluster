@@ -16,16 +16,16 @@ For an unsorted pile with no structure yet, start with `discover` instead.
 import json
 import os
 import sys
-from typing import Optional
+from typing import Dict, Optional
 
 import click
 from tqdm import tqdm
 
-from .config import Config
-from .database import Database
 from . import discovery as discovery_mod
 from . import groups as groups_mod
 from . import organizer, profiles, samples, sorting
+from .config import Config
+from .database import Database
 from .library import analyze_paths, prune_missing
 from .metadata import display_name
 from .utils import parse_extensions
@@ -54,17 +54,18 @@ def get_context():
 
 def progress_bar(desc: str):
     """Progress callback backed by tqdm, created lazily on first call."""
-    state = {"bar": None}
+    state: Dict[str, Optional[tqdm]] = {"bar": None}
 
     def callback(done: int, total: int, _filepath: str) -> None:
         if total == 0:
             return
-        if state["bar"] is None:
-            state["bar"] = tqdm(total=total, desc=desc, unit="track")
-        state["bar"].n = done
-        state["bar"].refresh()
+        bar = state["bar"]
+        if bar is None:
+            bar = state["bar"] = tqdm(total=total, desc=desc, unit="track")
+        bar.n = done
+        bar.refresh()
         if done >= total:
-            state["bar"].close()
+            bar.close()
 
     return callback
 
@@ -73,7 +74,7 @@ def resolve_collection_or_exit(db: Database, name: Optional[str]):
     try:
         return groups_mod.resolve_collection(db, name)
     except LookupError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
 
 def echo_error(message: str) -> None:
@@ -119,7 +120,9 @@ def init(db_path, profile):
     click.echo(f"Config:     {config.config_path}")
     click.echo(f"Collection: {name} ({profiles.normalize(profile)})")
     if profiles.is_sample(profile):
-        click.echo("\nNext: music-cluster groups import-tree ~/Samples/YourFolders --collection 'My Samples'")
+        click.echo(
+            "\nNext: music-cluster groups import-tree ~/Samples/YourFolders --collection 'My Samples'"
+        )
     else:
         click.echo("\nNext: music-cluster groups import-tree ~/Music/YourDJFolders")
 
@@ -216,7 +219,7 @@ def collection_create(name, description, profile):
     try:
         db.create_collection(name, description, profile=profile)
     except ValueError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
     click.echo(f"Created {profiles.normalize(profile)} collection {name!r}.")
 
 
@@ -304,15 +307,25 @@ def groups_import_tree(parent, collection_name, min_tracks, recursive, workers, 
 @click.option("--collection", "collection_name", default=None)
 @click.option("--folder", type=click.Path(exists=True, file_okay=False), help="Import a folder")
 @click.option("--playlist", type=click.Path(exists=True, dir_okay=False), help="Import a playlist")
-@click.option("--track", "tracks", multiple=True, type=click.Path(exists=True, dir_okay=False),
-              help="Add individual seed tracks (repeatable)")
-@click.option("--destination", type=click.Path(file_okay=False), default=None,
-              help="Folder new music assigned to this group should go to")
+@click.option(
+    "--track",
+    "tracks",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Add individual seed tracks (repeatable)",
+)
+@click.option(
+    "--destination",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Folder new music assigned to this group should go to",
+)
 @click.option("--description", type=str, default=None)
 @click.option("--workers", type=int, default=None)
 @PROFILE_OPTION
-def groups_add(name, collection_name, folder, playlist, tracks, destination, description,
-               workers, profile):
+def groups_add(
+    name, collection_name, folder, playlist, tracks, destination, description, workers, profile
+):
     """Create a group from a folder, a playlist, or a few seed tracks."""
     config, db = get_context()
     target = groups_mod.ensure_collection(
@@ -323,33 +336,56 @@ def groups_add(name, collection_name, folder, playlist, tracks, destination, des
     try:
         if folder:
             report = groups_mod.import_folder_as_group(
-                db, target["id"], folder, config, name=name,
-                set_destination=destination is None, workers=workers, progress=callback,
+                db,
+                target["id"],
+                folder,
+                config,
+                name=name,
+                set_destination=destination is None,
+                workers=workers,
+                progress=callback,
             )
             if destination:
                 db.update_group(report.group_id, destination_path=os.path.abspath(destination))
         elif playlist:
             report = groups_mod.import_playlist_as_group(
-                db, target["id"], playlist, config, name=name,
-                destination_path=destination, workers=workers, progress=callback,
+                db,
+                target["id"],
+                playlist,
+                config,
+                name=name,
+                destination_path=destination,
+                workers=workers,
+                progress=callback,
             )
         elif tracks:
             group = groups_mod.create_group(
-                db, target["id"], name, description=description,
-                destination_path=destination, source_kind="manual",
+                db,
+                target["id"],
+                name,
+                description=description,
+                destination_path=destination,
+                source_kind="manual",
             )
             report = groups_mod.add_tracks_to_group(
-                db, group, [os.path.abspath(t) for t in tracks], config,
-                role="seed", workers=workers, progress=callback,
+                db,
+                group,
+                [os.path.abspath(t) for t in tracks],
+                config,
+                role="seed",
+                workers=workers,
+                progress=callback,
             )
         else:
             group = groups_mod.create_group(
                 db, target["id"], name, description=description, destination_path=destination
             )
-            click.echo(f"Created empty group {name!r}. Add tracks with --track/--folder/--playlist.")
+            click.echo(
+                f"Created empty group {name!r}. Add tracks with --track/--folder/--playlist."
+            )
             return
     except ValueError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     click.echo(
         f"\n{report.group_name}: {report.added} reference track(s) added"
@@ -396,7 +432,7 @@ def groups_show(name, collection_name, limit):
     try:
         group = groups_mod.resolve_group(db, target["id"], name)
     except LookupError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     members = db.get_group_members(group["id"], limit=limit)
     total = len(db.get_group_member_ids(group["id"]))
@@ -458,8 +494,11 @@ def groups_export(collection_name, output, playlist_format, relative_paths):
     _, db = get_context()
     target = resolve_collection_or_exit(db, collection_name)
     written = organizer.export_groups_as_playlists(
-        db, db.list_groups(target["id"]), output,
-        playlist_format=playlist_format, relative_paths=relative_paths,
+        db,
+        db.list_groups(target["id"]),
+        output,
+        playlist_format=playlist_format,
+        relative_paths=relative_paths,
     )
     click.echo(f"Wrote {len(written)} playlist(s) to {os.path.abspath(output)}")
 
@@ -480,7 +519,7 @@ def fit(collection_name):
     try:
         metrics = groups_mod.fit_collection(db, target, config)
     except ValueError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     embedding = metrics.get("embedding", {})
     click.echo(
@@ -517,7 +556,9 @@ def check(collection_name, refit):
 
     click.echo(f"{'Group':<32} {'Tracks':>7} {'Correct':>8} {'Accuracy':>9}")
     for entry in sorted(metrics.get("per_group", []), key=lambda e: e["accuracy"]):
-        color = "green" if entry["accuracy"] >= 0.8 else "yellow" if entry["accuracy"] >= 0.5 else "red"
+        color = (
+            "green" if entry["accuracy"] >= 0.8 else "yellow" if entry["accuracy"] >= 0.5 else "red"
+        )
         click.echo(
             f"{entry['name']:<32} {entry['size']:>7} {entry['correct']:>8} "
             + click.style(f"{entry['accuracy'] * 100:>8.0f}%", fg=color)
@@ -557,11 +598,18 @@ def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
 
     try:
         outcome = sorting.create_session(
-            db, config, target, list(paths), name=name, recursive=recursive,
-            workers=workers, progress=progress_bar("Analysing"), auto_accept=auto_accept,
+            db,
+            config,
+            target,
+            list(paths),
+            name=name,
+            recursive=recursive,
+            workers=workers,
+            progress=progress_bar("Analysing"),
+            auto_accept=auto_accept,
         )
     except (ValueError, LookupError) as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     session = outcome["session"]
     summary = outcome["summary"]
@@ -603,7 +651,9 @@ def review_session(db: Database, config: Config, session_id: int) -> None:
         click.echo("\n" + "─" * 72)
         click.echo(click.style(display_name(item), bold=True) + f"   [{remaining} left]")
         details = [
-            f"{int(item['duration'] // 60)}:{int(item['duration'] % 60):02d}" if item["duration"] else None,
+            f"{int(item['duration'] // 60)}:{int(item['duration'] % 60):02d}"
+            if item["duration"]
+            else None,
             f"{item['tag_bpm']:.0f} BPM" if item["tag_bpm"] else None,
             item["tag_key"],
             item["genre"],
@@ -643,8 +693,10 @@ def review_session(db: Database, config: Config, session_id: int) -> None:
         click.echo(click.style("  Not a valid choice.", fg="yellow"))
 
     summary = db.sort_session_summary(session_id)
-    click.echo(f"\nReview complete: {summary.get('accepted', 0)} filed, "
-               f"{summary.get('skipped', 0)} skipped.")
+    click.echo(
+        f"\nReview complete: {summary.get('accepted', 0)} filed, "
+        f"{summary.get('skipped', 0)} skipped."
+    )
     click.echo(f"Next: music-cluster apply {session_id} --mode copy")
 
 
@@ -653,7 +705,7 @@ def review_session(db: Database, config: Config, session_id: int) -> None:
 def sessions_cmd(collection_name):
     """List sort sessions."""
     _, db = get_context()
-    target = groups_mod.resolve_collection(db, collection_name, required=False)
+    target = groups_mod.find_collection(db, collection_name)
     rows = db.list_sort_sessions(target["id"] if target else None)
     if not rows:
         click.echo("No sort sessions yet.")
@@ -667,14 +719,19 @@ def sessions_cmd(collection_name):
 
 @cli.command()
 @click.argument("session_id", type=int)
-@click.option("--mode", type=click.Choice(list(organizer.MODES)), default=None,
-              help="How to file the tracks (default: from config)")
+@click.option(
+    "--mode",
+    type=click.Choice(list(organizer.MODES)),
+    default=None,
+    help="How to file the tracks (default: from config)",
+)
 @click.option("--playlist-dir", type=click.Path(file_okay=False), default=None)
 @click.option("--on-conflict", type=click.Choice(list(organizer.CONFLICT_POLICIES)), default=None)
 @click.option("--dry-run", is_flag=True, help="Show what would happen and stop")
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
-@click.option("--learn/--no-learn", default=None,
-              help="Add filed tracks to their groups as new references")
+@click.option(
+    "--learn/--no-learn", default=None, help="Add filed tracks to their groups as new references"
+)
 def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
     """Write a session's decisions to disk."""
     config, db = get_context()
@@ -684,7 +741,7 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
             db, config, session_id, mode=mode, playlist_dir=playlist_dir, on_conflict=on_conflict
         )
     except LookupError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     if plan.is_empty and not plan.problems:
         click.echo("Nothing to apply — no accepted decisions are waiting.")
@@ -702,9 +759,13 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
         click.echo(f"  ... and {len(plan.actions) - 20} more")
 
     for problem in plan.problems:
-        click.echo(click.style(f"  skipped: {problem.get('issue')}"
-                               f" ({problem.get('group_name') or problem.get('filepath') or problem.get('track_id')})",
-                               fg="yellow"))
+        click.echo(
+            click.style(
+                f"  skipped: {problem.get('issue')}"
+                f" ({problem.get('group_name') or problem.get('filepath') or problem.get('track_id')})",
+                fg="yellow",
+            )
+        )
 
     if dry_run:
         click.echo("\nDry run — nothing was changed.")
@@ -715,13 +776,20 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
 
     if not yes:
         verb = "move" if plan.mode == "move" else plan.mode
-        if not click.confirm(f"\nProceed to {verb} {len(plan.actions) or len(plan.playlists)} item(s)?"):
+        if not click.confirm(
+            f"\nProceed to {verb} {len(plan.actions) or len(plan.playlists)} item(s)?"
+        ):
             click.echo("Cancelled.")
             return
 
     outcome = sorting.commit_session(
-        db, config, session_id, mode=mode, playlist_dir=playlist_dir,
-        on_conflict=on_conflict, learn=learn,
+        db,
+        config,
+        session_id,
+        mode=mode,
+        playlist_dir=playlist_dir,
+        on_conflict=on_conflict,
+        learn=learn,
     )
     result = outcome["result"]
     click.echo(
@@ -760,10 +828,18 @@ def undo(session_id, remove_playlists):
 @click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
 @click.option("--name", default=None, help="Name for this discovery run")
 @click.option("--algorithm", type=click.Choice(["hdbscan", "kmeans", "hierarchical"]), default=None)
-@click.option("--groups", "target_groups", type=int, default=None,
-              help="Aim for this many candidate groups (kmeans/hierarchical)")
-@click.option("--granularity", type=click.Choice(["coarse", "broad", "normal", "fine", "finest"]),
-              default=None)
+@click.option(
+    "--groups",
+    "target_groups",
+    type=int,
+    default=None,
+    help="Aim for this many candidate groups (kmeans/hierarchical)",
+)
+@click.option(
+    "--granularity",
+    type=click.Choice(["coarse", "broad", "normal", "fine", "finest"]),
+    default=None,
+)
 @click.option("--min-size", type=int, default=None, help="Smallest candidate group to report")
 @click.option("--llm/--no-llm", default=None, help="Use an LLM to suggest names")
 @click.option("--workers", type=int, default=None)
@@ -777,13 +853,21 @@ def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, 
     config, db = get_context()
     try:
         outcome = discovery_mod.run_discovery(
-            db, config, paths=list(paths), name=name, algorithm=algorithm,
-            granularity=granularity, target_groups=target_groups, min_group_size=min_size,
-            workers=workers, progress=progress_bar("Analysing"), use_llm=llm,
+            db,
+            config,
+            paths=list(paths),
+            name=name,
+            algorithm=algorithm,
+            granularity=granularity,
+            target_groups=target_groups,
+            min_group_size=min_size,
+            workers=workers,
+            progress=progress_bar("Analysing"),
+            use_llm=llm,
             profile=profile,
         )
     except (ValueError, ImportError) as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
 
     run = outcome["run"]
     click.echo(f"\nRun {run['id']}: {len(outcome['candidates'])} candidate group(s)")
@@ -825,8 +909,9 @@ def candidates_cmd(run_id):
             continue
         stats = candidate["stats"]
         click.echo("─" * 72)
-        click.echo(click.style(candidate["suggested_name"], bold=True)
-                   + f"   {candidate['size']} tracks")
+        click.echo(
+            click.style(candidate["suggested_name"], bold=True) + f"   {candidate['size']} tracks"
+        )
         if stats.get("kind") == "sample":
             share = stats.get("category_share") or 0
             summary = f"{share:.0%} {stats.get('category_label', 'unsorted')}"
@@ -867,15 +952,21 @@ def candidates_cmd(run_id):
             continue
         if choice in ("y", "s"):
             group_name = click.prompt("  Group name", default=candidate["suggested_name"])
-            destination = click.prompt("  Destination folder (blank for none)", default="",
-                                       show_default=False).strip()
+            destination = click.prompt(
+                "  Destination folder (blank for none)", default="", show_default=False
+            ).strip()
             try:
                 outcome = discovery_mod.promote_candidate(
-                    db, config, target, candidate["id"], name=group_name,
-                    destination_path=destination or None, seeds_only=(choice == "s"),
+                    db,
+                    config,
+                    target,
+                    candidate["id"],
+                    name=group_name,
+                    destination_path=destination or None,
+                    seeds_only=(choice == "s"),
                 )
             except ValueError as exc:
-                raise click.ClickException(str(exc))
+                raise click.ClickException(str(exc)) from exc
             click.echo(f"  Created {group_name!r} with {outcome['added']} reference track(s).\n")
 
     click.echo("\nDone. Next: music-cluster fit")
@@ -894,9 +985,7 @@ def similar_cmd(query, limit, profile):
 
     seed = matches[0]
     click.echo(f"Tracks similar to {display_name(seed)}:\n")
-    results = discovery_mod.expand_seeds(
-        db, config, [seed["id"]], limit=limit, profile=profile
-    )
+    results = discovery_mod.expand_seeds(db, config, [seed["id"]], limit=limit, profile=profile)
     for result in results:
         click.echo(f"  {result['relative_distance']:.2f}  {display_name(result['track'])}")
 
@@ -918,8 +1007,13 @@ def search(query, limit):
 
 
 @cli.command(name="config")
-@click.option("--set", "assignments", multiple=True, metavar="KEY=VALUE",
-              help="Set a dotted config key, e.g. sorting.neighbors=8")
+@click.option(
+    "--set",
+    "assignments",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Set a dotted config key, e.g. sorting.neighbors=8",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print the config as JSON")
 def config_cmd(assignments, as_json):
     """Show or change configuration."""
@@ -1024,8 +1118,8 @@ def samples_classify(paths, limit, names, workers):
     )
 
     click.echo("")
-    tally = {}
-    for row, track_id in zip(matrix, found):
+    tally: Dict[str, int] = {}
+    for row, track_id in zip(matrix, found, strict=True):
         track = tracks.get(track_id, {})
         filepath = track.get("filepath") if names else None
         guess = samples.classify_vector(row, filepath=filepath, layout=layout)
