@@ -12,6 +12,10 @@ music-cluster learns what your existing genre folders sound like and, for every
 new track, tells you where it thinks it belongs and how sure it is. You listen,
 you decide, and it files the results.
 
+It does the same for samples. Point it at your kicks, snares, claps, hats,
+basses and chords and it learns those folders too — see
+[Samples](#samples).
+
 **You define the groups.** The tool never invents a category and never moves a
 file you have not confirmed.
 
@@ -44,6 +48,89 @@ music-cluster fit
 
 Nothing becomes a group until you say so.
 
+## Samples
+
+A kick is not a short track. It is 300 milliseconds long, it has no tempo, and
+what makes it a kick rather than a clap is the shape of its envelope and where
+its energy sits — none of which survives being averaged over ninety seconds the
+way a track is analysed.
+
+So a collection declares what it holds, once, when you make it:
+
+```bash
+music-cluster collection create "Drum library" --profile sample
+music-cluster groups import-tree ~/Samples/Drums --collection "Drum library"
+music-cluster fit --collection "Drum library"
+
+music-cluster sort ~/Downloads/NewPack --collection "Drum library"
+```
+
+From there it is the same tool: the same review screen, the same confidence
+bars, the same four filing modes, the same undo. What changes is underneath.
+
+**Analysis starts at the first sample and never excerpts.** A one-shot's attack
+is the most identifying thing about it and it is over 20 ms in. Analysis steps
+four times more finely through time, so a 60 ms hi-hat still has a measurable
+shape.
+
+**Twenty-nine extra measurements, all about a single sonic event.** Attack,
+decay, sustain and release; how long the sound actually lasts; energy across
+eight bands from sub to air; whether there is a note and how many notes;
+whether the sound is percussive or harmonic; whether it is one hit or a bar of
+them. This is what separates a clap from a snare when their spectra are nearly
+identical, and a bass from a chord when both are just "a low pitched thing".
+
+**Tempo is not invented.** Beat tracking a 400 ms kick returns a number, and
+that number is meaningless. Under this profile a single hit records no BPM
+rather than a fabricated one.
+
+### Discovering a pack that has no structure
+
+Discovery over samples names its candidates in the vocabulary you would use:
+
+```bash
+music-cluster discover ~/Samples/Unsorted --profile sample
+```
+
+```
+Run 3: 7 candidate group(s)
+
+  [ 0] Kicks                                 214 tracks  92% Kick
+  [ 1] Closed Hats                           186 tracks  88% Closed Hat
+  [ 2] Snares                                140 tracks  71% Snare
+  [ 3] Basses                                 96 tracks  84% Bass
+  [ 4] Chords                                 61 tracks  77% Chord
+```
+
+The percentage is how much of the pile really looks like its name — a candidate
+that is 45% anything is telling you the clustering found something you have not
+got a word for yet. Names are still suggestions: nothing becomes a group until
+you promote it.
+
+Two things inform the guess. The filename, which in a sample library is usually
+the truth (`BD_808_01.wav` is a kick, and nothing measured is going to know
+better), and the audio, which carries the half of every pack named
+`Sample 04.wav`. To see what it makes of a folder without changing anything:
+
+```bash
+music-cluster samples classify ~/Samples/Unsorted
+music-cluster samples classify ~/Samples/Unsorted --no-names   # audio only
+music-cluster samples categories
+```
+
+### Both in one library
+
+Profiles are per collection, and a collection's profile is fixed when it is
+created — its stored features, its fitted space and its group references all
+assume one kind of audio. Sorting both means two collections, which share one
+database and one library; a file analysed both ways keeps both vectors.
+
+```bash
+music-cluster collection list
+   1  My Folders                   music     8 groups    3104 tracks
+   2  Drum library                 sample   11 groups     842 tracks
+```
+
 ## Desktop app
 
 The same workflow with audio previews and waveforms, which is what you actually
@@ -66,7 +153,9 @@ this different from clustering a library and hoping the results mean something.
 1. **Features.** Every track gets a 96-dimension vector: MFCCs and spectral
    shape (timbre), tempo and onset statistics (rhythm), chroma (harmony), RMS
    and dynamics. Tags — artist, title, genre, BPM, key — are read at the same
-   time.
+   time. A sample collection measures 125 dimensions instead: the same
+   ninety-six plus a block describing the single event — envelope, band
+   balance, pitch. See [Samples](#samples).
 
 2. **A space tuned to your boundaries.** Reference tracks carry group labels, so
    the feature space is fitted with LDA, which finds the directions that
@@ -145,14 +234,28 @@ Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 | `discover PATH` / `candidates ID` | Propose and review candidate groups |
 | `similar QUERY` | Find tracks that sound like one you name |
 | `search QUERY` | Search the library and show group membership |
+| `samples classify PATH` | Report what a folder of one-shots looks like |
+| `samples categories` | List the sample categories used for naming |
 | `config --set KEY=VALUE` | Read or change settings |
 
-Add `--collection NAME` to work with more than one sorting scheme.
+Add `--collection NAME` to work with more than one sorting scheme, and
+`--profile sample` when creating or analysing one that holds one-shots.
 
 ## Configuration
 
 `~/.music-cluster/config.yaml`, or the Settings screen. Everything is
 adjustable; the settings that matter most:
+
+Settings under `feature_extraction`, `sorting` and `discovery` also take a
+`profiles:` block, which is how a profile's own defaults get overridden:
+
+```yaml
+sorting:
+  neighbors: 5
+  profiles:
+    sample:
+      neighbors: 9              # only for sample collections
+```
 
 ```yaml
 sorting:
@@ -175,6 +278,10 @@ organize:
 
 feature_extraction:
   excerpt_seconds: 90           # analyse the middle 90s; 0 for the whole file
+  profiles:
+    sample:
+      hop_size: 256             # analysis resolution for one-shots
+      max_seconds: 30           # cap on how much of a long loop is read
 ```
 
 Changing anything under `sorting` or `feature_extraction` means re-running
@@ -183,8 +290,8 @@ Changing anything under `sorting` or `feature_extraction` means re-running
 ### Optional: LLM naming
 
 Discovery can ask an LLM to name candidate groups. It is off by default, and
-only track metadata — artist, title, genre tag, tempo — is ever sent; never
-audio.
+only metadata — artist, title, genre tag, tempo, or for samples the filenames
+and measured shape — is ever sent; never audio.
 
 ```bash
 pip install anthropic
@@ -213,9 +320,11 @@ pip install -e .
 
 - Analysis: roughly a second per track with the default 90-second excerpt,
   across all CPU cores. A 10,000-track library takes well under an hour.
+  One-shots are quicker — around a tenth of a second each for typical drum
+  hits, longer for multi-second loops.
 - Fitting: seconds.
 - Sorting an already-analysed track: instant. The cost is analysis, once.
-- Storage: about 1 KB per track.
+- Storage: about 1 KB per track, per profile.
 
 Formats: anything FFmpeg decodes — MP3, FLAC, WAV, AIFF, M4A/ALAC, OGG, Opus,
 AAC, WMA, APE, WavPack. See [FORMATS.md](FORMATS.md).

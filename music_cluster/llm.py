@@ -8,12 +8,14 @@ Only track metadata (artist, title, genre tag, BPM) is sent — never audio.
 import json
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from . import profiles
 
 
 logger = logging.getLogger(__name__)
 
-PROMPT = """You are helping a DJ name folders in their music library.
+MUSIC_PROMPT = """You are helping a DJ name folders in their music library.
 
 Below are candidate groups that were found by clustering audio features. For \
 each one you get a few representative tracks and some measured statistics.
@@ -30,6 +32,30 @@ Candidates:
 %s
 """
 
+SAMPLE_PROMPT = """You are helping a producer name folders in their sample library.
+
+Below are candidate groups that were found by clustering audio features. For \
+each one you get a few representative filenames and some measured statistics \
+about the sound: how long it is, how fast it starts, where its energy sits, \
+and whether it has a pitch.
+
+Suggest a short folder name for each group: 1-3 words, in the vocabulary a \
+producer uses for one-shot folders ("Kicks", "Closed Hats", "808 Basses", \
+"Vocal Chops", "Noise Risers"). Prefer the plural. Do not number the groups, \
+and make the names distinct from each other.
+
+Respond with JSON only, in the form:
+{"names": [{"candidate_index": 0, "name": "..."}, ...]}
+
+Candidates:
+%s
+"""
+
+
+def prompt_for(profile: Optional[str] = None) -> str:
+    """The naming prompt matching the kind of audio being named."""
+    return SAMPLE_PROMPT if profiles.is_sample(profile) else MUSIC_PROMPT
+
 
 def is_available(config) -> bool:
     """True when LLM labelling is enabled and an API key is present."""
@@ -40,7 +66,10 @@ def is_available(config) -> bool:
 
 
 def suggest_names(
-    candidates: List[Dict[str, Any]], config, timeout: float = 60.0
+    candidates: List[Dict[str, Any]],
+    config,
+    timeout: float = 60.0,
+    profile: Optional[str] = None,
 ) -> Dict[int, str]:
     """Suggest names for candidate groups, keyed by ``candidate_index``.
 
@@ -64,7 +93,12 @@ def suggest_names(
         message = client.messages.create(
             model=model,
             max_tokens=1024,
-            messages=[{"role": "user", "content": PROMPT % _render(candidates)}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt_for(profile) % _render(candidates, profile),
+                }
+            ],
         )
         text = "".join(block.text for block in message.content if block.type == "text")
         return _parse(text)
@@ -73,7 +107,10 @@ def suggest_names(
         return {}
 
 
-def _render(candidates: List[Dict[str, Any]]) -> str:
+def _render(candidates: List[Dict[str, Any]], profile: Optional[str] = None) -> str:
+    if profiles.is_sample(profile):
+        return _render_samples(candidates)
+
     lines: List[str] = []
     for candidate in candidates:
         lines.append(f"\n## Candidate {candidate['candidate_index']} ({candidate['size']} tracks)")
@@ -91,6 +128,40 @@ def _render(candidates: List[Dict[str, Any]]) -> str:
             artist = track.get("artist") or "Unknown"
             title = track.get("title") or track.get("filename")
             lines.append(f"- track: {artist} - {title}")
+    return "\n".join(lines)
+
+
+def _render_samples(candidates: List[Dict[str, Any]]) -> str:
+    """Describe candidates the way a one-shot is described: shape, not genre."""
+    lines: List[str] = []
+    for candidate in candidates:
+        lines.append(f"\n## Candidate {candidate['candidate_index']} ({candidate['size']} samples)")
+        stats = candidate.get("stats") or {}
+
+        if stats.get("median_duration") is not None:
+            lines.append(f"- length: {stats['median_duration']:.2f} s")
+        if stats.get("attack_ms") is not None:
+            lines.append(f"- attack: {stats['attack_ms']:.0f} ms")
+        if stats.get("brightness_hz"):
+            lines.append(f"- brightness: {stats['brightness_hz']:.0f} Hz")
+        if stats.get("low_energy") is not None:
+            lines.append(
+                f"- energy: {stats['low_energy']:.0%} low, {stats.get('high_energy', 0):.0%} high"
+            )
+        lines.append(
+            f"- pitch: {'pitched' if stats.get('pitched') else 'unpitched'}"
+            + (f", around {stats['f0_hz']:.0f} Hz" if stats.get("f0_hz") else "")
+        )
+        if stats.get("onset_count"):
+            lines.append(f"- hits per file: {stats['onset_count']:.0f}")
+        if stats.get("breakdown"):
+            guessed = ", ".join(
+                f"{item['label']} ({item['count']})" for item in stats["breakdown"][:4]
+            )
+            lines.append(f"- looks like: {guessed}")
+
+        for track in candidate.get("exemplar_tracks", [])[:6]:
+            lines.append(f"- file: {track.get('filename') or track.get('filepath')}")
     return "\n".join(lines)
 
 

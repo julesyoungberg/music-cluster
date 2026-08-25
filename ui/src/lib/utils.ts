@@ -78,3 +78,16 @@ export function basename(path?: string | null): string {
 export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
+
+/**
+ * A sample's length, in the unit that makes it readable.
+ *
+ * `formatDuration` renders a 90 ms hat as "0:00", which is exactly the
+ * information a one-shot library needs and does not get from minutes.
+ */
+export function formatSampleLength(seconds?: number | null): string {
+  if (!seconds || !Number.isFinite(seconds)) return '—';
+  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
+  if (seconds < 10) return `${seconds.toFixed(2)} s`;
+  return formatDuration(seconds);
+}

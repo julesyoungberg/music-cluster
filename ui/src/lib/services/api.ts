@@ -1,4 +1,5 @@
 import type {
+  AudioProfile,
   CheckMetrics,
   Collection,
   CommitPlan,
@@ -7,6 +8,10 @@ import type {
   Group,
   GroupQuality,
   OrganizeMode,
+  Profile,
+  SampleCategory,
+  SampleDescriptors,
+  SampleGuess,
   SortItem,
   SortSession,
   TaskStatus,
@@ -88,7 +93,12 @@ export const api = {
       collections: Collection[];
       sessions: SortSession[];
       discovery_runs: DiscoveryRun[];
+      analyzed_by_profile: Record<string, number>;
+      profiles: Profile[];
     }>('/api/info'),
+
+  listProfiles: () =>
+    get<{ profiles: Profile[]; sample_categories: SampleCategory[] }>('/api/profiles'),
 
   browse: (path?: string) =>
     get<{
@@ -107,8 +117,8 @@ export const api = {
 
   // Collections
   listCollections: () => get<{ collections: Collection[] }>('/api/collections'),
-  createCollection: (name: string, description?: string) =>
-    post<Collection>('/api/collections', { name, description }),
+  createCollection: (name: string, description?: string, profile?: AudioProfile) =>
+    post<Collection>('/api/collections', { name, description, profile }),
   getCollection: (id: number) =>
     get<{ collection: Collection; groups: Group[]; model: Record<string, any> | null }>(
       `/api/collections/${id}`
@@ -159,15 +169,28 @@ export const api = {
 
   // Tracks
   listTracks: (
-    params: { limit?: number; offset?: number; query?: string; unassignedIn?: number } = {}
+    params: {
+      limit?: number;
+      offset?: number;
+      query?: string;
+      unassignedIn?: number;
+      profile?: AudioProfile;
+    } = {}
   ) => {
     const search = new URLSearchParams();
     search.set('limit', String(params.limit ?? 100));
     search.set('offset', String(params.offset ?? 0));
     if (params.query) search.set('query', params.query);
     if (params.unassignedIn) search.set('unassigned_in', String(params.unassignedIn));
+    if (params.profile) search.set('profile', params.profile);
     return get<{ tracks: Track[]; total: number }>(`/api/tracks?${search}`);
   },
+
+  /** What a track looks like as a one-shot. 404s unless analysed as a sample. */
+  sampleProfile: (id: number) =>
+    get<{ track_id: number; guess: SampleGuess; descriptors: SampleDescriptors }>(
+      `/api/tracks/${id}/sample`
+    ),
   getTrack: (id: number) => get<Track & { groups: Group[]; exists: boolean }>(`/api/tracks/${id}`),
   waveform: (id: number, samples = 240, signal?: AbortSignal) =>
     request<{ peaks: number[]; duration: number; samples: number }>(
@@ -178,8 +201,8 @@ export const api = {
     get<{ artwork: string; mime_type: string } | undefined>(`/api/tracks/${id}/artwork`),
   audioUrl: (id: number) => `${API_BASE}/api/tracks/${id}/audio`,
 
-  analyze: (paths: string[], recursive = true, update = false) =>
-    post<{ task_id: string }>('/api/analyze', { paths, recursive, update }),
+  analyze: (paths: string[], recursive = true, update = false, profile?: AudioProfile) =>
+    post<{ task_id: string }>('/api/analyze', { paths, recursive, update, profile }),
 
   // Sort sessions
   listSessions: (collectionId?: number) =>
@@ -255,6 +278,7 @@ export const api = {
     target_groups?: number;
     min_group_size?: number;
     use_llm?: boolean;
+    profile?: AudioProfile;
   }) => post<{ task_id: string }>('/api/discovery', body),
   getDiscoveryRun: (id: number) =>
     get<{ run: DiscoveryRun; candidates: DiscoveryCandidate[] }>(`/api/discovery/${id}`),

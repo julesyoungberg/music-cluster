@@ -74,7 +74,11 @@ MAX_WAVEFORM_SAMPLES = 2000
 
 # Bumped whenever the envelope maths changes, so cached waveforms from an older
 # version are recomputed rather than served.
-WAVEFORM_VERSION = 2
+WAVEFORM_VERSION = 3
+
+# Below this length a file is one sonic event rather than an arrangement, and
+# its envelope is drawn as measured. See _shape_envelope.
+ONE_SHOT_SECONDS = 2.0
 
 # How much the envelope leans on window RMS rather than window peak. Peak alone
 # tracks the loudest transient in a window, which on a limited master is the
@@ -98,7 +102,7 @@ MAX_FLOOR_RATIO = 0.6
 EXPANSION_MIX = 0.7
 
 
-def _shape_envelope(peak: np.ndarray, rms: np.ndarray) -> np.ndarray:
+def _shape_envelope(peak: np.ndarray, rms: np.ndarray, duration: float = 0.0) -> np.ndarray:
     """Blend peak and RMS windows into a 0-1 envelope with visible structure."""
     envelope = RMS_WEIGHT * rms + (1.0 - RMS_WEIGHT) * peak
 
@@ -108,6 +112,15 @@ def _shape_envelope(peak: np.ndarray, rms: np.ndarray) -> np.ndarray:
         return np.zeros_like(envelope)
 
     plain = np.clip(envelope / high, 0.0, 1.0)
+
+    if 0.0 < duration <= ONE_SHOT_SECONDS:
+        # A one-shot's decay *is* its shape — it is what tells a closed hat
+        # from an open one at a glance. The percentile stretch below exists to
+        # pull structure out of a limited master where every bar is the same
+        # height; applied to a 300 ms kick it lifts the tail off the floor and
+        # draws a sound that keeps ringing when it does not.
+        return plain
+
     low = min(float(np.percentile(envelope, LOW_PERCENTILE)), MAX_FLOOR_RATIO * high)
     stretched = np.clip((envelope - low) / (high - low), 0.0, 1.0)
     return EXPANSION_MIX * stretched + (1.0 - EXPANSION_MIX) * plain
@@ -234,7 +247,7 @@ def compute_waveform(filepath: str, samples: int = 240) -> Dict[str, Any]:
     if len(peak) == 0:
         raise ValueError("Empty audio file")
 
-    values = _resize_envelope(_shape_envelope(peak, rms), samples)
+    values = _resize_envelope(_shape_envelope(peak, rms, duration), samples)
 
     return {
         "peaks": [round(float(value), 3) for value in values],

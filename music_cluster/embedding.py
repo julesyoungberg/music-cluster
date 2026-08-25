@@ -24,6 +24,7 @@ from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import StandardScaler
 
+from . import profiles
 from .features import FeatureLayout, family_weight_vector, layout_for_dim
 
 
@@ -41,6 +42,9 @@ class EmbeddingSpace:
     # existing groups, versus general audio structure. See _SupervisedBlend.
     discriminant_weight: float = 0.7
     feature_weights: Dict[str, float] = field(default_factory=dict)
+    # Which feature layout these vectors follow, so per-family weights land on
+    # the right dimensions. Only consulted while fitting.
+    profile: str = profiles.MUSIC
 
     scaler: Optional[StandardScaler] = None
     weight_vector: Optional[np.ndarray] = None
@@ -60,7 +64,7 @@ class EmbeddingSpace:
             raise ValueError("Need a 2-D feature matrix with at least one row")
 
         self.input_dim = features.shape[1]
-        layout: FeatureLayout = layout_for_dim(self.input_dim)
+        layout: FeatureLayout = layout_for_dim(self.input_dim, self.profile)
 
         self.scaler = StandardScaler().fit(features)
         scaled = self.scaler.transform(features)
@@ -199,6 +203,7 @@ class EmbeddingSpace:
         return {
             "projection": self.resolved_projection,
             "requested_projection": self.projection,
+            "profile": self.profile,
             "input_dim": self.input_dim,
             "output_dim": self.output_dim,
             "feature_weights": dict(self.feature_weights),

@@ -2,6 +2,7 @@
 
 import os
 
+import pytest
 import yaml
 
 from music_cluster.config import DEFAULT_CONFIG, Config
@@ -159,9 +160,38 @@ class TestExtractorConfig:
 
         assert kwargs["n_mfcc"] == 13
         assert kwargs["excerpt_seconds"] == 30
-        assert set(kwargs) == {"sample_rate", "frame_size", "hop_size", "n_mfcc", "excerpt_seconds"}
+        assert set(kwargs) == {
+            "sample_rate",
+            "frame_size",
+            "hop_size",
+            "n_mfcc",
+            "excerpt_seconds",
+            "max_seconds",
+            "profile",
+        }
 
-    def test_the_result_can_be_passed_straight_to_the_extractor(self, temp_dir):
+    def test_the_sample_profile_analyses_one_shots_differently(self, temp_dir):
+        config = Config(str(temp_dir / "config.yaml"))
+
+        music = config.extractor_config()
+        sample = config.extractor_config("sample")
+
+        assert sample["profile"] == "sample"
+        # A one-shot's attack is at the very start and is over in milliseconds:
+        # never excerpt, and step through time far more finely.
+        assert sample["excerpt_seconds"] == 0
+        assert sample["hop_size"] < music["hop_size"]
+        assert sample["max_seconds"] is not None
+
+    def test_a_user_override_beats_the_profile_default(self, temp_dir):
+        config = Config(str(temp_dir / "config.yaml"))
+        config.set(["feature_extraction", "profiles", "sample", "hop_size"], 512)
+
+        assert config.extractor_config("sample")["hop_size"] == 512
+
+    @pytest.mark.parametrize("profile", [None, "music", "sample"])
+    def test_the_result_can_be_passed_straight_to_the_extractor(self, temp_dir, profile):
         from music_cluster.extractor import FeatureExtractor
 
-        FeatureExtractor(**Config(str(temp_dir / "config.yaml")).extractor_config())
+        config = Config(str(temp_dir / "config.yaml"))
+        FeatureExtractor(**config.extractor_config(profile))

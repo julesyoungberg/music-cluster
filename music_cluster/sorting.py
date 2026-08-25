@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .config import Config
 from .database import Database
-from .groups import load_sorter, resolve_collection
+from .groups import load_sorter, profile_of, resolve_collection
 from .library import analyze_files, collect_files
 from .metadata import display_name
 from .organizer import CommitPlan, CommitResult, execute_plan, plan_commit
@@ -48,7 +48,9 @@ def create_session(
     if not files:
         raise ValueError("No audio files found in the given path(s)")
 
-    analysis = analyze_files(db, config, files, workers=workers, progress=progress)
+    analysis = analyze_files(
+        db, config, files, workers=workers, progress=progress, profile=profile_of(collection)
+    )
     if not analysis.track_ids:
         raise ValueError("None of the files could be analysed")
 
@@ -92,9 +94,12 @@ def score_session(
     if not track_ids:
         return {}
 
-    matrix, found_ids = db.get_feature_matrix(track_ids)
+    matrix, found_ids = db.get_feature_matrix(track_ids, profile_of(collection))
     if len(found_ids) == 0:
-        raise ValueError("None of the session's tracks have features")
+        raise ValueError(
+            "None of the session's tracks have been analysed for the "
+            f"{profile_of(collection)} profile"
+        )
 
     suggestions = sorter.suggest_batch(matrix, found_ids)
     items = []

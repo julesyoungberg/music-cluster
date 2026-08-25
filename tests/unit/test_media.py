@@ -100,6 +100,34 @@ class TestComputeWaveform:
         assert peaks.std() < 0.05
         assert peaks.mean() > 0.9
 
+    def test_a_one_shot_keeps_its_decay(self, temp_dir):
+        """A kick's tail must fall to the floor, not be stretched back up.
+
+        The percentile expansion that pulls structure out of a limited master
+        would lift a 300 ms decay off the baseline and draw a sound that keeps
+        ringing when it does not.
+        """
+        t = np.arange(int(0.3 * SR)) / SR
+        decay = np.sin(2 * np.pi * 60 * t) * np.exp(-t * 14)
+        path = write_audio(temp_dir / "kick.wav", decay)
+
+        peaks = compute_waveform(path, samples=64)["peaks"]
+        assert max(peaks) == pytest.approx(1.0, abs=0.05)
+        # By the end of a decay this steep there is essentially nothing left.
+        assert peaks[-1] < 0.15
+        assert peaks[0] > peaks[len(peaks) // 2] > peaks[-1]
+
+    def test_a_long_track_still_gets_its_structure_expanded(self, temp_dir):
+        """The one-shot rule must not disable expansion for arrangements."""
+        quiet = tone(4, gain=0.35)
+        loud = tone(4, gain=0.4)
+        path = write_audio(temp_dir / "long.wav", np.concatenate([quiet, loud]))
+
+        peaks = compute_waveform(path, samples=64)["peaks"]
+        first, second = peaks[:28], peaks[36:]
+        # A 1.1x difference in the audio has to be visible as more than that.
+        assert np.mean(second) - np.mean(first) > 0.15
+
     def test_silence_draws_nothing_rather_than_dividing_by_zero(self, temp_dir):
         path = write_audio(temp_dir / "silent.wav", np.zeros(SR * 3))
         result = compute_waveform(path, samples=50)

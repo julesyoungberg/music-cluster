@@ -7,6 +7,11 @@ each candidate a handle: what the tags say, how fast it is, and how it sounds.
 
 Signals are used in order of trustworthiness: existing genre tags first
 (the DJ's own vocabulary), then tempo, then audio descriptors.
+
+A sample collection asks a different question — "what *are* these?" rather
+than "what genre is this?" — so under the sample profile both entry points
+hand off to :mod:`music_cluster.samples`, which answers it in the vocabulary
+of a drum machine.
 """
 
 import re
@@ -15,7 +20,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .features import describe_vector
+from . import profiles, samples
+from .features import build_layout, describe_vector, layout_for_dim
 
 
 # Tempo bands, chosen to line up with how dance music is actually filed.
@@ -38,8 +44,25 @@ def suggest_label(
     centroid: np.ndarray,
     member_tracks: List[Dict[str, Any]],
     fallback: str = "Untitled group",
+    profile: Optional[str] = None,
+    vectors: Optional[np.ndarray] = None,
 ) -> str:
-    """Suggest a short label for a group from its centroid and members."""
+    """Suggest a short label for a group from its centroid and members.
+
+    Args:
+        vectors: The members' own feature vectors. Only used by the sample
+            profile, which classifies each member and takes the majority
+            rather than reading the centroid — the average of a kick and a
+            hat is not a sample.
+    """
+    if profiles.is_sample(profile):
+        return samples.suggest_group_name(
+            vectors,
+            member_tracks,
+            fallback=fallback,
+            layout=_sample_layout(centroid, vectors),
+        )
+
     parts: List[str] = []
 
     genre = dominant_genre(member_tracks)
@@ -153,8 +176,28 @@ def audio_descriptors(centroid: np.ndarray, limit: int = 2) -> List[str]:
     return [name for _, name in descriptors[:limit]]
 
 
-def group_stats(centroid: np.ndarray, tracks: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _sample_layout(centroid: np.ndarray, vectors: Optional[np.ndarray]):
+    """The sample layout matching whatever width these vectors are."""
+    reference = np.asarray(centroid if centroid is not None else vectors, dtype=float)
+    width = int(reference.shape[-1]) if reference.ndim else 0
+    return layout_for_dim(width, profiles.SAMPLE) if width else build_layout(20, profiles.SAMPLE)
+
+
+def group_stats(
+    centroid: np.ndarray,
+    tracks: List[Dict[str, Any]],
+    profile: Optional[str] = None,
+    vectors: Optional[np.ndarray] = None,
+) -> Dict[str, Any]:
     """Summary shown next to a candidate group during review."""
+    if profiles.is_sample(profile):
+        return samples.group_summary(
+            vectors,
+            tracks,
+            centroid=centroid,
+            layout=_sample_layout(centroid, vectors),
+        )
+
     stats = describe_vector(np.asarray(centroid, dtype=float))
     bpms = [
         float(track["tag_bpm"])

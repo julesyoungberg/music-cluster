@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from . import profiles
+
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "database": {
@@ -139,9 +141,28 @@ class Config:
             target = target[key]
         target[keys[-1]] = value
 
-    def section(self, name: str) -> Dict[str, Any]:
-        """A copy of one top-level section merged over its defaults."""
-        return copy.deepcopy(self.get(name, default={}) or {})
+    def section(self, name: str, profile: Optional[str] = None) -> Dict[str, Any]:
+        """A copy of one top-level section, resolved for an audio profile.
+
+        Three layers, each overriding the one before:
+
+        1. the section as configured (defaults plus the user's YAML),
+        2. the profile's own defaults, for the handful of settings where
+           samples genuinely need different values than tracks,
+        3. the user's per-profile overrides under ``<section>.profiles.<name>``,
+           which is how a profile default gets argued with.
+        """
+        resolved = copy.deepcopy(self.get(name, default={}) or {})
+        overrides = resolved.pop("profiles", None) or {}
+
+        profile_name = profiles.normalize(profile)
+        resolved = self._merge_configs(resolved, profiles.get(profile_name).overrides(name))
+
+        user_overrides = overrides.get(profile_name) if isinstance(overrides, dict) else None
+        if isinstance(user_overrides, dict):
+            resolved = self._merge_configs(resolved, user_overrides)
+
+        return resolved
 
     def get_db_path(self) -> str:
         path = os.environ.get("MUSIC_CLUSTER_DB") or self.get(
@@ -158,14 +179,17 @@ class Config:
             path = os.path.join(os.path.dirname(self.get_db_path()), "cache")
         return os.path.expanduser(path)
 
-    def extractor_config(self) -> Dict[str, Any]:
+    def extractor_config(self, profile: Optional[str] = None) -> Dict[str, Any]:
         """Keyword arguments for :class:`~music_cluster.extractor.FeatureExtractor`."""
+        section = self.section("feature_extraction", profile)
         return {
-            "sample_rate": self.get("feature_extraction", "sample_rate", default=44100),
-            "frame_size": self.get("feature_extraction", "frame_size", default=2048),
-            "hop_size": self.get("feature_extraction", "hop_size", default=1024),
-            "n_mfcc": self.get("feature_extraction", "mfcc_coefficients", default=20),
-            "excerpt_seconds": self.get("feature_extraction", "excerpt_seconds", default=90),
+            "sample_rate": section.get("sample_rate", 44100),
+            "frame_size": section.get("frame_size", 2048),
+            "hop_size": section.get("hop_size", 1024),
+            "n_mfcc": section.get("mfcc_coefficients", 20),
+            "excerpt_seconds": section.get("excerpt_seconds", 90),
+            "max_seconds": section.get("max_seconds"),
+            "profile": profiles.normalize(profile),
         }
 
     @staticmethod

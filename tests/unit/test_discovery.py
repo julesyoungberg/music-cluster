@@ -132,7 +132,7 @@ class TestRunDiscovery:
     ):
         monkeypatch.setattr(
             "music_cluster.llm.suggest_names",
-            lambda candidates, cfg: {
+            lambda candidates, cfg, **_: {
                 c["candidate_index"]: f"LLM {c['candidate_index']}" for c in candidates
             },
         )

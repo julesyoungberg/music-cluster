@@ -7,8 +7,9 @@
   import FolderPicker from '$lib/components/FolderPicker.svelte';
   import LoadingState from '$lib/components/LoadingState.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import ProfileBadge from '$lib/components/ProfileBadge.svelte';
   import TaskProgress from '$lib/components/TaskProgress.svelte';
-  import type { CheckMetrics, Group, TaskStatus } from '$lib/types';
+  import type { AudioProfile, CheckMetrics, Group, TaskStatus } from '$lib/types';
   import { formatPercent, pluralize } from '$lib/utils';
   import { FolderPlus, FolderTree, ListPlus, Plus, RefreshCw, TriangleAlert } from 'lucide-svelte';
 
@@ -28,8 +29,10 @@
   let folderPath = $state('');
   let folderName = $state('');
   let newCollectionName = $state('');
+  let newCollectionProfile = $state<AudioProfile>('music');
 
   const collection = $derived($activeCollection);
+  const isSamples = $derived(collection?.profile === 'sample');
 
   async function load() {
     if (!collection) {
@@ -102,9 +105,14 @@
   async function createCollection() {
     if (!newCollectionName.trim()) return;
     try {
-      const created = await api.createCollection(newCollectionName.trim());
+      const created = await api.createCollection(
+        newCollectionName.trim(),
+        undefined,
+        newCollectionProfile
+      );
       newCollectionOpen = false;
       newCollectionName = '';
+      newCollectionProfile = 'music';
       await loadCollections();
       selectCollection(created.id);
       notifySuccess(`Created ${created.name}`);
@@ -122,9 +130,16 @@
 <div class="space-y-6">
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold">Groups</h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold">Groups</h1>
+        {#if collection}<ProfileBadge profile={collection.profile} />{/if}
+      </div>
       <p class="mt-1 text-sm text-muted-foreground">
-        The folders new music gets sorted into. Their tracks are what define each one.
+        {#if isSamples}
+          The folders new one-shots get sorted into. Their samples are what define each one.
+        {:else}
+          The folders new music gets sorted into. Their tracks are what define each one.
+        {/if}
       </p>
     </div>
 
@@ -334,9 +349,37 @@
     <input
       class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
       bind:value={newCollectionName}
-      placeholder="e.g. DJ folders"
+      placeholder={newCollectionProfile === 'sample' ? 'e.g. Drum library' : 'e.g. DJ folders'}
     />
   </label>
+
+  <fieldset class="mt-4 text-sm">
+    <legend class="font-medium">What is in it</legend>
+    <div class="mt-2 grid gap-2 sm:grid-cols-2">
+      {#each [{ value: 'music', title: 'Music', blurb: 'Full-length tracks, mixes and edits.' }, { value: 'sample', title: 'Samples', blurb: 'One-shots and loops: kicks, snares, claps, hats, basses, chords.' }] as option (option.value)}
+        <label
+          class="cursor-pointer rounded-md border p-3 transition-colors {newCollectionProfile ===
+          option.value
+            ? 'border-primary bg-primary/5'
+            : 'border-input hover:bg-muted/50'}"
+        >
+          <input
+            type="radio"
+            class="sr-only"
+            name="collection-profile"
+            value={option.value}
+            bind:group={newCollectionProfile}
+          />
+          <span class="block font-medium">{option.title}</span>
+          <span class="mt-0.5 block text-xs text-muted-foreground">{option.blurb}</span>
+        </label>
+      {/each}
+    </div>
+    <p class="mt-2 text-xs text-muted-foreground">
+      Fixed once the collection exists — samples and tracks are measured differently, so sorting
+      both means two collections.
+    </p>
+  </fieldset>
   {#snippet footer()}
     <button
       class="rounded-md border border-input px-3 py-1.5 text-sm"
