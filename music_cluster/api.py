@@ -21,11 +21,11 @@ from pydantic import BaseModel, Field
 
 from . import discovery as discovery_mod
 from . import groups as groups_mod
-from . import organizer, profiles, samples, sorting
+from . import organizer, profiles, samples, sorting, tagging
 from .config import Config
 from .database import Database
 from .features import build_layout
-from .library import analyze_paths, prune_missing
+from .library import analyze_paths, prune_missing, tag_tracks
 from .media import cached_waveform, extract_artwork, media_type_for, parse_range_header
 from .metadata import display_name
 from .utils import find_audio_files
@@ -191,6 +191,15 @@ class AnalyzeRequest(BaseModel):
     profile: Optional[str] = None
 
 
+class TagRequest(BaseModel):
+    # Folders or files to analyse (as music) and tag. Empty with no track IDs
+    # means "every analysed track that has no tags yet".
+    paths: List[str] = Field(default_factory=list)
+    track_ids: Optional[List[int]] = None
+    update: bool = False
+    workers: Optional[int] = None
+
+
 class SortRequest(BaseModel):
     collection_id: int
     paths: List[str]
@@ -354,24 +363,49 @@ async def get_tracks(
     query: Optional[str] = None,
     unassigned_in: Optional[int] = Query(None, description="Collection ID"),
     profile: Optional[str] = Query(None, description="Only tracks analysed under this profile"),
+    genre: Optional[str] = Query(None, description="Auto-tagged genre key"),
+    beat: Optional[str] = Query(None, description="Auto-tagged beat type key"),
+    mood: Optional[str] = Query(None, description="Auto-tagged mood key"),
+    min_energy: Optional[float] = Query(None, ge=0, le=1),
+    max_energy: Optional[float] = Query(None, ge=0, le=1),
+    min_danceability: Optional[float] = Query(None, ge=0, le=1),
+    camelot: Optional[str] = None,
+    tagged: Optional[bool] = Query(None, description="Only tagged (true) or untagged (false)"),
 ):
-    """List library tracks."""
+    """List library tracks, each with its auto-tags when it has them."""
     db = get_db()
     try:
         profile = profiles.normalize(profile) if profile else None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    tag_filters = {
+        "genre": genre,
+        "beat": beat,
+        "mood": mood,
+        "min_energy": min_energy,
+        "max_energy": max_energy,
+        "min_danceability": min_danceability,
+        "camelot": camelot,
+        "tagged": tagged,
+    }
     tracks = db.list_tracks(
         limit=limit,
         offset=offset,
         query=query,
         unassigned_in_collection=unassigned_in,
         profile=profile,
+        tags=tag_filters,
     )
+    stored = db.get_tags_many([track["id"] for track in tracks])
     return {
-        "tracks": [_track_payload(track) for track in tracks],
-        "total": db.count_tracks(profile),
+        "tracks": [
+            {**_track_payload(track), "tags": _compact_tags(stored.get(track["id"]))}
+            for track in tracks
+        ],
+        "total": db.count_matching_tracks(
+            query=query, unassigned_in_collection=unassigned_in, profile=profile, tags=tag_filters
+        ),
         "limit": limit,
         "offset": offset,
     }
@@ -387,7 +421,71 @@ async def get_track(track_id: int):
         **_track_payload(track),
         "groups": db.find_track_groups(track_id),
         "exists": os.path.exists(track["filepath"]),
+        "tags": _compact_tags(db.get_tags(track_id)),
     }
+
+
+@app.get("/api/tracks/{track_id}/tags")
+async def get_track_tags(track_id: int):
+    """Every tag for a track, with the scores and measurements behind them.
+
+    404s for a track that has not been tagged yet — POST /api/tags to tag it.
+    """
+    db = get_db()
+    if not db.get_track(track_id):
+        raise HTTPException(status_code=404, detail="Track not found")
+    tags = db.get_tags(track_id)
+    if tags is None:
+        raise HTTPException(status_code=404, detail="This track has not been tagged yet")
+    return {"track_id": track_id, **tags}
+
+
+@app.get("/api/tags")
+async def get_tag_vocabulary():
+    """The tag vocabulary, and how many tracks carry each tag."""
+    db = get_db()
+    return {
+        **tagging.vocabulary(),
+        "counts": db.tag_counts(),
+        "untagged": len(db.tracks_needing_tags(None, None)),
+        "version": tagging.TAGGER_VERSION,
+    }
+
+
+@app.post("/api/tags")
+async def run_tagging(request: TagRequest):
+    """Tag music in the background: new paths, given tracks, or everything untagged."""
+
+    def worker(update, **_):
+        config, db = get_context()
+        analysed: Dict[str, Any] = {}
+        track_ids = request.track_ids
+        if request.paths:
+            result = analyze_paths(
+                db,
+                config,
+                request.paths,
+                workers=request.workers,
+                progress=progress_updater(update, "Analysing"),
+                profile=profiles.MUSIC,
+            )
+            analysed = result.to_dict()
+            track_ids = (track_ids or []) + result.track_ids
+        tagged = tag_tracks(
+            db,
+            config,
+            track_ids,
+            update=request.update,
+            workers=request.workers,
+            progress=progress_updater(update, "Tagging"),
+        )
+        payload = tagged.to_dict()
+        # Tracks analysed just now were tagged during analysis, not here.
+        payload["tagged"] += int(analysed.get("tagged", 0))
+        payload["analyzed"] = analysed.get("analyzed", 0)
+        return payload
+
+    return {"task_id": start_task("tag", worker)}
 
 
 @app.get("/api/tracks/{track_id}/audio")
@@ -676,11 +774,14 @@ async def get_group(group_id: int, limit: int = Query(200, ge=1, le=2000), offse
         for entry in (model["metrics"].get("per_group", []) if model else [])
     }
 
+    members = db.get_group_members(group_id, limit, offset)
+    stored = db.get_tags_many([track["id"] for track in members])
     return {
         "group": group,
         "size": len(member_ids),
         "members": [
-            _track_payload(track) for track in db.get_group_members(group_id, limit, offset)
+            {**_track_payload(track), "tags": _compact_tags(stored.get(track["id"]))}
+            for track in members
         ],
         "quality": per_group.get(group_id),
     }
@@ -893,8 +994,10 @@ async def get_session_items(
         raise HTTPException(status_code=404, detail="Session not found")
 
     items = db.list_sort_items(session_id, status=status, limit=limit, offset=offset)
+    stored = db.get_tags_many([item["track_id"] for item in items])
     for item in items:
         item["display"] = display_name(item)
+        item["tags"] = _compact_tags(stored.get(item["track_id"]))
     return {
         "items": items,
         "summary": db.sort_session_summary(session_id),
@@ -1134,6 +1237,13 @@ def _require_collection(db: Database, collection_id: int) -> Dict:
 
 def _track_payload(track: Dict) -> Dict:
     return {**track, "display": display_name(track)}
+
+
+def _compact_tags(tags: Optional[Dict]) -> Optional[Dict]:
+    """A track's tags without the scores and measurements: what a list shows."""
+    if not tags:
+        return None
+    return {key: value for key, value in tags.items() if key not in ("scores", "descriptors")}
 
 
 def _model_payload(model: Optional[Dict]) -> Optional[Dict]:

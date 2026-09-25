@@ -345,3 +345,78 @@ def test_a_sample_track_reports_its_category_and_measurements(client, rng):
     assert body["guess"]["category"] == "kick"
     assert body["descriptors"]["duration"] > 0
     assert body["descriptors"]["low_energy"] > body["descriptors"]["high_energy"]
+
+
+def _tags(genre, beat, moods, energy):
+    return {
+        "genre": genre,
+        "beat": beat,
+        "moods": moods,
+        "energy": energy,
+        "energy_level": round(1 + 9 * energy),
+        "danceability": 0.8,
+        "bpm": 124.0,
+        "camelot": "8A",
+        "version": "1",
+        "scores": {"beat": {beat: 0.9}},
+        "descriptors": {"loudness_db": -9.0},
+    }
+
+
+def test_tracks_carry_and_filter_by_tags(client, seeded):
+    db, _, _ = seeded
+    first, second = db.list_tracks(limit=2)
+    db.save_tags(first["id"], _tags("house", "four_on_floor", ["dark"], 0.5))
+    db.save_tags(second["id"], _tags("drum_and_bass", "half_time", ["aggressive"], 0.9))
+
+    everything = client.get("/api/tracks?limit=100").json()
+    tagged = {track["id"]: track["tags"] for track in everything["tracks"] if track["tags"]}
+    assert tagged[first["id"]]["genre"] == "house"
+    # Lists carry the tags, not the measurements behind them.
+    assert "descriptors" not in tagged[first["id"]]
+
+    half_time = client.get("/api/tracks?beat=half_time").json()
+    assert [track["id"] for track in half_time["tracks"]] == [second["id"]]
+    assert half_time["total"] == 1
+
+    assert client.get("/api/tracks?min_energy=0.8").json()["total"] == 1
+    assert client.get("/api/tracks?mood=dark").json()["total"] == 1
+    assert client.get("/api/tracks?tagged=false").json()["total"] == 22
+
+
+def test_track_tags_detail_includes_the_evidence(client, seeded):
+    db, _, _ = seeded
+    track = db.list_tracks(limit=1)[0]
+    assert client.get(f"/api/tracks/{track['id']}/tags").status_code == 404
+
+    db.save_tags(track["id"], _tags("house", "four_on_floor", [], 0.5))
+    detail = client.get(f"/api/tracks/{track['id']}/tags").json()
+    assert detail["beat"] == "four_on_floor"
+    assert detail["descriptors"] == {"loudness_db": -9.0}
+    assert client.get(f"/api/tracks/{track['id']}").json()["tags"]["genre"] == "house"
+
+
+def test_vocabulary_reports_counts_and_untagged(client, seeded):
+    db, _, _ = seeded
+    track = db.list_tracks(limit=1)[0]
+    db.save_tags(track["id"], _tags("house", "four_on_floor", ["dark"], 0.5))
+
+    vocabulary = client.get("/api/tags").json()
+    assert {term["key"] for term in vocabulary["beats"]} >= {"half_time", "two_step", "baile_funk"}
+    assert vocabulary["counts"]["beats"] == {"four_on_floor": 1}
+    assert vocabulary["untagged"] == 23
+
+
+def test_tagging_runs_as_a_task(client, seeded):
+    """Files are not real here, so every track fails — but the task reports it."""
+    db, _, _ = seeded
+    from music_cluster.config import Config
+
+    config = Config()
+    config.set(["performance", "num_workers"], 1)
+    config.save()
+
+    task = wait_for(client, client.post("/api/tags", json={}).json()["task_id"])
+    assert task["status"] == "completed"
+    assert task["result"]["tagged"] == 0
+    assert task["result"]["failed"] == 24

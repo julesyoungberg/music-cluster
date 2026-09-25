@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import PlayButton from './PlayButton.svelte';
+  import TagChips from './TagChips.svelte';
   import type { Track } from '$lib/types';
   import { formatDuration, trackLabel } from '$lib/utils';
 
@@ -28,6 +29,9 @@
   <div class="min-w-0 flex-1">
     <p class="truncate text-sm font-medium">{trackLabel(track)}</p>
     <p class="truncate text-xs text-muted-foreground">{subtitle || meta}</p>
+    {#if track.tags && !dense}
+      <div class="mt-1"><TagChips tags={track.tags} compact /></div>
+    {/if}
   </div>
   {#if actions}
     <div class="flex shrink-0 items-center gap-1">{@render actions()}</div>

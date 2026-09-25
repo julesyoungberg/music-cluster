@@ -22,6 +22,68 @@ export interface Track {
   tag_key?: string | null;
   duration?: number | null;
   role?: string;
+  /** Auto-tags, when the track has been tagged. Samples never are. */
+  tags?: TrackTags | null;
+}
+
+/**
+ * What a track is, as opposed to which of the DJ's groups it belongs in.
+ *
+ * Keys come from the tagger's vocabulary (see `TagVocabulary`); the `*_label`
+ * fields are the same thing ready to show.
+ */
+export interface TrackTags {
+  genre: string | null;
+  genre_label: string | null;
+  beat: string | null;
+  beat_label: string | null;
+  moods: string[];
+  mood_labels: string[];
+  /** 0-1, and the same on the 1-10 scale DJs already use. */
+  energy: number;
+  energy_level: number;
+  energy_label: string;
+  danceability: number;
+  bpm: number | null;
+  key: string | null;
+  camelot: string | null;
+  swung: boolean;
+  confidence: Record<string, number>;
+  labels: string[];
+  version: string;
+  tagged_at?: string;
+}
+
+export interface TagTerm {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface TagVocabulary {
+  beats: TagTerm[];
+  genres: TagTerm[];
+  moods: TagTerm[];
+  counts: {
+    tagged: number;
+    genres: Record<string, number>;
+    beats: Record<string, number>;
+    moods: Record<string, number>;
+  };
+  untagged: number;
+  version: string;
+}
+
+/** Library filters on auto-tags. Energy bounds are 0-1. */
+export interface TagFilters {
+  genre?: string;
+  beat?: string;
+  mood?: string;
+  minEnergy?: number;
+  maxEnergy?: number;
+  minDanceability?: number;
+  camelot?: string;
+  tagged?: boolean;
 }
 
 /**

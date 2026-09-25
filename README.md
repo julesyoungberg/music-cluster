@@ -131,6 +131,57 @@ music-cluster collection list
    2  Drum library                 sample   11 groups     842 tracks
 ```
 
+## Auto-tagging
+
+Groups say which of *your* folders a track belongs in. Tags say what it *is*,
+in the words you would use to describe it to another DJ:
+
+```
+music-cluster tags find --beat half_time --min-energy 7
+
+  Artist A - Roller                     Drum & Bass · Half-time · Dark · E8 · dance 0.81 · 172 BPM · 8A
+  Artist B - Weight                     Dubstep · Half-time · Hypnotic · E7 · dance 0.77 · 140 BPM · 5A
+```
+
+| Tag | What it is |
+| --- | --- |
+| **Beat type** | Four to the floor, half-time, 2-step, breaks, baile funk (tamborzão), dembow, backbeat, or beatless — plus whether it swings |
+| **Genre** | House, deep house, tech house, techno, hard techno, trance, UK garage, breaks, drum & bass, jungle, dubstep, trap, baile funk, reggaeton, hip hop, downtempo, ambient |
+| **Mood** | One or two of dark, euphoric, melancholic, aggressive, chill, hypnotic, groovy |
+| **Energy** | 1–10 |
+| **Danceability** | 0–1 |
+| **Key** | With its Camelot code, for mixing in key |
+
+Music is tagged while it is analysed, from the same decoded audio, so there is
+no second pass. A library analysed before tagging existed is tagged with:
+
+```bash
+music-cluster tags run                  # everything analysed that has no tags yet
+music-cluster tags show "roller" --why  # the scores and drum pattern behind the tags
+music-cluster tags summary              # the library by genre, beat and mood
+music-cluster tags vocabulary           # every tag, and what it means
+```
+
+The library screen in the desktop app filters by genre, beat, mood and energy,
+and the review screen shows each track's tags next to its group suggestions.
+
+**How beat type is measured.** The spectrum is split into kick, snare and hat
+bands; the beat is tracked; each band is sampled twelve times per beat and
+folded into one averaged bar — the track's drum pattern, as you would draw it
+in a sequencer. That is what separates a four-to-the-floor from a 2-step at
+the same 132 BPM: the 2-step has no kick on three. A half-time roller has one
+snare per bar; a tamborzão plays its low end in 3+3+2. Beat trackers routinely
+count a 172 as 86, so a slow reading whose sixteenths are busy is re-read at
+double time. Swing is measured from how late the offbeat hats land.
+
+**What it is not.** Every tag is a readable rule over measured quantities
+(`music_cluster/tagging.py`), not a trained model — in the same spirit as the
+sample classifier. That makes each tag explainable, and means it will be wrong
+in explainable ways: genre comes mostly from tempo and beat type, so it cannot
+hear the difference between two genres that share both, and a genre tag
+already in the file is used as evidence to tip close calls. Tags never move a
+file and never change a group.
+
 ## Desktop app
 
 The same workflow with audio previews and waveforms, which is what you actually
@@ -234,6 +285,8 @@ Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 | `discover PATH` / `candidates ID` | Propose and review candidate groups |
 | `similar QUERY` | Find tracks that sound like one you name |
 | `search QUERY` | Search the library and show group membership |
+| `tags run [PATH]` | Tag music (genre, beat type, mood, energy, danceability, key) |
+| `tags find` / `show` / `summary` / `vocabulary` | Browse the library by tag |
 | `samples classify PATH` | Report what a folder of one-shots looks like |
 | `samples categories` | List the sample categories used for naming |
 | `config --set KEY=VALUE` | Read or change settings |
@@ -275,6 +328,9 @@ sorting:
 organize:
   mode: playlist                # default filing mode
   on_conflict: skip
+
+tagging:
+  on_analyze: true              # tag music while analysing it
 
 feature_extraction:
   excerpt_seconds: 90           # analyse the middle 90s; 0 for the whole file
@@ -320,6 +376,8 @@ pip install -e .
 
 - Analysis: roughly a second per track with the default 90-second excerpt,
   across all CPU cores. A 10,000-track library takes well under an hour.
+  Auto-tagging runs on the same decoded audio and adds about 60% to that;
+  `tagging.on_analyze: false` turns it off, and `tags run` catches up later.
   One-shots are quicker — around a tenth of a second each for typical drum
   hits, longer for multi-second loops.
 - Fitting: seconds.

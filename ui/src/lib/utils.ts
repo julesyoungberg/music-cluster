@@ -91,3 +91,13 @@ export function formatSampleLength(seconds?: number | null): string {
   if (seconds < 10) return `${seconds.toFixed(2)} s`;
   return formatDuration(seconds);
 }
+
+/**
+ * A 1-10 energy level as the 0-1 lower bound the API filters on.
+ *
+ * Levels are rounded from the stored 0-1 value, so level 7 starts half a step
+ * below 7 — the bound that includes everything shown as 7.
+ */
+export function energyLevelToBound(level: number): number {
+  return Math.min(Math.max((level - 1.5) / 9, 0), 1);
+}

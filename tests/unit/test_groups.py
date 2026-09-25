@@ -19,7 +19,7 @@ def fake_extraction(monkeypatch, rng):
     """Stub extraction that gives each folder its own region of feature space."""
     centres: dict = {}
 
-    def extract_one(filepath, extractor_config):
+    def extract_one(filepath, extractor_config, tag=False):
         folder = os.path.dirname(filepath)
         if folder not in centres:
             centres[folder] = rng.normal(0, 1, FEATURE_DIM) * 8.0

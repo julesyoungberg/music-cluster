@@ -18,7 +18,7 @@ import numpy as np
 from . import profiles
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def utc_now() -> str:
@@ -231,12 +231,36 @@ class Database:
                     value TEXT
                 );
 
+                -- Auto-tags: what a track is (genre, beat, mood, energy), as
+                -- opposed to which of the DJ's groups it belongs in. The
+                -- headline tags are columns so the library can filter on
+                -- them; everything behind them is kept in the payload.
+                CREATE TABLE IF NOT EXISTS track_tags (
+                    track_id INTEGER PRIMARY KEY,
+                    genre TEXT,
+                    beat TEXT,
+                    -- Comma-wrapped (",dark,hypnotic,") so one LIKE finds a mood.
+                    moods TEXT,
+                    energy REAL,
+                    danceability REAL,
+                    bpm REAL,
+                    musical_key TEXT,
+                    camelot TEXT,
+                    swung INTEGER DEFAULT 0,
+                    payload TEXT,
+                    version TEXT,
+                    tagged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_tracks_filepath ON tracks(filepath);
                 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
                 CREATE INDEX IF NOT EXISTS idx_group_members_track ON group_members(track_id);
                 CREATE INDEX IF NOT EXISTS idx_groups_collection ON groups(collection_id);
                 CREATE INDEX IF NOT EXISTS idx_sort_items_session ON sort_items(session_id);
                 CREATE INDEX IF NOT EXISTS idx_file_actions_session ON file_actions(session_id);
+                CREATE INDEX IF NOT EXISTS idx_track_tags_genre ON track_tags(genre);
+                CREATE INDEX IF NOT EXISTS idx_track_tags_beat ON track_tags(beat);
                 """
             )
 
@@ -471,13 +495,45 @@ class Database:
         query: Optional[str] = None,
         unassigned_in_collection: Optional[int] = None,
         profile: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
     ) -> List[Dict]:
-        """List tracks, optionally filtered by text, membership, or profile.
+        """List tracks, optionally filtered by text, membership, profile or tags.
 
         Filtering by profile answers "what has been analysed as samples?",
         which is how the library screen separates a one-shot collection from a
-        record collection living in the same database.
+        record collection living in the same database. ``tags`` takes the
+        filters understood by :meth:`_tag_clauses`.
         """
+        where, params = self._track_filters(query, unassigned_in_collection, profile, tags)
+        params.extend([limit, offset])
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"SELECT t.* FROM tracks t {where} ORDER BY t.artist, t.title, t.filename"
+                " LIMIT ? OFFSET ?",
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def count_matching_tracks(
+        self,
+        query: Optional[str] = None,
+        unassigned_in_collection: Optional[int] = None,
+        profile: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """How many tracks :meth:`list_tracks` would return without paging."""
+        where, params = self._track_filters(query, unassigned_in_collection, profile, tags)
+        with self.connection() as conn:
+            return conn.execute(f"SELECT COUNT(*) FROM tracks t {where}", params).fetchone()[0]
+
+    def _track_filters(
+        self,
+        query: Optional[str],
+        unassigned_in_collection: Optional[int],
+        profile: Optional[str],
+        tags: Optional[Dict[str, Any]],
+    ) -> Tuple[str, List[Any]]:
         clauses: List[str] = []
         params: List[Any] = []
 
@@ -502,16 +558,12 @@ class Database:
             )
             params.append(unassigned_in_collection)
 
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        params.extend([limit, offset])
+        tag_clauses, tag_params = _tag_clauses(tags or {})
+        clauses.extend(tag_clauses)
+        params.extend(tag_params)
 
-        with self.connection() as conn:
-            rows = conn.execute(
-                f"SELECT t.* FROM tracks t {where} ORDER BY t.artist, t.title, t.filename"
-                " LIMIT ? OFFSET ?",
-                params,
-            ).fetchall()
-            return [dict(row) for row in rows]
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        return where, params
 
     def count_tracks(self, profile: Optional[str] = None) -> int:
         with self.connection() as conn:
@@ -626,6 +678,138 @@ class Database:
             ).fetchall()
         have = {row[0] for row in rows}
         return [tid for tid in track_ids if tid not in have]
+
+    # ------------------------------------------------------------------
+    # Auto-tags
+    # ------------------------------------------------------------------
+
+    def save_tags(self, track_id: int, tags: Dict[str, Any]) -> None:
+        """Store a track's tags, replacing any it had.
+
+        ``tags`` is :meth:`music_cluster.tagging.TrackTags.to_dict` output.
+        """
+        moods = [str(mood) for mood in tags.get("moods") or []]
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO track_tags
+                    (track_id, genre, beat, moods, energy, danceability, bpm,
+                     musical_key, camelot, swung, payload, version, tagged_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    track_id,
+                    tags.get("genre"),
+                    tags.get("beat"),
+                    f",{','.join(moods)}," if moods else None,
+                    tags.get("energy"),
+                    tags.get("danceability"),
+                    tags.get("bpm"),
+                    tags.get("key"),
+                    tags.get("camelot"),
+                    1 if tags.get("swung") else 0,
+                    json.dumps(tags),
+                    str(tags.get("version") or ""),
+                    utc_now(),
+                ),
+            )
+            conn.commit()
+
+    def get_tags(self, track_id: int) -> Optional[Dict[str, Any]]:
+        """A track's stored tags, or None if it has never been tagged."""
+        return self.get_tags_many([track_id]).get(track_id)
+
+    def get_tags_many(self, track_ids: Sequence[int]) -> Dict[int, Dict[str, Any]]:
+        """Stored tags for many tracks, keyed by ID. Untagged tracks are absent."""
+        if not track_ids:
+            return {}
+        result: Dict[int, Dict[str, Any]] = {}
+        ids = list(track_ids)
+        with self.connection() as conn:
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    "SELECT track_id, payload, version, tagged_at FROM track_tags"
+                    f" WHERE track_id IN ({placeholders})",
+                    chunk,
+                ).fetchall()
+                for row in rows:
+                    try:
+                        payload = json.loads(row["payload"]) if row["payload"] else {}
+                    except json.JSONDecodeError:
+                        payload = {}
+                    payload["tagged_at"] = row["tagged_at"]
+                    payload.setdefault("version", row["version"])
+                    result[row["track_id"]] = payload
+        return result
+
+    def tracks_needing_tags(
+        self, track_ids: Optional[Sequence[int]] = None, version: Optional[str] = None
+    ) -> List[int]:
+        """Tracks with no tags, or with tags from a different tagger version.
+
+        With no ``track_ids``, checks every track analysed as music — samples
+        are one-shots, and a beat type or a genre means nothing for a kick.
+        """
+        with self.connection() as conn:
+            if track_ids is None:
+                rows = conn.execute(
+                    "SELECT t.id, tt.version FROM tracks t"
+                    " JOIN features f ON f.track_id = t.id AND f.profile = 'music'"
+                    " LEFT JOIN track_tags tt ON tt.track_id = t.id ORDER BY t.id"
+                ).fetchall()
+                pairs = [(row[0], row[1]) for row in rows]
+            else:
+                ids = list(track_ids)
+                known: Dict[int, Optional[str]] = {}
+                for start in range(0, len(ids), 500):
+                    chunk = ids[start : start + 500]
+                    placeholders = ",".join("?" for _ in chunk)
+                    for row in conn.execute(
+                        "SELECT track_id, version FROM track_tags"
+                        f" WHERE track_id IN ({placeholders})",
+                        chunk,
+                    ).fetchall():
+                        known[row[0]] = row[1]
+                pairs = [(tid, known.get(tid)) for tid in ids]
+        return [
+            tid
+            for tid, stored in pairs
+            if stored is None or (version is not None and str(stored) != str(version))
+        ]
+
+    def delete_tags(self, track_id: int) -> bool:
+        with self.connection() as conn:
+            cursor = conn.execute("DELETE FROM track_tags WHERE track_id = ?", (track_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def tag_counts(self) -> Dict[str, Any]:
+        """How many tracks carry each genre, beat and mood: the library's facets."""
+        with self.connection() as conn:
+            genres = conn.execute(
+                "SELECT genre, COUNT(*) FROM track_tags WHERE genre IS NOT NULL GROUP BY genre"
+            ).fetchall()
+            beats = conn.execute(
+                "SELECT beat, COUNT(*) FROM track_tags WHERE beat IS NOT NULL GROUP BY beat"
+            ).fetchall()
+            mood_rows = conn.execute(
+                "SELECT moods FROM track_tags WHERE moods IS NOT NULL"
+            ).fetchall()
+            tagged = conn.execute("SELECT COUNT(*) FROM track_tags").fetchone()[0]
+
+        moods: Dict[str, int] = {}
+        for (raw,) in mood_rows:
+            for mood in str(raw).strip(",").split(","):
+                if mood:
+                    moods[mood] = moods.get(mood, 0) + 1
+        return {
+            "tagged": tagged,
+            "genres": {row[0]: row[1] for row in genres},
+            "beats": {row[0]: row[1] for row in beats},
+            "moods": moods,
+        }
 
     # ------------------------------------------------------------------
     # Collections
@@ -1315,6 +1499,44 @@ class Database:
                 [*list(updates.values()), run_id],
             )
             conn.commit()
+
+
+def _tag_clauses(tags: Dict[str, Any]) -> Tuple[List[str], List[Any]]:
+    """SQL for tag filters on the ``tracks t`` alias.
+
+    Understood keys: ``genre``, ``beat``, ``mood`` (exact keys from the
+    tagging vocabulary), ``min_energy``/``max_energy`` and
+    ``min_danceability`` (0-1), ``camelot``, ``swung`` (bool), and
+    ``tagged`` (True for only tagged tracks, False for only untagged ones).
+    """
+    clauses: List[str] = []
+    params: List[Any] = []
+
+    def column(sql: str, value: Any) -> None:
+        clauses.append(f"EXISTS (SELECT 1 FROM track_tags tt WHERE tt.track_id = t.id AND {sql})")
+        params.append(value)
+
+    if tags.get("genre"):
+        column("tt.genre = ?", tags["genre"])
+    if tags.get("beat"):
+        column("tt.beat = ?", tags["beat"])
+    if tags.get("mood"):
+        column("tt.moods LIKE ?", f"%,{tags['mood']},%")
+    if tags.get("camelot"):
+        column("tt.camelot = ?", str(tags["camelot"]).upper())
+    if tags.get("min_energy") is not None:
+        column("tt.energy >= ?", float(tags["min_energy"]))
+    if tags.get("max_energy") is not None:
+        column("tt.energy <= ?", float(tags["max_energy"]))
+    if tags.get("min_danceability") is not None:
+        column("tt.danceability >= ?", float(tags["min_danceability"]))
+    if tags.get("swung") is not None:
+        column("tt.swung = ?", 1 if tags["swung"] else 0)
+    if tags.get("tagged") is True:
+        clauses.append("EXISTS (SELECT 1 FROM track_tags tt WHERE tt.track_id = t.id)")
+    elif tags.get("tagged") is False:
+        clauses.append("NOT EXISTS (SELECT 1 FROM track_tags tt WHERE tt.track_id = t.id)")
+    return clauses, params
 
 
 def _stack(vectors: List[np.ndarray], track_ids: List[int]) -> Tuple[np.ndarray, List[int]]:

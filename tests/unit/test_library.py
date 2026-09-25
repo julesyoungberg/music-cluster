@@ -35,7 +35,7 @@ def fake_extraction(monkeypatch):
     seen: list = []
     failures: set = set()
 
-    def extract_one(filepath, extractor_config):
+    def extract_one(filepath, extractor_config, tag=False):
         seen.append(filepath)
         if filepath in failures:
             return {"filepath": filepath, "error": "Could not decode audio"}
