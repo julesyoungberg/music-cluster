@@ -3,3 +3,9 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.1
 httpx>=0.27.0
+
+# Lint (CI runs `ruff format --check`, `ruff check` and `mypy`). Ruff is pinned
+# because a new release can reformat code that an older one left alone.
+ruff==0.15.8
+mypy>=1.10
+types-PyYAML

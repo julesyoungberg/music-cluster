@@ -9,6 +9,7 @@
   import LoadingState from '$lib/components/LoadingState.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import Waveform from '$lib/components/Waveform.svelte';
+  import TagChips from '$lib/components/TagChips.svelte';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import { playTrack } from '$lib/stores/player';
   import type { CommitPlan, Group, OrganizeMode, SortItem, SortSession } from '$lib/types';
@@ -315,6 +316,9 @@
                   .filter(Boolean)
                   .join(' · ')}
               </p>
+              {#if current.tags}
+                <div class="mt-2"><TagChips tags={current.tags} /></div>
+              {/if}
             </div>
             <span class="shrink-0 text-sm tabular-nums text-muted-foreground">
               {cursor + 1} / {items.length}

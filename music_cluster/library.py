@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Set
 
-from . import profiles
+from . import profiles, tagging
 from .config import Config
 from .database import Database
 from .extractor import FeatureExtractor
@@ -28,6 +28,7 @@ class AnalysisResult:
     analyzed: int = 0
     skipped: int = 0
     failed: int = 0
+    tagged: int = 0
     track_ids: List[int] = field(default_factory=list)
     errors: List[Dict[str, str]] = field(default_factory=list)
 
@@ -40,6 +41,7 @@ class AnalysisResult:
             "analyzed": self.analyzed,
             "skipped": self.skipped,
             "failed": self.failed,
+            "tagged": self.tagged,
             "total": self.total,
             "track_ids": self.track_ids,
             "errors": self.errors[:50],
@@ -67,22 +69,31 @@ def collect_files(
     return found
 
 
-def _extract_one(filepath: str, extractor_config: Dict) -> Dict:
-    """Worker: extract features and metadata for one file."""
+def _extract_one(filepath: str, extractor_config: Dict, tag: bool = False) -> Dict:
+    """Worker: extract features and metadata (and optionally tags) for one file."""
     try:
         extractor = FeatureExtractor(**extractor_config)
-        features = extractor.extract(filepath)
+        audio = extractor.load(filepath)
+        features = extractor.extract_audio(*audio, filepath=filepath) if audio else None
         if features is None:
             return {"filepath": filepath, "error": "Could not decode audio"}
 
-        return {
+        metadata = read_metadata(filepath)
+        payload = {
             "filepath": filepath,
             "features": features,
             "duration": extractor.get_audio_duration(filepath),
             "file_info": get_file_info(filepath),
             "checksum": compute_file_checksum(filepath),
-            "metadata": read_metadata(filepath),
+            "metadata": metadata,
         }
+        if tag and audio is not None:
+            # Same decoded excerpt the features came from: tagging costs
+            # measurement time here, never a second read of the file.
+            tags = tagging.tag_audio(audio[0], audio[1], metadata)
+            if tags is not None:
+                payload["tags"] = tags.to_dict()
+        return payload
     except Exception as exc:
         return {"filepath": filepath, "error": str(exc)}
 
@@ -110,6 +121,9 @@ def analyze_files(
     result = AnalysisResult()
     profile = profiles.normalize(profile)
     extractor_config = config.extractor_config(profile)
+    # Tags describe songs — a beat type or a mood means nothing for a kick —
+    # so only music is tagged.
+    tag = profile == profiles.MUSIC and bool(config.get("tagging", "on_analyze", default=True))
     analysis_version = config.get("feature_extraction", "analysis_version", default="2.0.0")
 
     pending: List[str] = []
@@ -149,6 +163,9 @@ def analyze_files(
                 metadata=payload["metadata"],
             )
             db.add_features(track_id, payload["features"], profile)
+            if payload.get("tags"):
+                db.save_tags(track_id, payload["tags"])
+                result.tagged += 1
             result.analyzed += 1
             result.track_ids.append(track_id)
         if progress:
@@ -156,11 +173,11 @@ def analyze_files(
 
     if worker_count == 1:
         for filepath in pending:
-            handle(_extract_one(filepath, extractor_config))
+            handle(_extract_one(filepath, extractor_config, tag))
     else:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {
-                executor.submit(_extract_one, filepath, extractor_config): filepath
+                executor.submit(_extract_one, filepath, extractor_config, tag): filepath
                 for filepath in pending
             }
             for future in as_completed(futures):
@@ -198,6 +215,117 @@ def analyze_paths(
         progress=progress,
         profile=profile,
     )
+
+
+@dataclass
+class TaggingResult:
+    """Outcome of a tagging run."""
+
+    tagged: int = 0
+    skipped: int = 0
+    failed: int = 0
+    track_ids: List[int] = field(default_factory=list)
+    errors: List[Dict[str, str]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict:
+        return {
+            "tagged": self.tagged,
+            "skipped": self.skipped,
+            "failed": self.failed,
+            "track_ids": self.track_ids,
+            "errors": self.errors[:50],
+        }
+
+
+def _tag_one(filepath: str, extractor_config: Dict, metadata: Dict) -> Dict:
+    """Worker: decode one file and tag it."""
+    try:
+        audio = FeatureExtractor(**extractor_config).load(filepath)
+        if audio is None:
+            return {"filepath": filepath, "error": "Could not decode audio"}
+        tags = tagging.tag_audio(audio[0], audio[1], metadata)
+        if tags is None:
+            return {"filepath": filepath, "error": "Could not measure audio"}
+        return {"filepath": filepath, "tags": tags.to_dict()}
+    except Exception as exc:
+        return {"filepath": filepath, "error": str(exc)}
+
+
+def tag_tracks(
+    db: Database,
+    config: Config,
+    track_ids: Optional[Sequence[int]] = None,
+    update: bool = False,
+    workers: Optional[int] = None,
+    progress: Optional[ProgressCallback] = None,
+) -> TaggingResult:
+    """Tag tracks already in the library.
+
+    Analysis tags new music as it goes; this is for everything analysed
+    before tagging existed, for tags left behind by an older tagger version,
+    and (with ``update``) for re-tagging on demand. Decodes each file again,
+    since the library keeps feature vectors, not audio.
+
+    Args:
+        track_ids: Which tracks. None means every track analysed as music.
+        update: Re-tag tracks that already have current tags.
+    """
+    result = TaggingResult()
+    if track_ids is None:
+        candidates = (
+            [row["id"] for row in db.list_tracks(limit=10**9, profile=profiles.MUSIC)]
+            if update
+            else db.tracks_needing_tags(None, tagging.TAGGER_VERSION)
+        )
+    else:
+        candidates = (
+            list(track_ids) if update else db.tracks_needing_tags(track_ids, tagging.TAGGER_VERSION)
+        )
+        result.skipped = len(track_ids) - len(candidates)
+
+    tracks = db.get_tracks(candidates)
+    pending = [tracks[tid] for tid in candidates if tid in tracks]
+    if not pending:
+        if progress:
+            progress(0, 0, "")
+        return result
+
+    extractor_config = config.extractor_config(profiles.MUSIC)
+    worker_count = resolve_worker_count(
+        workers if workers is not None else config.get("performance", "num_workers", default=-1)
+    )
+    by_path = {track["filepath"]: track for track in pending}
+    done = 0
+    total = len(pending)
+
+    def handle(payload: Dict) -> None:
+        nonlocal done
+        done += 1
+        track = by_path[payload["filepath"]]
+        if "error" in payload:
+            result.failed += 1
+            result.errors.append({"filepath": payload["filepath"], "error": payload["error"]})
+        else:
+            db.save_tags(track["id"], payload["tags"])
+            result.tagged += 1
+            result.track_ids.append(track["id"])
+        if progress:
+            progress(done, total, payload["filepath"])
+
+    def job(track: Dict) -> Dict:
+        if not os.path.isfile(track["filepath"]):
+            return {"filepath": track["filepath"], "error": "File not found"}
+        return _tag_one(track["filepath"], extractor_config, track)
+
+    if worker_count == 1:
+        for track in pending:
+            handle(job(track))
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            for future in as_completed([executor.submit(job, track) for track in pending]):
+                handle(future.result())
+
+    return result
 
 
 def prune_missing(db: Database) -> List[int]:

@@ -27,7 +27,7 @@ def incoming(temp_dir, monkeypatch, rng, collection):
 
     target_centre = centres[0]
 
-    def extract_one(filepath, extractor_config):
+    def extract_one(filepath, extractor_config, tag=False):
         return {
             "filepath": filepath,
             "features": make_vector(rng, target_centre),
@@ -365,7 +365,7 @@ def test_a_track_far_from_every_group_is_reported_as_unmatched(
     folder.mkdir()
     (folder / "outlier.mp3").write_bytes(b"pretend audio")
 
-    def extract_one(filepath, extractor_config):
+    def extract_one(filepath, extractor_config, tag=False):
         return {
             "filepath": filepath,
             # Far outside every group's region of the space.

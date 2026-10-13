@@ -13,7 +13,7 @@ something for a single sonic event.
 import itertools
 import logging
 import warnings
-from typing import Optional
+from typing import Optional, Tuple
 
 import librosa
 import numpy as np
@@ -269,13 +269,35 @@ class FeatureExtractor:
 
     def extract(self, filepath: str) -> Optional[np.ndarray]:
         """Extract features, returning None when the file cannot be decoded."""
+        audio = self.load(filepath)
+        if audio is None:
+            return None
+        return self.extract_audio(*audio, filepath=filepath)
+
+    def load(self, filepath: str) -> Optional[Tuple[np.ndarray, int]]:
+        """Decode the audio this profile analyses, or None if it cannot be.
+
+        Public so that other measurements of the same excerpt — auto-tagging,
+        chiefly — can share one decode with feature extraction instead of
+        paying for a second.
+        """
         try:
             y, sr = self._load(filepath)
-            if y is None or len(y) == 0:
-                return None
+        except Exception as exc:
+            logger.warning("Could not decode %s: %s", filepath, exc)
+            return None
+        if y is None or len(y) == 0:
+            return None
+        return y, int(sr)
+
+    def extract_audio(
+        self, y: np.ndarray, sr: int, filepath: Optional[str] = None
+    ) -> Optional[np.ndarray]:
+        """Extract features from already-decoded audio."""
+        try:
             return self._extract_all_features(y, sr)
         except Exception as exc:
-            logger.warning("Feature extraction failed for %s: %s", filepath, exc)
+            logger.warning("Feature extraction failed for %s: %s", filepath or "audio", exc)
             return None
 
     def _load(self, filepath: str):

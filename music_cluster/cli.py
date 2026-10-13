@@ -23,10 +23,10 @@ from tqdm import tqdm
 
 from . import discovery as discovery_mod
 from . import groups as groups_mod
-from . import organizer, profiles, samples, sorting
+from . import organizer, profiles, samples, sorting, tagging
 from .config import Config
 from .database import Database
-from .library import analyze_paths, prune_missing
+from .library import analyze_paths, prune_missing, tag_tracks
 from .metadata import display_name
 from .utils import parse_extensions
 
@@ -180,6 +180,8 @@ def analyze(paths, recursive, update, extensions, workers, profile):
         f"\nAnalysed {result.analyzed}, skipped {result.skipped} (already known), "
         f"failed {result.failed}."
     )
+    if result.tagged:
+        click.echo(f"Tagged {result.tagged}. See them with: music-cluster tags find")
     for error in result.errors[:5]:
         click.echo(f"  {os.path.basename(error['filepath'])}: {error['error']}")
 
@@ -1135,6 +1137,186 @@ def samples_classify(paths, limit, names, workers):
         click.echo(f"  {count:>5}  {label}")
     if len(found) < len(result.track_ids):
         click.echo(f"\n({len(found)} of {len(result.track_ids)} shown; raise --limit for more)")
+
+
+# ----------------------------------------------------------------------
+# Auto-tags
+# ----------------------------------------------------------------------
+
+
+def _energy_bounds(level: Optional[int], upper: bool) -> Optional[float]:
+    """A 1-10 energy level as the 0-1 bound the database stores."""
+    if level is None:
+        return None
+    offset = 0.5 if upper else -0.5
+    return float(min(max((level - 1 + offset) / 9.0, 0.0), 1.0))
+
+
+def _tag_line(tags: Dict) -> str:
+    """One line of tags, in the order a DJ reads them."""
+    parts = []
+    if tags.get("genre_label"):
+        parts.append(click.style(tags["genre_label"], fg="cyan"))
+    if tags.get("beat_label"):
+        beat = tags["beat_label"]
+        if tags.get("swung") and tags.get("beat") != "beatless":
+            beat = f"swung {beat.lower()}"
+        parts.append(beat)
+    parts.extend(label for label in tags.get("mood_labels") or [] if label)
+    parts.append(f"E{tags.get('energy_level', '?')}")
+    parts.append(f"dance {float(tags.get('danceability') or 0):.2f}")
+    if tags.get("bpm"):
+        parts.append(f"{tags['bpm']:.0f} BPM")
+    if tags.get("camelot"):
+        parts.append(tags["camelot"])
+    return " · ".join(parts)
+
+
+@cli.group("tags")
+def tags_group():
+    """Auto-tags: genre, beat type, mood, energy, danceability, key."""
+
+
+@tags_group.command("run")
+@click.argument("paths", nargs=-1, type=click.Path(exists=True))
+@click.option("-u", "--update", is_flag=True, help="Re-tag tracks that already have tags")
+@click.option("--workers", type=int, default=None)
+def tags_run(paths, update, workers):
+    """Tag music. With no PATHS, tags every analysed track that has no tags.
+
+    New files under PATHS are analysed as music first, which tags them as it
+    goes; files analysed before tagging existed are decoded again and tagged.
+    """
+    config, db = get_context()
+    track_ids = None
+    if paths:
+        analysed = analyze_paths(
+            db,
+            config,
+            list(paths),
+            workers=workers,
+            progress=progress_bar("Analysing"),
+            profile=profiles.MUSIC,
+        )
+        track_ids = analysed.track_ids
+        if analysed.tagged:
+            click.echo(f"Analysed and tagged {analysed.tagged} new track(s).")
+
+    result = tag_tracks(
+        db, config, track_ids, update=update, workers=workers, progress=progress_bar("Tagging")
+    )
+    click.echo(
+        f"\nTagged {result.tagged}, already tagged {result.skipped}, failed {result.failed}."
+    )
+    for error in result.errors[:5]:
+        click.echo(f"  {os.path.basename(error['filepath'])}: {error['error']}")
+
+
+@tags_group.command("show")
+@click.argument("query")
+@click.option("--limit", type=int, default=5)
+@click.option("--why", is_flag=True, help="Show the scores and measurements behind each tag")
+def tags_show(query, limit, why):
+    """Show the tags of tracks matching QUERY."""
+    _, db = get_context()
+    tracks = db.list_tracks(limit=limit, query=query)
+    if not tracks:
+        raise click.ClickException(f"No track matching {query!r}")
+    stored = db.get_tags_many([track["id"] for track in tracks])
+    for track in tracks:
+        click.echo(click.style(display_name(track), bold=True))
+        tags = stored.get(track["id"])
+        if not tags:
+            click.echo("  not tagged yet — run: music-cluster tags run\n")
+            continue
+        click.echo(f"  {_tag_line(tags)}")
+        if tags.get("key"):
+            click.echo(f"  key {tags['key']} ({tags['camelot']})")
+        if why:
+            for kind in ("beat", "genre", "mood"):
+                ranked = list((tags.get("scores") or {}).get(kind, {}).items())[:4]
+                shown = ", ".join(f"{key} {value:.2f}" for key, value in ranked)
+                click.echo(click.style(f"  {kind:<6} {shown}", dim=True))
+            groove = (tags.get("descriptors") or {}).get("rhythm") or {}
+            pattern = groove.get("pattern") or {}
+            for band in ("kick", "snare", "hat"):
+                if pattern.get(band):
+                    click.echo(click.style(f"  {band:<6} {_pattern_row(pattern[band])}", dim=True))
+        click.echo("")
+
+
+def _pattern_row(pattern) -> str:
+    """A 48-step band pattern drawn on the sixteenth grid, one bar."""
+    from .rhythm import sixteenths
+
+    cells = ["X" if v >= 0.6 else "x" if v >= 0.3 else "." for v in sixteenths(pattern)]
+    return " ".join("".join(cells[i : i + 4]) for i in range(0, 16, 4))
+
+
+@tags_group.command("find")
+@click.option("--genre", type=click.Choice([t.key for t in tagging.GENRES]), default=None)
+@click.option("--beat", type=click.Choice([t.key for t in tagging.BEATS]), default=None)
+@click.option("--mood", type=click.Choice([t.key for t in tagging.MOODS]), default=None)
+@click.option("--min-energy", type=click.IntRange(1, 10), default=None, help="1-10")
+@click.option("--max-energy", type=click.IntRange(1, 10), default=None, help="1-10")
+@click.option("--min-danceability", type=click.FloatRange(0, 1), default=None, help="0-1")
+@click.option("--camelot", default=None, help="Camelot key, e.g. 8A")
+@click.option("--swung/--straight", default=None, help="Only swung, or only straight, grooves")
+@click.option("--limit", type=int, default=50)
+def tags_find(genre, beat, mood, min_energy, max_energy, min_danceability, camelot, swung, limit):
+    """List tracks by tag: e.g. --beat half_time --min-energy 7."""
+    _, db = get_context()
+    filters = {
+        "genre": genre,
+        "beat": beat,
+        "mood": mood,
+        "min_energy": _energy_bounds(min_energy, upper=False),
+        "max_energy": _energy_bounds(max_energy, upper=True),
+        "min_danceability": min_danceability,
+        "camelot": camelot,
+        "swung": swung,
+        "tagged": True,
+    }
+    tracks = db.list_tracks(limit=limit, tags=filters)
+    total = db.count_matching_tracks(tags=filters)
+    if not tracks:
+        click.echo("No tagged tracks match. Untagged tracks? Run: music-cluster tags run")
+        return
+    stored = db.get_tags_many([track["id"] for track in tracks])
+    for track in tracks:
+        click.echo(f"  {display_name(track):<50} {_tag_line(stored.get(track['id'], {}))}")
+    if total > len(tracks):
+        click.echo(f"\n({len(tracks)} of {total} shown; raise --limit for more)")
+
+
+@tags_group.command("summary")
+def tags_summary():
+    """How the library breaks down by genre, beat type and mood."""
+    _, db = get_context()
+    counts = db.tag_counts()
+    untagged = len(db.tracks_needing_tags(None, None))
+    click.echo(f"Tagged: {counts['tagged']}  (untagged music: {untagged})")
+    for title, kind, key in (
+        ("Genres", "genre", "genres"),
+        ("Beats", "beat", "beats"),
+        ("Moods", "mood", "moods"),
+    ):
+        click.echo(f"\n{title}:")
+        for name, count in sorted(counts[key].items(), key=lambda item: -item[1]):
+            click.echo(f"  {count:>6}  {tagging.label_for(kind, name) or name}")
+
+
+@tags_group.command("vocabulary")
+def tags_vocabulary():
+    """Every genre, beat type and mood the tagger can emit."""
+    for title, entries in tagging.vocabulary().items():
+        click.echo(f"{title.capitalize()}:")
+        for entry in entries:
+            description = f"  {entry['description']}" if entry["description"] else ""
+            click.echo(
+                f"  {entry['key']:<14} {entry['label']:<18}{click.style(description, dim=True)}"
+            )
+        click.echo("")
 
 
 def main():

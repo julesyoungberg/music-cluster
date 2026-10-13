@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 import numpy as np
 
@@ -314,8 +314,8 @@ def read_playlist(playlist_path: str) -> List[str]:
             if match:
                 line = match.group(1).strip()
 
-            if line.startswith("file://"):
-                line = unquote(urlparse(line).path)
+            if line.lower().startswith("file://"):
+                line = file_url_to_path(line)
             elif "://" in line:
                 continue  # remote stream, nothing to analyse
 
@@ -324,6 +324,28 @@ def read_playlist(playlist_path: str) -> List[str]:
                 entries.append(os.path.abspath(path))
 
     return entries
+
+
+# A Windows drive at the start of a path: `C:` followed by a separator.
+_DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def file_url_to_path(url: str) -> str:
+    """The local path a ``file://`` playlist entry points at.
+
+    ``urlparse`` reads everything between ``file://`` and the next slash as a
+    host name, which is right for ``file://server/share`` and wrong for every
+    form a player writes for a Windows drive — ``file:///C:/Music/x.mp3``,
+    ``file://C:/Music/x.mp3`` and even ``file://C:\\Music\\x.mp3`` — so the
+    drive went missing and the track was silently dropped.
+    """
+    rest = url[len("file://") :]
+    if rest.lower().startswith("localhost/"):
+        rest = rest[len("localhost") :]
+    # `file:///C:/...`: the third slash belongs to the URL, not the path.
+    if rest.startswith("/") and _DRIVE.match(rest[1:]):
+        rest = rest[1:]
+    return unquote(rest)
 
 
 def looks_like_playlist(path: str) -> bool:

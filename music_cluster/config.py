@@ -75,6 +75,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "llm_model": "claude-sonnet-5",
         "llm_api_key_env": "ANTHROPIC_API_KEY",
     },
+    "tagging": {
+        # Tag music (genre, beat type, mood, energy, danceability, key) while
+        # analysing it. Shares the decode with feature extraction, so it adds
+        # measurement time but no second read of the file.
+        "on_analyze": True,
+    },
     "performance": {
         "batch_size": 100,
         "num_workers": -1,  # -1 = use all CPUs

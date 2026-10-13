@@ -14,9 +14,9 @@
   import Modal from '$lib/components/Modal.svelte';
   import TaskProgress from '$lib/components/TaskProgress.svelte';
   import TrackRow from '$lib/components/TrackRow.svelte';
-  import type { AudioProfile, TaskStatus, Track } from '$lib/types';
-  import { pluralize } from '$lib/utils';
-  import { FolderPlus, Search, Sparkles } from 'lucide-svelte';
+  import type { AudioProfile, TagVocabulary, TaskStatus, Track } from '$lib/types';
+  import { energyLevelToBound, pluralize } from '$lib/utils';
+  import { FolderPlus, Search, Sparkles, Tags } from 'lucide-svelte';
 
   let tracks = $state<Track[]>([]);
   let total = $state(0);
@@ -37,6 +37,15 @@
   // when a database holds both a record collection and a sample library.
   let profileFilter = $state<AudioProfile | 'all'>('all');
 
+  // Auto-tag filters. Empty strings mean "any".
+  let vocabulary = $state<TagVocabulary | null>(null);
+  let genreFilter = $state('');
+  let beatFilter = $state('');
+  let moodFilter = $state('');
+  let minEnergyLevel = $state(0);
+  let tagTask = $state<TaskStatus | null>(null);
+  const tagFiltering = $derived(Boolean(genreFilter || beatFilter || moodFilter || minEnergyLevel));
+
   let similarOpen = $state(false);
   let similarSeed = $state<Track | null>(null);
   let similarResults = $state<{ track: Track; relative_distance: number }[]>([]);
@@ -54,7 +63,13 @@
         offset,
         query: query.trim() || undefined,
         unassignedIn: onlyUnassigned && collection ? collection.id : undefined,
-        profile: profileFilter === 'all' ? undefined : profileFilter
+        profile: profileFilter === 'all' ? undefined : profileFilter,
+        tags: {
+          genre: genreFilter || undefined,
+          beat: beatFilter || undefined,
+          mood: moodFilter || undefined,
+          minEnergy: minEnergyLevel ? energyLevelToBound(minEnergyLevel) : undefined
+        }
       });
       tracks = result.tracks;
       total = result.total;
@@ -70,10 +85,54 @@
     query;
     onlyUnassigned;
     profileFilter;
+    genreFilter;
+    beatFilter;
+    moodFilter;
+    minEnergyLevel;
     offset;
     collection;
     void load();
   });
+
+  async function loadVocabulary() {
+    try {
+      vocabulary = await api.tagVocabulary();
+    } catch {
+      // Filters are an extra; the library works without them.
+      vocabulary = null;
+    }
+  }
+
+  $effect(() => {
+    void loadVocabulary();
+  });
+
+  async function tagUntagged() {
+    try {
+      const { task_id } = await api.runTagging();
+      const finished = await pollTask(task_id, (status) => (tagTask = status));
+      tagTask = null;
+      const tagged = (finished.result as { tagged?: number } | null)?.tagged ?? 0;
+      notifySuccess(`Tagged ${pluralize(tagged, 'track')}`);
+      await Promise.all([loadVocabulary(), load()]);
+    } catch (err) {
+      tagTask = null;
+      notifyError('Tagging failed', err instanceof ApiError ? err.message : String(err));
+    }
+  }
+
+  function clearTagFilters() {
+    genreFilter = '';
+    beatFilter = '';
+    moodFilter = '';
+    minEnergyLevel = 0;
+    offset = 0;
+  }
+
+  /** "House (42)" — the count says whether a filter is worth trying. */
+  function optionLabel(label: string, count: number | undefined) {
+    return count ? `${label} (${count})` : label;
+  }
 
   function toggle(trackId: number) {
     const next = new Set(selected);
@@ -103,7 +162,7 @@
       await pollTask(task_id, (status) => (task = status));
       task = null;
       notifySuccess('Analysis complete');
-      await load();
+      await Promise.all([load(), loadVocabulary()]);
     } catch (err) {
       task = null;
       notifyError('Analysis failed', err instanceof ApiError ? err.message : String(err));
@@ -136,15 +195,28 @@
         Every analysed file. Select some to make them references for a group.
       </p>
     </div>
-    <button
-      class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
-      onclick={() => (analyzeOpen = true)}
-    >
-      <FolderPlus class="h-4 w-4" /> Analyse a folder
-    </button>
+    <div class="flex flex-wrap gap-2">
+      {#if vocabulary && vocabulary.untagged > 0}
+        <button
+          class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-50"
+          onclick={tagUntagged}
+          disabled={tagTask !== null}
+          title="Genre, beat type, mood, energy, danceability and key"
+        >
+          <Tags class="h-4 w-4" /> Tag {pluralize(vocabulary.untagged, 'untagged track')}
+        </button>
+      {/if}
+      <button
+        class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+        onclick={() => (analyzeOpen = true)}
+      >
+        <FolderPlus class="h-4 w-4" /> Analyse a folder
+      </button>
+    </div>
   </div>
 
   <TaskProgress {task} label="Analysing" />
+  <TaskProgress task={tagTask} label="Tagging" />
 
   <div class="flex flex-wrap items-center gap-3">
     <div class="relative min-w-[16rem] flex-1">
@@ -202,6 +274,70 @@
     {/if}
   </div>
 
+  {#if vocabulary && vocabulary.counts.tagged > 0}
+    <div class="flex flex-wrap items-center gap-2 text-sm" aria-label="Filter by auto-tags">
+      <Tags class="h-4 w-4 text-muted-foreground" />
+      <select
+        class="rounded-md border border-input bg-background px-2 py-1.5"
+        bind:value={genreFilter}
+        onchange={() => (offset = 0)}
+        aria-label="Genre"
+      >
+        <option value="">Any genre</option>
+        {#each vocabulary.genres.filter((term) => vocabulary?.counts.genres[term.key]) as term (term.key)}
+          <option value={term.key}
+            >{optionLabel(term.label, vocabulary.counts.genres[term.key])}</option
+          >
+        {/each}
+      </select>
+      <select
+        class="rounded-md border border-input bg-background px-2 py-1.5"
+        bind:value={beatFilter}
+        onchange={() => (offset = 0)}
+        aria-label="Beat type"
+      >
+        <option value="">Any beat</option>
+        {#each vocabulary.beats.filter((term) => vocabulary?.counts.beats[term.key]) as term (term.key)}
+          <option value={term.key} title={term.description}>
+            {optionLabel(term.label, vocabulary.counts.beats[term.key])}
+          </option>
+        {/each}
+      </select>
+      <select
+        class="rounded-md border border-input bg-background px-2 py-1.5"
+        bind:value={moodFilter}
+        onchange={() => (offset = 0)}
+        aria-label="Mood"
+      >
+        <option value="">Any mood</option>
+        {#each vocabulary.moods.filter((term) => vocabulary?.counts.moods[term.key]) as term (term.key)}
+          <option value={term.key}
+            >{optionLabel(term.label, vocabulary.counts.moods[term.key])}</option
+          >
+        {/each}
+      </select>
+      <select
+        class="rounded-md border border-input bg-background px-2 py-1.5"
+        bind:value={minEnergyLevel}
+        onchange={() => (offset = 0)}
+        aria-label="Minimum energy"
+      >
+        <option value={0}>Any energy</option>
+        {#each [3, 5, 7, 9] as level (level)}
+          <option value={level}>Energy {level}+</option>
+        {/each}
+      </select>
+      {#if tagFiltering}
+        <button
+          class="rounded-md px-2 py-1.5 text-muted-foreground hover:bg-secondary"
+          onclick={clearTagFilters}
+        >
+          Clear
+        </button>
+      {/if}
+    </div>
+  {/if}
+
   {#if loading}
     <LoadingState message="Loading tracks..." />
   {:else if error}
@@ -234,8 +370,8 @@
         </div>
       {:else}
         <p class="py-10 text-center text-sm text-muted-foreground">
-          {query
-            ? 'No tracks match that search.'
+          {query || tagFiltering
+            ? 'No tracks match those filters.'
             : 'No tracks yet — analyse a folder to get started.'}
         </p>
       {/each}

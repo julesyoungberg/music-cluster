@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   basename,
   cn,
+  energyLevelToBound,
   confidenceClasses,
   confidenceTone,
   formatDate,
@@ -146,5 +147,18 @@ describe('cn', () => {
   it('drops falsy entries', () => {
     const disabled = false as boolean;
     expect(cn('a', disabled && 'b', undefined, null, 'c')).toBe('a c');
+  });
+});
+
+describe('energyLevelToBound', () => {
+  it('includes every track shown at that level', () => {
+    // A stored 0.5 rounds to level 5.5 → 6 on the 1-10 scale; a "6+" filter keeps it.
+    expect(energyLevelToBound(6)).toBeLessThanOrEqual(0.5);
+    expect(energyLevelToBound(7)).toBeGreaterThan(0.5);
+  });
+
+  it('stays inside 0-1', () => {
+    expect(energyLevelToBound(1)).toBe(0);
+    expect(energyLevelToBound(10)).toBeLessThanOrEqual(1);
   });
 });

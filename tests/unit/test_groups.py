@@ -19,7 +19,7 @@ def fake_extraction(monkeypatch, rng):
     """Stub extraction that gives each folder its own region of feature space."""
     centres: dict = {}
 
-    def extract_one(filepath, extractor_config):
+    def extract_one(filepath, extractor_config, tag=False):
         folder = os.path.dirname(filepath)
         if folder not in centres:
             centres[folder] = rng.normal(0, 1, FEATURE_DIM) * 8.0
@@ -237,6 +237,20 @@ class TestReadPlaylist:
         playlist.write_text(f"file://{temp_dir}/music/a%20b.mp3\n")
 
         assert [os.path.basename(e) for e in groups_mod.read_playlist(str(playlist))] == ["a b.mp3"]
+
+    @pytest.mark.parametrize(
+        "url, path",
+        [
+            ("file:///home/dj/a%20b.mp3", "/home/dj/a b.mp3"),
+            ("file://localhost/home/dj/a.mp3", "/home/dj/a.mp3"),
+            # Every way a Windows player writes a drive, which urlparse loses.
+            ("file:///C:/Music/a%20b.mp3", "C:/Music/a b.mp3"),
+            ("file://C:/Music/a.mp3", "C:/Music/a.mp3"),
+            ("file://C:\\Music\\a.mp3", "C:\\Music\\a.mp3"),
+        ],
+    )
+    def test_file_urls_keep_their_drive(self, url, path):
+        assert groups_mod.file_url_to_path(url) == path
 
     def test_skips_remote_streams(self, temp_dir):
         playlist = temp_dir / "set.m3u"

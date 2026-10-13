@@ -14,6 +14,8 @@ import type {
   SampleGuess,
   SortItem,
   SortSession,
+  TagFilters,
+  TagVocabulary,
   TaskStatus,
   Track
 } from '$lib/types';
@@ -175,6 +177,7 @@ export const api = {
       query?: string;
       unassignedIn?: number;
       profile?: AudioProfile;
+      tags?: TagFilters;
     } = {}
   ) => {
     const search = new URLSearchParams();
@@ -183,8 +186,24 @@ export const api = {
     if (params.query) search.set('query', params.query);
     if (params.unassignedIn) search.set('unassigned_in', String(params.unassignedIn));
     if (params.profile) search.set('profile', params.profile);
+    const tags = params.tags ?? {};
+    if (tags.genre) search.set('genre', tags.genre);
+    if (tags.beat) search.set('beat', tags.beat);
+    if (tags.mood) search.set('mood', tags.mood);
+    if (tags.minEnergy !== undefined) search.set('min_energy', String(tags.minEnergy));
+    if (tags.maxEnergy !== undefined) search.set('max_energy', String(tags.maxEnergy));
+    if (tags.minDanceability !== undefined)
+      search.set('min_danceability', String(tags.minDanceability));
+    if (tags.camelot) search.set('camelot', tags.camelot);
+    if (tags.tagged !== undefined) search.set('tagged', String(tags.tagged));
     return get<{ tracks: Track[]; total: number }>(`/api/tracks?${search}`);
   },
+
+  // Auto-tags
+  tagVocabulary: () => get<TagVocabulary>('/api/tags'),
+  /** Tag new paths, given tracks, or (with neither) everything untagged. */
+  runTagging: (body: { paths?: string[]; track_ids?: number[]; update?: boolean } = {}) =>
+    post<{ task_id: string }>('/api/tags', body),
 
   /** What a track looks like as a one-shot. 404s unless analysed as a sample. */
   sampleProfile: (id: number) =>
