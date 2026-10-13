@@ -238,6 +238,20 @@ class TestReadPlaylist:
 
         assert [os.path.basename(e) for e in groups_mod.read_playlist(str(playlist))] == ["a b.mp3"]
 
+    @pytest.mark.parametrize(
+        "url, path",
+        [
+            ("file:///home/dj/a%20b.mp3", "/home/dj/a b.mp3"),
+            ("file://localhost/home/dj/a.mp3", "/home/dj/a.mp3"),
+            # Every way a Windows player writes a drive, which urlparse loses.
+            ("file:///C:/Music/a%20b.mp3", "C:/Music/a b.mp3"),
+            ("file://C:/Music/a.mp3", "C:/Music/a.mp3"),
+            ("file://C:\\Music\\a.mp3", "C:\\Music\\a.mp3"),
+        ],
+    )
+    def test_file_urls_keep_their_drive(self, url, path):
+        assert groups_mod.file_url_to_path(url) == path
+
     def test_skips_remote_streams(self, temp_dir):
         playlist = temp_dir / "set.m3u"
         playlist.write_text("http://example.com/stream.mp3\n")

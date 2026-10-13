@@ -67,11 +67,16 @@ export default defineConfig({
       }
     },
     {
-      command: `npm run build && npx vite preview --port ${UI_PORT} --strictPort`,
+      // Bind to the exact address Playwright polls. Left to itself, `vite
+      // preview` listens on whatever `localhost` resolves to first, which on
+      // GitHub's runners can be ::1 alone — and then 127.0.0.1 never answers
+      // and the suite times out waiting for a server that is running.
+      command: `npm run build && npx vite preview --host 127.0.0.1 --port ${UI_PORT} --strictPort`,
       cwd: uiDir,
       url: `http://127.0.0.1:${UI_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
+      stdout: 'pipe',
       env: {
         VITE_API_BASE: `http://127.0.0.1:${API_PORT}`
       }

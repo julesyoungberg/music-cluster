@@ -182,10 +182,10 @@ def _track(
     coarse = usable.reshape(-1, 2).max(axis=1) if usable.size else usable
     if coarse.size < 4:
         return 0.0, np.zeros(0)
-    tempo = librosa.feature.tempo(
+    estimate = librosa.feature.tempo(
         onset_envelope=coarse, sr=sr, hop_length=hop * 2, start_bpm=start_bpm
     )
-    bpm = float(np.atleast_1d(np.asarray(tempo, dtype=float))[0]) if np.size(tempo) else 0.0
+    bpm = float(np.atleast_1d(np.asarray(estimate, dtype=float))[0]) if np.size(estimate) else 0.0
     if bpm <= 0:
         return 0.0, np.zeros(0)
     tempo, beats = librosa.beat.beat_track(
