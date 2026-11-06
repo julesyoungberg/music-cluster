@@ -36,10 +36,13 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo 'matrix={"include":[{"os":"ubuntu-22.04","name":"linux-x86_64"}]}' >> "$GITHUB_OUTPUT"
           else
+            # macos-13 and macos-14 are retired: a job asking for macos-13
+            # waits 24 hours for a runner that never comes, and macos-14 is
+            # now refused outright. macos-15-intel is the last Intel image.
             echo 'matrix={"include":[
               {"os":"ubuntu-22.04","name":"linux-x86_64"},
-              {"os":"macos-13","name":"macos-x86_64"},
-              {"os":"macos-14","name":"macos-aarch64"},
+              {"os":"macos-15-intel","name":"macos-x86_64"},
+              {"os":"macos-15","name":"macos-aarch64"},
               {"os":"windows-latest","name":"windows-x86_64"}
             ]}' | tr -d '\n ' >> "$GITHUB_OUTPUT"
           fi
@@ -86,6 +89,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf
+
+      # numba 0.63+ and llvmlite 0.46+ publish no Intel macOS wheels, so pip
+      # falls back to building llvmlite from source, which needs a full LLVM
+      # install. Hold the Intel build on the last releases that ship wheels.
+      - name: Pin numba to releases with Intel macOS wheels
+        if: matrix.name == 'macos-x86_64'
+        shell: bash
+        run: |
+          printf 'numba<0.63\nllvmlite<0.46\n' > "$RUNNER_TEMP/intel-mac-constraints.txt"
+          echo "PIP_CONSTRAINT=$RUNNER_TEMP/intel-mac-constraints.txt" >> "$GITHUB_ENV"
 
       - name: Install Python build dependencies
         run: |
