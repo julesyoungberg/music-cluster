@@ -90,6 +90,16 @@ jobs:
             libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf
 
+      # numba 0.63+ and llvmlite 0.46+ publish no Intel macOS wheels, so pip
+      # falls back to building llvmlite from source, which needs a full LLVM
+      # install. Hold the Intel build on the last releases that ship wheels.
+      - name: Pin numba to releases with Intel macOS wheels
+        if: matrix.name == 'macos-x86_64'
+        shell: bash
+        run: |
+          printf 'numba<0.63\nllvmlite<0.46\n' > "$RUNNER_TEMP/intel-mac-constraints.txt"
+          echo "PIP_CONSTRAINT=$RUNNER_TEMP/intel-mac-constraints.txt" >> "$GITHUB_ENV"
+
       - name: Install Python build dependencies
         run: |
           python -m pip install --upgrade pip
