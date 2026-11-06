@@ -36,10 +36,13 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo 'matrix={"include":[{"os":"ubuntu-22.04","name":"linux-x86_64"}]}' >> "$GITHUB_OUTPUT"
           else
+            # macos-13 and macos-14 are retired: a job asking for macos-13
+            # waits 24 hours for a runner that never comes, and macos-14 is
+            # now refused outright. macos-15-intel is the last Intel image.
             echo 'matrix={"include":[
               {"os":"ubuntu-22.04","name":"linux-x86_64"},
-              {"os":"macos-13","name":"macos-x86_64"},
-              {"os":"macos-14","name":"macos-aarch64"},
+              {"os":"macos-15-intel","name":"macos-x86_64"},
+              {"os":"macos-15","name":"macos-aarch64"},
               {"os":"windows-latest","name":"windows-x86_64"}
             ]}' | tr -d '\n ' >> "$GITHUB_OUTPUT"
           fi
