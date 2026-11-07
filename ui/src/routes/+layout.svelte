@@ -8,22 +8,12 @@
   import { notifyError } from '$lib/stores/notifications';
   import { ApiError } from '$lib/services/api';
   import { player } from '$lib/stores/player';
+  import { applyTheme, storedTheme } from '$lib/theme';
 
   let { children }: { children: Snippet } = $props();
 
-  let theme = $state<'light' | 'dark' | 'system'>('system');
-
   $effect(() => {
-    const stored = localStorage.getItem('music-cluster:theme') as typeof theme | null;
-    if (stored) theme = stored;
-  });
-
-  $effect(() => {
-    const dark =
-      theme === 'dark' ||
-      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('music-cluster:theme', theme);
+    applyTheme(storedTheme());
   });
 
   // The collection list is needed by nearly every page, so it is loaded once here.
