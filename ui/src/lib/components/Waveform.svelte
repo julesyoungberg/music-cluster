@@ -45,7 +45,14 @@
   let loading = $state(false);
   let failed = $state('');
   let hoverFraction = $state<number | null>(null);
-  let scrubbing = $state(false);
+  /**
+   * Where a drag along the waveform currently is. The audio only seeks when
+   * the drag ends: seeking on every pointer move fires a new range request
+   * each time, and the player stutters from one half-loaded spot to the next.
+   */
+  let scrubFraction = $state<number | null>(null);
+  /** Bumped by Retry, which re-runs the loading effect for the same track. */
+  let attempt = $state(0);
 
   const isCurrent = $derived($player.track?.id === track.id);
 
@@ -55,7 +62,11 @@
   );
 
   const progress = $derived(
-    isCurrent && duration > 0 ? Math.min($player.currentTime / duration, 1) : 0
+    scrubFraction !== null
+      ? scrubFraction
+      : isCurrent && duration > 0
+        ? Math.min($player.currentTime / duration, 1)
+        : 0
   );
 
   const hoverTime = $derived(hoverFraction === null ? null : hoverFraction * duration);
@@ -64,6 +75,7 @@
   // review queue does not re-decode anything already seen.
   $effect(() => {
     const id = track.id;
+    attempt;
     if (!Number.isFinite(id)) return;
 
     const ready = cachedWaveform(id, resolution);
@@ -144,6 +156,7 @@
       dataVersion,
       track.id,
       isCurrent,
+      scrubFraction !== null,
       // Colours come from the theme, so a theme switch has to redraw.
       document.documentElement.className,
       Math.round(progress * width),
@@ -194,7 +207,7 @@
       }
     }
 
-    if (isCurrent && progress > 0) {
+    if ((isCurrent || scrubFraction !== null) && progress > 0) {
       context.fillStyle = played;
       context.fillRect(Math.min(playedUntil, width - 1.5), 0, 1.5, height);
     }
@@ -245,25 +258,30 @@
     if (event.button !== 0 || !data) return;
     event.preventDefault();
     container?.focus();
-    scrubbing = true;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     const fraction = fractionFrom(event);
     hoverFraction = fraction;
-    seekTo(fraction);
+    scrubFraction = fraction;
   }
 
   function onPointerMove(event: PointerEvent): void {
     if (!data) return;
     const fraction = fractionFrom(event);
     hoverFraction = fraction;
-    // Dragging scrubs, like dragging along a SoundCloud waveform.
-    if (scrubbing && isCurrent) seek(fraction * duration);
+    // Dragging moves the playhead; the audio follows when the drag ends.
+    if (scrubFraction !== null) scrubFraction = fraction;
   }
 
   function onPointerUp(event: PointerEvent): void {
-    if (!scrubbing) return;
-    scrubbing = false;
+    if (scrubFraction === null) return;
+    const fraction = fractionFrom(event);
+    scrubFraction = null;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    seekTo(fraction);
+  }
+
+  function onPointerCancel(): void {
+    scrubFraction = null;
   }
 
   function onKeydown(event: KeyboardEvent): void {
@@ -271,6 +289,9 @@
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+      // The review screen also plays and pauses on space. Letting this key
+      // reach it as well toggles twice, and nothing happens.
+      event.stopPropagation();
       void playTrack(track);
       return;
     }
@@ -292,18 +313,9 @@
   function retry(event: MouseEvent): void {
     event.stopPropagation();
     forgetWaveform(track.id, resolution);
-    failed = '';
-    loading = true;
-    loadWaveform(track.id, resolution)
-      .then((result) => {
-        data = result;
-        dataVersion += 1;
-        loading = false;
-      })
-      .catch(() => {
-        failed = 'Preview unavailable';
-        loading = false;
-      });
+    // Through the loading effect, so a retry still in flight when the track
+    // changes is cancelled instead of drawing over the next track.
+    attempt += 1;
   }
 </script>
 
@@ -315,12 +327,13 @@
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
-  onpointercancel={onPointerUp}
+  onpointercancel={onPointerCancel}
   onpointerleave={() => {
     hoverFraction = null;
-    scrubbing = false;
   }}
   onkeydown={onKeydown}
+  data-state={loading ? 'loading' : failed ? 'failed' : data ? 'ready' : 'empty'}
+  aria-busy={loading}
   role="slider"
   tabindex="0"
   aria-label="Waveform for {track.display ?? track.filename}"
