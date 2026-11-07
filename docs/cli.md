@@ -142,9 +142,9 @@ music-cluster analyze ~/Music/DJ --extensions mp3,flac   # only these formats
 | `PATHS...` | One or more files or folders. |
 | `-r` / `--no-recursive` | Scan subfolders (default) or only the top level. |
 | `-u`, `--update` | Re-analyse files already in the library. Without it they are skipped. |
-| `--extensions LIST` | Comma-separated extensions to include, e.g. `mp3,flac,wav`. Default: every format FFmpeg decodes (see [FORMATS.md](../FORMATS.md)). |
+| `--extensions LIST` | Comma-separated extensions to include, e.g. `mp3,flac,wav`. Default: `mp3`, `m4a`, `aac`, `ogg`, `opus`, `wma`, `flac`, `wav`, `aiff`, `aif`, `ape`, `alac`, `wv` (see [FORMATS.md](../FORMATS.md)). |
 | `--workers N` | Parallel workers; `-1` uses every core. |
-| `--profile music\|sample` | How to analyse: a 90-second excerpt from the middle of each track (`music`), or the whole file from its first sample with envelope and pitch measurements (`sample`). |
+| `--profile music\|sample` | How to analyse: a 90-second excerpt from the middle of each track (`music`), or each file from its first sample (up to 30 seconds) with envelope and pitch measurements (`sample`). |
 
 Prints how many files were analysed, skipped (already known) and failed, and
 the first few errors.
@@ -289,7 +289,8 @@ music-cluster groups add "Someday"                     # empty group
 | `--workers N` | Parallel workers for analysis. |
 | `--profile music\|sample` | Profile for a collection this command creates. |
 
-Use only one of `--folder`, `--playlist` and `--track`. A group without a
+Use only one of `--folder`, `--playlist` and `--track`; if you pass more than
+one, only the first of them in that order is used. A group without a
 destination can still be filed as a playlist, but not copied, moved or
 symlinked.
 
@@ -330,7 +331,10 @@ music-cluster groups show "Deep House" --limit 100
 
 ```bash
 music-cluster groups rename "Deep" "Deep House"
+music-cluster groups rename "Deep" "Deep House" --collection "DJ folders"
 ```
+
+Like every group command, it takes `--collection NAME`.
 
 ### `groups set-destination`
 
@@ -339,6 +343,7 @@ not have to exist yet; it is created when something is filed there.
 
 ```bash
 music-cluster groups set-destination "Minimal" ~/Music/DJ/Minimal
+music-cluster groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum library"
 ```
 
 ### `groups remove`
@@ -348,6 +353,7 @@ Delete a group from the collection. Its tracks stay in the library and on disk.
 ```bash
 music-cluster groups remove "Minimal"
 music-cluster groups remove "Minimal" --yes    # no confirmation prompt
+music-cluster groups remove "Minimal" --collection "DJ folders"
 ```
 
 ### `groups export`
@@ -441,7 +447,7 @@ music-cluster sort ~/Downloads/Pack --collection "Drum library" --no-review
 | Option | Meaning |
 | --- | --- |
 | `PATHS...` | Files or folders of new music. |
-| `--collection NAME` | Collection to sort against. It must be fitted. |
+| `--collection NAME` | Collection to sort against. If it has not been fitted, or its groups changed since, it is fitted first. |
 | `--name TEXT` | Session name. Default: the folder name. |
 | `-r` / `--no-recursive` | Scan subfolders (default) or only the top level. |
 | `--auto-accept` | Accept every suggestion that clears `sorting.auto_accept_confidence` and `sorting.min_margin`, so you only review the uncertain ones. Accepted tracks still go through `apply` before anything is written. |
@@ -505,7 +511,8 @@ music-cluster sessions --collection "Drum library"
    3  October buys                 committed     22 tracks,    0 pending
 ```
 
-A session is `open` until it has been applied, then `committed`.
+A session is `committed` once it has been applied with no tracks left to
+review; until then it is `open`.
 
 ---
 
@@ -529,7 +536,7 @@ music-cluster apply 4 --mode symlink --yes
 | `SESSION_ID` | The session number from `sort` or `sessions`. |
 | `--mode MODE` | `playlist`, `copy`, `move` or `symlink`. Default: `organize.mode` in the config, which is `playlist`. |
 | `--playlist-dir DIR` | Where playlist mode writes. Default `organize.playlist_dir` (`~/.music-cluster/playlists`). |
-| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. |
+| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. **`overwrite` cannot be undone**: the replaced file is not kept. |
 | `--dry-run` | Print the plan and stop. Nothing is changed. |
 | `--yes` | Do not ask for confirmation. |
 | `--learn` / `--no-learn` | Add the filed tracks to their groups as new references. Default: `sorting.learn_on_commit` (on). Run `fit` afterwards to fold them in. |
@@ -557,6 +564,11 @@ Proceed to move 2 item(s)? [y/N]:
 ### `undo`
 
 Reverse every file operation a session performed.
+
+Undo does not restore a file that `--on-conflict overwrite` replaced, and it
+does not take back the reference tracks that `--learn` added to groups (remove
+those with the group screen in the app, or re-import the group). The session's
+decisions stay applied, so `apply` will not run them a second time.
 
 ```bash
 music-cluster undo 4
@@ -590,7 +602,8 @@ For a pile of music that has no folders yet. Discovery clusters the pile into
 ```bash
 music-cluster discover ~/Music/Unsorted
 music-cluster discover ~/Music/Unsorted --algorithm kmeans --groups 12 --name "Big pile"
-music-cluster discover ~/Music/Unsorted --granularity fine --min-size 5
+music-cluster discover ~/Music/Unsorted --algorithm kmeans --granularity fine
+music-cluster discover ~/Music/Unsorted --min-size 5
 music-cluster discover ~/Samples/Unsorted --profile sample
 music-cluster discover ~/Music/Unsorted --llm
 ```
@@ -601,8 +614,8 @@ music-cluster discover ~/Music/Unsorted --llm
 | `--name TEXT` | Run name. Default: the folder name. |
 | `--algorithm` | `hdbscan` (density based; finds its own number of piles; the default), `kmeans` or `hierarchical` (a fixed number of piles). |
 | `--groups N` | With `kmeans` or `hierarchical`, aim for N piles. Left out, the count is estimated. |
-| `--granularity` | When the count is estimated: `coarse` (half as many piles), `broad`, `normal` (default), `fine`, or `finest` (twice as many). |
-| `--min-size N` | Smallest pile to report. Default `discovery.min_group_size` (8). |
+| `--granularity` | With `kmeans` or `hierarchical`, when the count is estimated: `coarse` (half as many piles), `broad`, `normal` (default), `fine`, or `finest` (twice as many). |
+| `--min-size N` | Smallest pile to report. Default `discovery.min_group_size`: 8 for music, 5 for samples. |
 | `--llm` / `--no-llm` | Ask an LLM to name the piles. Default `labeling.llm_enabled` (off). Only metadata is sent, never audio; see [LLM naming](../README.md#optional-llm-naming). |
 | `--workers N` | Parallel workers for analysis. |
 | `--profile music\|sample` | `sample` names piles as Kicks, Closed Hats, Basses and so on instead of by genre and tempo. |

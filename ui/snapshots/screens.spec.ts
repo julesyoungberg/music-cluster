@@ -87,6 +87,7 @@ test.describe('browsing', () => {
     const analyzeDialog = page.getByRole('dialog');
     await analyzeDialog.getByPlaceholder('/path/to/folder').fill(path.join(music, 'NewMusic'));
     await analyzeDialog.getByPlaceholder('/path/to/folder').press('Enter');
+    await expect(analyzeDialog.getByText(/audio files? here/)).toBeVisible();
     await shot('library-analyze-dialog', {
       note: 'Analysing a folder as music or as samples',
       viewportOnly: true

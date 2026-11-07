@@ -2,7 +2,7 @@
 
 This walks you through music-cluster from installing it to filing a folder of
 new tracks into the crates you already keep, and putting everything back if
-you change your mind. Each step shows the desktop app and the equivalent
+you change your mind about where files went. Each step shows the desktop app and the equivalent
 command, so you can follow along with either.
 
 By the end you will have:
@@ -45,7 +45,8 @@ Two promises shape everything below:
 - **Nothing on disk changes until you say so.** Analysing, sorting and
   reviewing only write to the tool's own database. Your audio files are only
   touched when you commit a session, after a preview of exactly what will
-  happen, and every commit can be undone.
+  happen, and the file operations of every commit can be undone (with one
+  exception: overwriting, see [step 8](#8-file-the-results-dry-run-commit-undo)).
 
 You will need:
 
@@ -204,10 +205,13 @@ Click **Overlap report** for the details:
 
 ![The overlap report](images/groups-overlap.png)
 
-- **Groups needing attention** lists groups that were left out of the fit:
-  ones with no reference tracks, or whose tracks have not been analysed.
-- **Most easily confused** lists pairs, e.g. *52 tracks from Minimal look like
-  Tech House*.
+- **Groups needing attention** (only when there are any) lists groups that
+  were left out of the fit: ones with no reference tracks, or whose tracks have
+  not been analysed.
+- **Most easily confused** (only when some tracks land in the wrong group)
+  lists pairs, e.g. *52 tracks from Minimal look like Tech House*.
+
+The demo library in the screenshot separates perfectly, so it shows neither.
 - **Per-group accuracy** ranks the groups from least to most distinct.
 - The **confusion matrix** shows, for each group (rows), where its tracks
   would land (columns).
@@ -310,11 +314,13 @@ So far nothing has been written. Click **Commit** (it shows how many tracks
 are ready). The dialog that opens is a **dry run**: it lists exactly what
 would happen, and nothing happens until you click **Commit** inside it.
 
-Choose how to file at the top:
+Choose how to file at the top. The dialog opens on **Copy files**; the
+**Default mode** in Settings applies to `music-cluster apply` on the command
+line.
 
 | Mode | What it does |
 | --- | --- |
-| **Playlists only** | Writes one playlist (`.m3u8`) per group. No audio file is touched. The safest choice, and the default in Settings. |
+| **Playlists only** | Writes one playlist (`.m3u8`) per group. No audio file is touched. The safest choice. |
 | **Copy files** | Copies each track into its group's destination folder. The original stays where it was. |
 | **Move files** | Moves each track into its destination folder, and the library follows it. |
 | **Symlink** | Puts a link in the destination folder; the original stays put. |
@@ -332,6 +338,11 @@ has no destination folder, the file is already there, or a file with the same
 name is already in the destination (what happens then is set in Settings:
 skip, rename or overwrite).
 
+> **Overwrite cannot be undone.** If a filing replaces a file that was
+> already in the destination, the replaced file is not kept anywhere, and
+> undo cannot bring it back. Leave the conflict setting on *Skip* (the
+> default) or *Rename* unless you are sure.
+
 Click **Commit** to do it. A notice confirms what was written:
 
 ![After committing](images/sort-committed.png)
@@ -340,7 +351,9 @@ If **Learn from every commit** is on in Settings (it is by default), the
 filed tracks also become reference tracks of their groups, so the sorter keeps
 up with your taste. Fit the collection again to fold them in.
 
-**Undo.** The ↶ button next to Commit reverses the session's file operations:
+**Undo.** The ↶ button next to Commit reverses the session's file operations.
+In the screenshot the session was committed as playlists, which undo leaves in
+place, so it reports *Reversed 0 operations*:
 
 ![After undo](images/sort-undone.png)
 
@@ -351,19 +364,24 @@ up with your taste. Fit the collection again to fold them in.
 | Symlink | Deletes the links. |
 | Playlists | Leaves the playlists in place. (`music-cluster undo --remove-playlists` deletes them.) |
 
+Undo only reverses what happened on disk. Tracks that were added to their
+groups as references (by *Learn from every commit*) stay in those groups;
+remove them from the group screen if you no longer want them there. The
+session's decisions also count as applied, so it cannot be committed a second
+time.
 The same on the command line, where `apply` always prints the plan first and
 asks before doing anything:
 
 ```bash
 music-cluster apply 1 --mode move --dry-run    # show the plan and stop
 music-cluster apply 1 --mode move              # show the plan, confirm, then do it
-music-cluster undo 1                           # put everything back
+music-cluster undo 1                           # reverse the file operations
 ```
 
 ```
-Mode: copy
+Mode: move
 
-  copy     New Drum & Bass 1.flac -> /Users/you/Music/DJ/Drum & Bass/New Drum & Bass 1.flac
+  move     New Drum & Bass 1.flac -> /Users/you/Music/DJ/Drum & Bass/New Drum & Bass 1.flac
 
 Dry run — nothing was changed.
 ```
@@ -521,15 +539,20 @@ rhythm if your folders follow BPM more than sound.
 do when a file of the same name is already in the destination (skip, rename,
 overwrite).
 
-**Analysis**: how many seconds of each track are analysed (90, taken from the
-middle; 0 means the whole file), and how many files are analysed in parallel.
+**Analysis**: how many seconds of each track are analysed (90 by default,
+taken from the middle; 0 means the whole file. The demo library in the
+screenshot analyses whole files because its tracks are only four seconds
+long), and how many files are analysed in parallel.
 
 ### LLM naming
 
 Discovery can ask an LLM to name candidate groups. It is off by default. Only
 metadata (artist, title, genre tag, tempo) is ever sent, never audio. To use
-it, install the `anthropic` package where the API runs, set
-`ANTHROPIC_API_KEY`, and tick **Use an LLM to suggest names** in Settings.
+it, install the `anthropic` package where the API runs and set
+`ANTHROPIC_API_KEY`. In the app, tick **Suggest names with an LLM** when
+starting a discovery run. The **Use an LLM to suggest names** setting turns it
+on by default for `music-cluster discover`; the app's per-run checkbox decides
+on its own.
 
 After changing a sorting setting, fit the collection again. After changing the
 analysis length, re-analyse (`music-cluster analyze --update <folder>`) so all
