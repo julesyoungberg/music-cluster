@@ -137,6 +137,7 @@
           option
             ? 'border-primary bg-primary/10'
             : 'border-input hover:bg-secondary'}"
+          aria-pressed={theme === option}
           onclick={() => setTheme(option as typeof theme)}
         >
           {option}

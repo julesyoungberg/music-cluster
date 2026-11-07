@@ -1,11 +1,21 @@
-/* Fonts are bundled (not fetched from a CDN) so the desktop app works offline. */
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-@import '@fontsource/ibm-plex-sans-condensed/500.css';
-@import '@fontsource/ibm-plex-sans-condensed/600.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+/*
+ * Fonts are bundled (not fetched from a CDN) so the desktop app works offline.
+ * Latin and Latin Extended only; other scripts fall back to the system font.
+ */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-600.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-500.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-ext-500.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-600.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-ext-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-500.css';
 
 @tailwind base;
 @tailwind components;
@@ -25,8 +35,9 @@
     --card-foreground: 30 10% 10%;
     --popover: 40 25% 98%;
     --popover-foreground: 30 10% 10%;
-    --primary: 30 92% 44%;
-    --primary-foreground: 30 30% 8%;
+    /* Darker than the dark theme's amber so amber text keeps 4.5:1 on paper. */
+    --primary: 26 85% 33%;
+    --primary-foreground: 40 30% 98%;
     --secondary: 38 14% 89%;
     --secondary-foreground: 30 10% 10%;
     --muted: 38 14% 91%;
@@ -37,7 +48,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 32 10% 81%;
     --input: 32 10% 76%;
-    --ring: 30 92% 44%;
+    --ring: 26 85% 33%;
     --radius: 0.25rem;
     color-scheme: light;
   }
@@ -73,22 +84,23 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
   }
-  /* Page titles read like a label on a piece of gear. */
-  h1 {
-    @apply font-display uppercase tracking-wider;
-  }
+  /*
+   * Titles use the condensed face, like a label on a piece of gear. They keep
+   * their case: many are names the user typed.
+   */
+  h1,
   h2 {
     @apply font-display tracking-wide;
   }
   /*
    * Measured numbers (BPM, key, scores, counts) are readouts: every element
    * that already asks for tabular figures gets the mono face, and small
-   * uppercase labels get the condensed one.
+   * uppercase labels get the condensed one (their tracking stays their own).
    */
   .tabular-nums {
     @apply font-mono;
   }
   .uppercase {
-    @apply font-display tracking-widest;
+    @apply font-display;
   }
 }
