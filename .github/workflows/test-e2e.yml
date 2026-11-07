@@ -93,6 +93,27 @@ jobs:
           PYTHON: python
         run: npx playwright test
 
+      # Screenshots and accessibility text of every screen, for reviewers
+      # (people or agents) to look at. Not a pass/fail check, so a broken
+      # walk never fails the job; report.md says what broke.
+      - name: Capture the UI snapshot
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: ui
+        env:
+          PYTHON: python
+        run: npm run ui:snapshot
+
+      - name: Upload the UI snapshot
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-snapshots
+          path: ui/ui-snapshots/
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Upload the report on failure
         if: failure()
         uses: actions/upload-artifact@v4
