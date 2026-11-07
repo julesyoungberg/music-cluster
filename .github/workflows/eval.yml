@@ -23,6 +23,9 @@ concurrency:
   group: eval-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   evaluate:
     name: Evaluate against the baseline
@@ -50,17 +53,25 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
+      # Inputs only ever reach the shell through env vars and are checked
+      # against an allowlist, so a dispatch input cannot inject commands.
       - name: Choose suites
         id: suites
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
+          TRIALS: ${{ github.event.inputs.trials || '50' }}
         run: |
-          args=""
-          for suite in $REQUESTED; do args="$args --suite $suite"; done
-          echo "args=$args" >> "$GITHUB_OUTPUT"
-          echo "key=$(echo "$REQUESTED" | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+          allowed=" beats-synthetic keys-synthetic sorting-fma sorting-fma-sub key-giantsteps tempo-giantsteps "
+          for suite in $REQUESTED; do
+            case "$allowed" in *" $suite "*) ;; *) echo "Unknown suite: $suite" >&2; exit 1 ;; esac
+          done
+          if ! [[ "$TRIALS" =~ ^[0-9]+$ ]]; then echo "trials must be a whole number" >&2; exit 1; fi
+          key=$(echo $REQUESTED | tr ' ' '-')
+          echo "key=$key" >> "$GITHUB_OUTPUT"
 
-      # Datasets and the analysis cache are kept between runs.
+      # Datasets and the analysis cache are kept between runs. The analysis
+      # cache is keyed on the measuring code itself, so a restored cache from
+      # older code is ignored rather than reused.
       - name: Cache datasets
         if: github.event_name == 'workflow_dispatch'
         uses: actions/cache@v4
@@ -74,19 +85,31 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.suites }}
         run: |
-          case "$REQUESTED" in *key-giantsteps*) music-cluster eval download giantsteps-key ;; esac
-          case "$REQUESTED" in *tempo-giantsteps*) music-cluster eval download giantsteps-tempo ;; esac
-          case "$REQUESTED" in *sorting-fma-sub*) music-cluster eval download fma-medium ;; esac
-          case "$REQUESTED" in *"sorting-fma "*|*"sorting-fma") music-cluster eval download fma-small ;; esac
+          for suite in $REQUESTED; do
+            case "$suite" in
+              key-giantsteps) music-cluster eval download giantsteps-key ;;
+              tempo-giantsteps) music-cluster eval download giantsteps-tempo ;;
+              sorting-fma) music-cluster eval download fma-small ;;
+              sorting-fma-sub) music-cluster eval download fma-medium ;;
+            esac
+          done
 
       - name: Run
+        env:
+          REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
+          TRIALS: ${{ github.event.inputs.trials || '50' }}
         run: |
-          baseline=""
-          if [ -f eval/baselines/synthetic.json ]; then baseline="--baseline eval/baselines/synthetic.json"; fi
-          music-cluster eval run ${{ steps.suites.outputs.args }} \
-            --trials ${{ github.event.inputs.trials || '50' }} \
-            --out eval-report.json $baseline
-          cat eval-report.md >> "$GITHUB_STEP_SUMMARY"
+          args=()
+          for suite in $REQUESTED; do args+=(--suite "$suite"); done
+          if [ -f eval/baselines/synthetic.json ]; then
+            args+=(--baseline eval/baselines/synthetic.json)
+          fi
+          music-cluster eval run "${args[@]}" --trials "$TRIALS" --out eval-report.json
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f eval-report.md ]; then cat eval-report.md >> "$GITHUB_STEP_SUMMARY"; fi
 
       - name: Upload report
         if: always()

@@ -244,3 +244,98 @@ def test_compare_flags_drops_in_the_wrong_direction(temp_dir):
     assert json.loads(path.read_text())["suites"]["s"]["headline"]["acc"] == 0.70
     text = report.markdown(after, report.compare(after, before))
     assert "| s | acc | 0.800 | 0.700 | -0.100 ⚠ |" in text
+
+
+# ----------------------------------------------------------------------
+# Review fixes: each pins a failure the first version had
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("n_labels", [3, 4])
+def test_small_label_sets_still_simulate(rng, n_labels):
+    x, y, who = _library(rng, groups=n_labels)
+    result = sorting_sim.simulate(x, y, who, sorting_sim.SimulationSettings(trials=2))
+    assert result["trials"] == 2
+
+
+def test_constant_confidence_baselines_report_no_calibration(rng):
+    x, y, who = _library(rng, groups=5)
+    methods = sorting_sim.simulate(x, y, who, sorting_sim.SimulationSettings(trials=2))["methods"]
+    assert methods["majority"]["ece"] is None
+    assert methods["sorter"]["ece"] is not None
+
+
+def test_a_suite_that_loses_its_numbers_regresses():
+    before = {"suites": {"s": {"headline": {"acc": 0.8}}, "other": {"headline": {"x": 1.0}}}}
+    skipped = report.build({"s": {"skipped": "something broke"}})
+    rows = report.compare(skipped, before)
+    # "other" was not run, so it is not compared; "s" was run and lost "acc".
+    assert [(r["suite"], r["metric"], r["regressed"]) for r in rows] == [("s", "acc", True)]
+    assert "missing" in report.markdown(skipped, rows)
+
+
+def test_only_missing_data_is_a_skip(monkeypatch):
+    from music_cluster.eval import runner
+
+    def broken(**_kwargs):
+        raise ValueError("a real bug")
+
+    monkeypatch.setattr(runner.tag_suites, "run_keys", broken)
+    with pytest.raises(ValueError, match="a real bug"):
+        runner.run(["keys-synthetic"], echo=lambda _m: None)
+    with pytest.raises(ValueError, match="Unknown suite"):
+        runner.run(["no-such-suite"], echo=lambda _m: None)
+
+
+def test_analysis_cache_retries_failures_and_follows_the_code(temp_dir, monkeypatch):
+    from music_cluster.eval import analysis
+
+    audio = temp_dir / "a.mp3"
+    audio.write_bytes(b"x")
+    items = [datasets.Item(path=str(audio), label="a")]
+    calls = []
+    outcome = {"record": {"error": "no ffmpeg"}}
+
+    def fake(path, _config, _tags):
+        calls.append(path)
+        return dict(outcome["record"])
+
+    monkeypatch.setattr(analysis, "analyze_one", fake)
+    root = str(temp_dir / "data")
+
+    assert analysis.analyze(items, "t", root=root) == [None]
+    outcome["record"] = {"features": [1.0]}
+    assert analysis.analyze(items, "t", root=root) == [{"features": [1.0]}]
+    assert len(calls) == 2  # the failure was retried
+    analysis.analyze(items, "t", root=root)
+    assert len(calls) == 2  # the success was cached
+    assert analysis.cache_path("t", root).is_relative_to(temp_dir / "data")
+
+    monkeypatch.setattr(analysis, "_code_fingerprint", lambda: "edited")
+    analysis.analyze(items, "t", root=root)
+    assert len(calls) == 3  # a code change invalidates the cache
+
+
+def test_a_corrupt_preview_is_downloaded_again(temp_dir, monkeypatch):
+    import hashlib
+
+    from music_cluster.eval import download
+
+    repo = temp_dir / "giantsteps-key-dataset"
+    (repo / "md5").mkdir(parents=True)
+    (repo / "audio").mkdir()
+    good = b"real preview"
+    (repo / "md5" / "1.LOFI.md5").write_text(hashlib.md5(good).hexdigest() + "\n")
+    (repo / "md5" / "2.LOFI.md5").write_text("")  # an empty checksum file
+    (repo / "audio" / "1.LOFI.mp3").write_bytes(b"truncat")
+
+    fetched = []
+
+    def fake_fetch(url, target, _echo, check_size=True):
+        fetched.append(url)
+        target.write_bytes(good)
+
+    monkeypatch.setattr(download, "_fetch", fake_fetch)
+    download.download_giantsteps("key", str(temp_dir), echo=lambda _m: None)
+    assert (repo / "audio" / "1.LOFI.mp3").read_bytes() == good
+    assert any(url.endswith("1.LOFI.mp3") for url in fetched)

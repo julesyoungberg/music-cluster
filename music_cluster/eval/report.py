@@ -78,20 +78,42 @@ def _fmt(value: Any) -> str:
 def compare(
     current: Dict[str, Any], baseline: Dict[str, Any], tolerance: float = 0.02
 ) -> List[Dict[str, Any]]:
-    """Every headline number present in both, with whether it regressed.
+    """Every baseline headline number, with whether this run regressed it.
 
     A number regresses when it moves the wrong way by more than ``tolerance``
-    (absolute). Suites list their lower-is-better numbers in ``lower_is_better``.
+    (absolute), or when a suite that was run no longer reports it at all.
+    Suites list their lower-is-better numbers in ``lower_is_better``. Suites
+    that were not run this time are left out.
     """
-    rows = []
-    for suite, data in current.get("suites", {}).items():
-        before = baseline.get("suites", {}).get(suite)
-        if not before:
+    rows: List[Dict[str, Any]] = []
+    current_suites = current.get("suites", {})
+    for suite, before in baseline.get("suites", {}).items():
+        if not isinstance(before, dict) or not before.get("headline"):
             continue
-        lower = set(data.get("lower_is_better", []))
-        for name, value in data.get("headline", {}).items():
-            old = before.get("headline", {}).get(name)
-            if not isinstance(value, (int, float)) or not isinstance(old, (int, float)):
+        data = current_suites.get(suite)
+        if data is None:
+            # Not run this time: nothing to compare, nothing regressed.
+            continue
+        lower = set(data.get("lower_is_better", before.get("lower_is_better", [])))
+        headline = data.get("headline") or {}
+        for name, old in before["headline"].items():
+            if not isinstance(old, (int, float)):
+                continue
+            value = headline.get(name)
+            if not isinstance(value, (int, float)):
+                # The baseline had a number and this run has none: the suite
+                # was skipped, crashed into a skip, or lost the metric. That
+                # must fail the gate, not pass it silently.
+                rows.append(
+                    {
+                        "suite": suite,
+                        "metric": name,
+                        "baseline": float(old),
+                        "current": None,
+                        "delta": None,
+                        "regressed": True,
+                    }
+                )
                 continue
             delta = float(value) - float(old)
             worse = -delta if name not in lower else delta
@@ -175,6 +197,11 @@ def markdown(report: Dict[str, Any], comparison: Optional[List[Dict[str, Any]]] 
         ]
         for row in comparison:
             flag = " ⚠" if row["regressed"] else ""
+            if row["current"] is None:
+                lines.append(
+                    f"| {row['suite']} | {row['metric']} | {row['baseline']:.3f} | missing | ⚠ |"
+                )
+                continue
             lines.append(
                 f"| {row['suite']} | {row['metric']} | {row['baseline']:.3f} | {row['current']:.3f} "
                 f"| {row['delta']:+.3f}{flag} |"

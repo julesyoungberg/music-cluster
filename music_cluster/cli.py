@@ -1386,18 +1386,25 @@ def eval_run(
     from .eval import report as report_mod
     from .eval import runner
 
+    if Path(out).suffix.lower() == ".md":
+        echo_error("--out is the JSON report; the Markdown summary is written beside it")
+        sys.exit(2)
     chosen = list(runner.ALL_SUITES) if run_all else (list(suites) or list(runner.SYNTHETIC_SUITES))
-    results = runner.run(
-        chosen,
-        root=data_dir,
-        quick=quick,
-        trials=trials,
-        workers=workers,
-        limit=limit,
-        folders=folders,
-        seed=seed,
-        echo=click.echo,
-    )
+    try:
+        results = runner.run(
+            chosen,
+            root=data_dir,
+            quick=quick,
+            trials=trials,
+            workers=workers,
+            limit=limit,
+            folders=folders,
+            seed=seed,
+            echo=click.echo,
+        )
+    except ValueError as exc:
+        echo_error(str(exc))
+        sys.exit(2)
     args = {"suites": chosen, "trials": trials, "limit": limit, "quick": quick, "seed": seed}
     built = report_mod.build(results, args)
     path = report_mod.save(built, out)

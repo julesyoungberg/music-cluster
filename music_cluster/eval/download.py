@@ -2,8 +2,10 @@
 
 Everything lands under the eval data directory (``~/.music-cluster-eval/data``
 by default, or ``$MUSIC_CLUSTER_EVAL_DATA``), never inside the repository and
-never anywhere near the user's library. Downloads resume: a file already
-present with the right size or checksum is skipped.
+never anywhere near the user's library. Re-running a download skips what is
+already complete: an archive whose size matches what the server reports, a
+preview whose checksum matches the published one, an unpacked archive whose
+completion marker exists. An interrupted transfer starts that file again.
 """
 
 import hashlib
@@ -34,24 +36,52 @@ GIANTSTEPS_AUDIO = "http://www.cp.jku.at/datasets/giantsteps/backup/"
 Echo = Callable[[str], None]
 
 
-def _fetch(url: str, target: Path, echo: Echo) -> None:
+def _remote_size(url: str) -> Optional[int]:
+    try:
+        request = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(request, timeout=60) as response:
+            length = response.headers.get("Content-Length")
+            return int(length) if length else None
+    except Exception:
+        return None
+
+
+def _fetch(url: str, target: Path, echo: Echo, check_size: bool = True) -> None:
+    """Download ``url`` to ``target`` unless a complete copy is already there.
+
+    "Complete" means the size the server reports, so a transfer cut short
+    without an error is downloaded again rather than kept.
+    """
+    expected = _remote_size(url) if check_size else None
     if target.exists() and target.stat().st_size > 0:
-        echo(f"  have {target.name}")
-        return
+        if expected is None or target.stat().st_size == expected:
+            echo(f"  have {target.name}")
+            return
+        echo(f"  {target.name} is incomplete; downloading again")
+        target.unlink()
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_suffix(target.suffix + ".part")
     echo(f"  fetching {url}")
     with urllib.request.urlopen(url, timeout=60) as response, open(partial, "wb") as out:
         shutil.copyfileobj(response, out, length=1 << 20)
+    if expected is not None and partial.stat().st_size != expected:
+        partial.unlink()
+        raise OSError(
+            f"{url} ended early ({partial.stat().st_size if partial.exists() else 0} of {expected} bytes)"
+        )
     partial.rename(target)
 
 
 def _unzip(archive: Path, into: Path, marker: str, echo: Echo) -> None:
-    if (into / marker).exists():
+    # The marker is written only after extraction finishes, so an interrupted
+    # unpack is redone rather than mistaken for a complete one.
+    done = into / f".{marker}.unpacked"
+    if done.exists():
         return
     echo(f"  unpacking {archive.name}")
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(into)
+    done.write_text("ok\n")
 
 
 def download_fma(subset: str = "small", root: Optional[str] = None, echo: Echo = print) -> Path:
@@ -94,7 +124,8 @@ def download_giantsteps(kind: str, root: Optional[str] = None, echo: Echo = prin
     md5_dir = repo / "md5"
     if md5_dir.is_dir():
         for entry in sorted(md5_dir.glob("*.md5")):
-            expected[entry.name[: -len(".md5")]] = entry.read_text().split()[0].strip()
+            words = entry.read_text().split()
+            expected[entry.name[: -len(".md5")]] = words[0].strip() if words else None
     else:
         suffix = ".key" if kind == "key" else ".bpm"
         for entry in sorted((repo / "annotations" / kind).glob(f"*{suffix}")):
@@ -105,12 +136,17 @@ def download_giantsteps(kind: str, root: Optional[str] = None, echo: Echo = prin
     failed = 0
     for i, (stem, checksum) in enumerate(expected.items(), 1):
         target = audio / f"{stem}.mp3"
-        if target.exists() and (checksum is None or _md5(target) == checksum):
-            continue
+        if target.exists():
+            if checksum is None or _md5(target) == checksum:
+                continue
+            target.unlink()  # corrupt or truncated: fetch it again
         if i % 50 == 0:
             echo(f"  {i}/{len(expected)}")
         try:
-            _fetch(f"{GIANTSTEPS_AUDIO}{stem}.mp3", target, lambda _m: None)
+            # Plain HTTP, so the published checksum is what vouches for the file.
+            _fetch(f"{GIANTSTEPS_AUDIO}{stem}.mp3", target, lambda _m: None, check_size=False)
+            if checksum is not None and _md5(target) != checksum:
+                raise OSError("checksum mismatch")
         except Exception as exc:
             failed += 1
             echo(f"  could not fetch {stem}: {exc}")

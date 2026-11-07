@@ -30,6 +30,11 @@ from . import metrics
 
 NOWHERE = "__nowhere__"
 
+
+class NotEnoughData(ValueError):
+    """The data cannot support the suite (a reason to skip it, not a bug)."""
+
+
 # Thresholds swept to find the auto-file operating point.
 CONFIDENCE_GRID = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95)
 MARGIN_GRID = (0.0, 0.04, 0.08, 0.15, 0.25, 0.4)
@@ -147,8 +152,12 @@ def _trial(
 ) -> bool:
     labels = sorted(set(y.tolist()))
     if len(labels) < 3:
-        raise ValueError("Need at least three labels to simulate a library")
-    n_groups = int(rng.integers(settings.min_groups, min(settings.max_groups, len(labels) - 1) + 1))
+        raise NotEnoughData("Need at least three labels to simulate a library")
+    # One label is always held back as "belongs nowhere"; with few labels the
+    # folder count shrinks rather than failing.
+    most = min(settings.max_groups, len(labels) - 1)
+    fewest = min(settings.min_groups, most)
+    n_groups = int(rng.integers(fewest, most + 1))
     chosen = list(rng.choice(labels, size=n_groups + 1, replace=False))
     folders, nowhere = chosen[:-1], chosen[-1]
 
@@ -208,7 +217,7 @@ def _known(outcomes: _Outcomes) -> List[int]:
     return [i for i, t in enumerate(outcomes.truth) if t != NOWHERE]
 
 
-def _summarise_method(outcomes: _Outcomes) -> Dict[str, Any]:
+def _summarise_method(outcomes: _Outcomes, scored_confidence: bool = True) -> Dict[str, Any]:
     known = _known(outcomes)
     truth = [outcomes.truth[i] for i in known]
     top1 = [outcomes.top1[i] for i in known]
@@ -234,9 +243,13 @@ def _summarise_method(outcomes: _Outcomes) -> Dict[str, Any]:
         "top3": metrics.top_k_accuracy(truth, ranked, 3),
         "macro_f1": metrics.macro_f1(truth, top1),
         "balanced_accuracy": metrics.balanced_accuracy(truth, top1),
-        "ece": metrics.expected_calibration_error(confidence, correct),
-        "brier": metrics.brier(confidence, correct),
-        "aurc": metrics.risk_coverage(confidence, correct)["aurc"],
+        # A constant confidence (majority, tempo-only) has no calibration or
+        # ranking to judge; a number here would only mislead.
+        "ece": metrics.expected_calibration_error(confidence, correct)
+        if scored_confidence
+        else None,
+        "brier": metrics.brier(confidence, correct) if scored_confidence else None,
+        "aurc": metrics.risk_coverage(confidence, correct)["aurc"] if scored_confidence else None,
         "recall_by_folder_size": by_size,
         "queries": len(known),
     }
@@ -364,9 +377,13 @@ def simulate(
             completed += 1
 
     if "sorter" not in pooled:
-        raise ValueError("No trial could be built; too few tracks or artists per label")
+        raise NotEnoughData("No trial could be built; too few tracks or artists per label")
 
-    methods = {name: _summarise_method(outcomes) for name, outcomes in pooled.items()}
+    unscored = {"majority", "tempo_only"}
+    methods = {
+        name: _summarise_method(outcomes, scored_confidence=name not in unscored)
+        for name, outcomes in pooled.items()
+    }
     details = _sorter_details(pooled["sorter"], sorter_config)
     best = details["operating_points"].get("precision_95")
     return {

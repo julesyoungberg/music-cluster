@@ -4,8 +4,10 @@ Decoding is the expensive part of every suite, so each file is decoded once
 and everything the suites need is measured from that one excerpt: the
 96-dimension feature vector the sorter uses, the auto-tags, and the reference
 measurements the baselines need. Results go to a JSON-lines cache keyed by
-path, size, modification time and analysis settings, so a second run of any
-suite starts instantly and a changed setting re-analyses only what it affects.
+path, size, modification time, analysis settings and the source of the
+measuring code, so a second run of any suite starts instantly and editing a
+rule (or a setting) re-analyses everything it could affect. Files that fail
+to decode are not cached and are retried on the next run.
 
 Tags are computed with no file metadata, so a genre tag in the file can never
 leak into a genre score.
@@ -36,8 +38,33 @@ def default_config() -> Config:
     return Config(os.devnull)
 
 
+# The code whose output is cached. Editing any of these must invalidate the
+# cache, or a changed rule would be scored on the old rule's measurements.
+_MEASURING_MODULES = ("extractor.py", "features.py", "tagging.py", "rhythm.py", "eval/analysis.py")
+
+
+def _code_fingerprint() -> str:
+    package = Path(__file__).resolve().parent.parent
+    digest = hashlib.sha1()
+    for name in _MEASURING_MODULES:
+        try:
+            digest.update((package / name).read_bytes())
+        except OSError:
+            digest.update(name.encode())
+    try:
+        import essentia  # type: ignore[import-not-found]
+
+        digest.update(str(getattr(essentia, "__version__", "essentia")).encode())
+    except Exception:
+        digest.update(b"no-essentia")
+    return digest.hexdigest()
+
+
 def _signature(extractor_config: Dict[str, Any], tags: bool, version: str) -> str:
-    payload = json.dumps({"x": extractor_config, "tags": tags, "v": version}, sort_keys=True)
+    payload = json.dumps(
+        {"x": extractor_config, "tags": tags, "v": version, "code": _code_fingerprint()},
+        sort_keys=True,
+    )
     return hashlib.sha1(payload.encode()).hexdigest()[:12]
 
 
@@ -118,7 +145,7 @@ def analyze_one(path: str, extractor_config: Dict[str, Any], tags: bool) -> Dict
 
 
 def cache_path(name: str, root: Optional[str] = None) -> Path:
-    return data_dir(root).parent / "cache" / f"{name}.jsonl"
+    return data_dir(root) / ".cache" / f"{name}.jsonl"
 
 
 def analyze(
@@ -175,6 +202,13 @@ def analyze(
                 file, key = futures[future]
                 record = future.result()
                 cached[key] = record
+                done += 1
+                if progress:
+                    progress(done, total)
+                # Failures are not cached: a missing FFmpeg or a half-downloaded
+                # file should be retried next run, not remembered as broken.
+                if "error" in record:
+                    continue
                 out.write(
                     json.dumps(
                         {
@@ -186,9 +220,6 @@ def analyze(
                     )
                     + "\n"
                 )
-                done += 1
-                if progress:
-                    progress(done, total)
 
     results: List[Optional[Dict[str, Any]]] = []
     for key in keys:

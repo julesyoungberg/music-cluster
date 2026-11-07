@@ -37,7 +37,7 @@ def _sorting(
         if record and record.get("features")
     ]
     if not keep:
-        raise ValueError("No files could be analysed")
+        raise sorting_sim.NotEnoughData("No files could be analysed")
     x = np.array([features for _, features in keep], dtype=float)
     labels = [item.label or "" for item, _ in keep]
     artists = [item.artist for item, _ in keep]
@@ -67,7 +67,11 @@ def run(
     seed: int = 0,
     echo: Echo = print,
 ) -> Dict[str, Dict[str, Any]]:
-    """Run each suite; a suite whose data is missing is reported, not fatal."""
+    """Run each suite; a suite whose data is missing is reported, not fatal.
+
+    Raises:
+        ValueError: An unknown suite name. Checked before anything runs.
+    """
     results: Dict[str, Dict[str, Any]] = {}
     settings = sorting_sim.SimulationSettings(trials=trials, seed=seed)
 
@@ -81,6 +85,9 @@ def run(
     wanted = list(suites)
     if folders and "sorting-folders" not in wanted:
         wanted.append("sorting-folders")
+    unknown = [s for s in wanted if s not in (*ALL_SUITES, "sorting-folders")]
+    if unknown:
+        raise ValueError(f"Unknown suite {unknown[0]!r}; choose from {', '.join(ALL_SUITES)}")
 
     for suite in wanted:
         echo(f"{suite}:")
@@ -102,7 +109,7 @@ def run(
                 results[suite] = _sorting(items, "fma-medium", settings, workers, root, echo)
             elif suite == "sorting-folders":
                 if not folders:
-                    raise ValueError("Pass --folders PARENT to score a folder tree")
+                    raise sorting_sim.NotEnoughData("Pass --folders PARENT to score a folder tree")
                 items = trim(datasets.folder_tree(folders))
                 results[suite] = _sorting(items, "folders", settings, workers, root, echo)
             elif suite == "key-giantsteps":
@@ -134,7 +141,10 @@ def run(
         except FileNotFoundError as exc:
             echo(f"  skipped: data not found ({exc}). Run `music-cluster eval download` first.")
             results[suite] = {"skipped": f"data not found: {exc}"}
-        except ValueError as exc:
+        except sorting_sim.NotEnoughData as exc:
+            # Only "the data can't support this" is a skip. Any other error is
+            # a bug and propagates, so a broken suite can never pass the
+            # regression gate by being reported as skipped.
             echo(f"  skipped: {exc}")
             results[suite] = {"skipped": str(exc)}
     return results
