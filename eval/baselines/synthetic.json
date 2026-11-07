@@ -1,0 +1,467 @@
+{
+  "meta": {
+    "created": "2026-11-07T03:56:01+00:00",
+    "version": "2.0.0",
+    "commit": "b517032",
+    "python": "3.12.3",
+    "args": {
+      "suites": [
+        "beats-synthetic",
+        "keys-synthetic"
+      ],
+      "trials": 50,
+      "limit": null,
+      "quick": false,
+      "seed": 0
+    }
+  },
+  "suites": {
+    "beats-synthetic": {
+      "headline": {
+        "beat_accuracy": 0.882051282051282,
+        "beat_accuracy_clean": 0.8974358974358975,
+        "beat_macro_f1": 0.8844763871118417,
+        "tempo_accuracy1": 0.8666666666666667,
+        "tempo_accuracy2": 0.9128205128205128
+      },
+      "by_variant": {
+        "clean": {
+          "beat_accuracy": 0.8974358974358975,
+          "tempo_accuracy1": 0.9230769230769231,
+          "cases": 39
+        },
+        "deep_kit_with_pad": {
+          "beat_accuracy": 0.8974358974358975,
+          "tempo_accuracy1": 0.9230769230769231,
+          "cases": 39
+        },
+        "humanized": {
+          "beat_accuracy": 0.8974358974358975,
+          "tempo_accuracy1": 0.9230769230769231,
+          "cases": 39
+        },
+        "noisy": {
+          "beat_accuracy": 0.9743589743589743,
+          "tempo_accuracy1": 0.8461538461538461,
+          "cases": 39
+        },
+        "rough": {
+          "beat_accuracy": 0.7435897435897436,
+          "tempo_accuracy1": 0.717948717948718,
+          "cases": 39
+        }
+      },
+      "per_beat": {
+        "backbeat": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "support": 30
+        },
+        "baile_funk": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 15
+        },
+        "breakbeat": {
+          "precision": 1.0,
+          "recall": 0.4666666666666667,
+          "support": 30
+        },
+        "dembow": {
+          "precision": 1.0,
+          "recall": 0.8666666666666667,
+          "support": 15
+        },
+        "four_on_floor": {
+          "precision": 0.8653846153846154,
+          "recall": 1.0,
+          "support": 45
+        },
+        "half_time": {
+          "precision": 0.6521739130434783,
+          "recall": 1.0,
+          "support": 30
+        },
+        "two_step": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 30
+        }
+      },
+      "confusions": [
+        [
+          "breakbeat",
+          "half_time",
+          11
+        ],
+        [
+          "breakbeat",
+          "four_on_floor",
+          5
+        ],
+        [
+          "backbeat",
+          "half_time",
+          5
+        ],
+        [
+          "dembow",
+          "four_on_floor",
+          2
+        ]
+      ],
+      "failures": [
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "clean",
+          "seed": 7,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "clean",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "clean",
+          "seed": 9,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "humanized",
+          "seed": 7,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "humanized",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "humanized",
+          "seed": 9,
+          "beat_out": "four_on_floor",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "deep_kit_with_pad",
+          "seed": 7,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "deep_kit_with_pad",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "deep_kit_with_pad",
+          "seed": 9,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "rough",
+          "seed": 7,
+          "beat_out": "four_on_floor",
+          "bpm_out": 258.4
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "rough",
+          "seed": 8,
+          "beat_out": "four_on_floor",
+          "bpm_out": 258.4
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 128.0,
+          "variant": "rough",
+          "seed": 9,
+          "beat_out": "four_on_floor",
+          "bpm_out": 258.4
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 170.0,
+          "variant": "clean",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 170.0,
+          "variant": "humanized",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 170.0,
+          "variant": "noisy",
+          "seed": 9,
+          "beat_out": "four_on_floor",
+          "bpm_out": 234.91
+        },
+        {
+          "groove": "breakbeat",
+          "bpm": 170.0,
+          "variant": "deep_kit_with_pad",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "dembow",
+          "bpm": 95.0,
+          "variant": "rough",
+          "seed": 7,
+          "beat_out": "four_on_floor",
+          "bpm_out": 191.41
+        },
+        {
+          "groove": "dembow",
+          "bpm": 95.0,
+          "variant": "rough",
+          "seed": 9,
+          "beat_out": "four_on_floor",
+          "bpm_out": 191.41
+        },
+        {
+          "groove": "backbeat",
+          "bpm": 85.0,
+          "variant": "rough",
+          "seed": 7,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "backbeat",
+          "bpm": 85.0,
+          "variant": "rough",
+          "seed": 8,
+          "beat_out": "half_time",
+          "bpm_out": 166.71
+        },
+        {
+          "groove": "backbeat",
+          "bpm": 85.0,
+          "variant": "rough",
+          "seed": 9,
+          "beat_out": "half_time",
+          "bpm_out": 172.27
+        },
+        {
+          "groove": "backbeat",
+          "bpm": 95.0,
+          "variant": "rough",
+          "seed": 7,
+          "beat_out": "half_time",
+          "bpm_out": 198.77
+        },
+        {
+          "groove": "backbeat",
+          "bpm": 95.0,
+          "variant": "rough",
+          "seed": 9,
+          "beat_out": "half_time",
+          "bpm_out": 191.41
+        }
+      ],
+      "cases": 195
+    },
+    "keys-synthetic": {
+      "headline": {
+        "key_weighted": 0.8250000000000001,
+        "key_correct": 0.75,
+        "key_correct_with_drums": 0.75,
+        "key_correct_minor_loop": 0.0,
+        "key_correct_cadence": 1.0
+      },
+      "breakdown": {
+        "weighted": 0.8250000000000001,
+        "count": 96,
+        "correct": 0.75,
+        "fifth": 0.0,
+        "relative": 0.25,
+        "parallel": 0.0,
+        "other": 0.0
+      },
+      "failures": [
+        {
+          "key": "C minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "D# major"
+        },
+        {
+          "key": "C minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "D# major"
+        },
+        {
+          "key": "C# minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "E major"
+        },
+        {
+          "key": "C# minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "E major"
+        },
+        {
+          "key": "D minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "F major"
+        },
+        {
+          "key": "D minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "F major"
+        },
+        {
+          "key": "D# minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "F# major"
+        },
+        {
+          "key": "D# minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "F# major"
+        },
+        {
+          "key": "E minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "G major"
+        },
+        {
+          "key": "E minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "G major"
+        },
+        {
+          "key": "F minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "G# major"
+        },
+        {
+          "key": "F minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "G# major"
+        },
+        {
+          "key": "F# minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "A major"
+        },
+        {
+          "key": "F# minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "A major"
+        },
+        {
+          "key": "G minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "A# major"
+        },
+        {
+          "key": "G minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "A# major"
+        },
+        {
+          "key": "G# minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "B major"
+        },
+        {
+          "key": "G# minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "B major"
+        },
+        {
+          "key": "A minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "C major"
+        },
+        {
+          "key": "A minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "C major"
+        },
+        {
+          "key": "A# minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "C# major"
+        },
+        {
+          "key": "A# minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "C# major"
+        },
+        {
+          "key": "B minor",
+          "style": "loop",
+          "drums": false,
+          "key_out": "D major"
+        },
+        {
+          "key": "B minor",
+          "style": "loop",
+          "drums": true,
+          "key_out": "D major"
+        }
+      ],
+      "cases": 96
+    }
+  }
+}
