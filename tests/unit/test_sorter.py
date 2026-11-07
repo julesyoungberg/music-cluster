@@ -40,6 +40,41 @@ def test_distant_track_is_unmatched(rng):
     assert suggestion.status == STATUS_UNMATCHED
 
 
+@pytest.mark.parametrize("scale_normalization", [False, True])
+def test_a_moderately_distant_cluster_is_unmatched(rng, scale_normalization):
+    """A plausible stranger, not an absurd vector, must be reported as matching nothing.
+
+    The stranger sits as far from the groups as they sit from each other, so
+    this catches a ``novelty_factor`` whose units drifted away from "group
+    widths", which a vector of 500s never would.
+    """
+    sizes = (300, 120, 40, 12, 8)
+    centres = make_centres(rng, len(sizes) + 1, separation=3.0)
+    stranger = centres.pop()
+    features = {
+        index + 1: np.vstack([make_vector(rng, centre) for _ in range(size)])
+        for index, (centre, size) in enumerate(zip(centres, sizes, strict=True))
+    }
+    config = SorterConfig(scale_normalization=scale_normalization)
+    sorter = GroupSorter(config).fit(features)
+
+    strangers = [sorter.suggest(make_vector(rng, stranger)) for _ in range(40)]
+    members = [sorter.suggest(make_vector(rng, centre)) for centre in centres for _ in range(8)]
+
+    assert np.mean([s.status == STATUS_UNMATCHED for s in strangers]) >= 0.9
+    assert np.mean([s.status == STATUS_UNMATCHED for s in members]) <= 0.05
+
+
+def test_sorter_stored_without_spread_still_scores(rng):
+    """Sorters pickled before ``spread`` existed fall back to ``scale``."""
+    sorter, centres, _ = build_sorter(rng)
+    for profile in sorter.profiles:
+        profile.spread = None
+    restored = GroupSorter.loads(sorter.dumps())
+    assert restored.suggest(make_vector(rng, centres[0])).group_id is not None
+    assert restored.suggest(np.full(FEATURE_DIM, 500.0)).status == STATUS_UNMATCHED
+
+
 def test_ranked_list_is_ordered_and_normalised(rng):
     sorter, centres, _ = build_sorter(rng)
     suggestion = sorter.suggest(make_vector(rng, centres[0]))
@@ -50,19 +85,20 @@ def test_ranked_list_is_ordered_and_normalised(rng):
     assert suggestion.confidence == pytest.approx(suggestion.ranked[0]["score"])
 
 
-def test_a_small_group_survives_beside_a_large_one(rng):
+@pytest.mark.parametrize("scale_normalization", [False, True])
+def test_a_small_group_survives_beside_a_large_one(rng, scale_normalization):
     """A tiny seed group must not be drowned out by a huge folder.
 
-    Without per-group scale normalisation the large group wins on sheer
-    coverage, which is exactly the failure mode a DJ with one 900-track folder
-    and one 8-track crate would hit.
+    A DJ with one 900-track folder and one 8-track crate must still see the
+    crate win its own tracks, with or without per-group scaling.
     """
     centres = make_centres(rng, 2, separation=3.0)
     features = {
         1: np.vstack([make_vector(rng, centres[0], spread=1.4) for _ in range(300)]),
         2: np.vstack([make_vector(rng, centres[1], spread=0.6) for _ in range(6)]),
     }
-    sorter = GroupSorter().fit(features, {1: "Big folder", 2: "Small crate"})
+    config = SorterConfig(scale_normalization=scale_normalization)
+    sorter = GroupSorter(config).fit(features, {1: "Big folder", 2: "Small crate"})
 
     hits = sum(
         sorter.suggest(make_vector(rng, centres[1], spread=0.6)).group_id == 2 for _ in range(20)

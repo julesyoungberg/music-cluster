@@ -33,13 +33,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "discriminant_weight": 0.7,
         # Distance to a group blends its k nearest references with its centroid.
         "neighbors": 5,
-        "knn_weight": 0.7,
-        # Per-group distances are divided by that group's own spread so a broad
-        # 900-track folder does not out-compete a tight 8-track seed group.
-        "scale_normalization": True,
-        "temperature": 0.5,
+        # Measured on simulated libraries (EVALUATION.md): leaning on the
+        # centroid beats leaning on the nearest few references, which are noisy.
+        "knn_weight": 0.3,
+        # Dividing each group's distance by its own spread was meant to keep a
+        # broad folder from swallowing a tight one; measured, it does the
+        # opposite and buries small folders (recall 0.10 vs 0.32 without it).
+        "scale_normalization": False,
+        "temperature": 0.25,
         # Decision thresholds.
-        "auto_accept_confidence": 0.6,
+        # 0.7 on simulated FMA libraries: 58% precise at 7.7% coverage, against
+        # 55% at 16% for 0.6. The sharper sorter is confident more often, so the
+        # bar moves up with it until "matches nothing" detection works.
+        "auto_accept_confidence": 0.7,
         "min_margin": 0.08,
         "novelty_factor": 3.0,
         # Relative importance of each feature family.

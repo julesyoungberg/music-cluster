@@ -215,10 +215,11 @@ this different from clustering a library and hoping the results mean something.
    and lose the ability to notice a track that resembles nothing you own.
 
 3. **Fair comparison across group sizes.** A track's distance to a group blends
-   its *k* nearest references (handles a folder containing several distinct
-   sounds) with the group centroid (stable for a group of eight), then divides
-   by that group's own internal spread. Without that last step a sprawling
-   900-track folder wins everything and an 8-track crate never wins anything.
+   its group centroid (stable for a group of eight) with its *k* nearest
+   references (handles a folder containing several distinct sounds), leaning on
+   the centroid. Dividing by each group's own spread is available
+   (`sorting.scale_normalization`) but off by default: on simulated libraries it
+   left 8–20 track crates almost never winning (10% recall, against 32% without).
 
 4. **A decision, with a confidence.** Scores across groups yield a confidence
    and a top-1/top-2 margin. Clear the thresholds and a track can be auto-filed;
@@ -312,11 +313,11 @@ sorting:
 
 ```yaml
 sorting:
-  auto_accept_confidence: 0.6   # how sure before a track can be auto-filed
+  auto_accept_confidence: 0.7   # how sure before a track can be auto-filed
   min_margin: 0.08              # how far ahead of the runner-up
-  novelty_factor: 3.0           # beyond this, report "matches nothing"
+  novelty_factor: 3.0           # group-widths from every group before "matches nothing"
   neighbors: 5                  # references compared against per group
-  knn_weight: 0.7               # 1.0 = nearest tracks only, 0 = centroid only
+  knn_weight: 0.3               # 1.0 = nearest tracks only, 0 = centroid only
   discriminant_weight: 0.7      # focus on your boundaries vs general character
   feature_weights:              # what "similar" means to you
     timbre: 1.0

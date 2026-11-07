@@ -1,0 +1,1047 @@
+{
+  "meta": {
+    "created": "2026-11-07T05:36:38+00:00",
+    "version": "2.0.0",
+    "commit": "8b81f7a",
+    "python": "3.12.15",
+    "args": {
+      "suites": [
+        "key-giantsteps",
+        "tempo-giantsteps",
+        "sorting-fma"
+      ],
+      "trials": 50,
+      "limit": null,
+      "quick": false,
+      "seed": 0
+    }
+  },
+  "suites": {
+    "key-giantsteps": {
+      "headline": {
+        "key_weighted": 0.5129139072847683,
+        "key_correct": 0.40397350993377484,
+        "key_tagged_correct": 0.48534201954397393,
+        "key_share_tagged": 0.5082781456953642
+      },
+      "methods": {
+        "ours_all": {
+          "weighted": 0.5129139072847683,
+          "count": 604,
+          "correct": 0.40397350993377484,
+          "fifth": 0.1490066225165563,
+          "relative": 0.052980132450331126,
+          "parallel": 0.09271523178807947,
+          "other": 0.30132450331125826
+        },
+        "ours_tagged_only": {
+          "weighted": 0.5954397394136808,
+          "count": 307,
+          "correct": 0.48534201954397393,
+          "fifth": 0.1498371335504886,
+          "relative": 0.05863192182410423,
+          "parallel": 0.08794788273615635,
+          "other": 0.2182410423452769,
+          "share_tagged": 0.5082781456953642
+        },
+        "most_common_key": {
+          "weighted": 0.14950331125827818,
+          "count": 604,
+          "correct": 0.12086092715231789,
+          "fifth": 0.046357615894039736,
+          "relative": 0.008278145695364239,
+          "parallel": 0.014900662251655629,
+          "other": 0.8096026490066225
+        },
+        "essentia_edma": {
+          "weighted": 0.6579470198675497,
+          "count": 604,
+          "correct": 0.5910596026490066,
+          "fifth": 0.052980132450331126,
+          "relative": 0.059602649006622516,
+          "parallel": 0.11258278145695365,
+          "other": 0.1837748344370861
+        }
+      },
+      "by_genre": {
+        "progressive-house": {
+          "score": 0.43409090909090914,
+          "count": 88
+        },
+        "tech-house": {
+          "score": 0.5234567901234568,
+          "count": 81
+        },
+        "deep-house": {
+          "score": 0.5246753246753245,
+          "count": 77
+        },
+        "trance": {
+          "score": 0.5103448275862069,
+          "count": 58
+        },
+        "electro-house": {
+          "score": 0.6156862745098038,
+          "count": 51
+        },
+        "house": {
+          "score": 0.4595744680851063,
+          "count": 47
+        },
+        "drum-and-bass": {
+          "score": 0.31315789473684214,
+          "count": 38
+        },
+        "techno": {
+          "score": 0.46764705882352936,
+          "count": 34
+        },
+        "dubstep": {
+          "score": 0.45454545454545453,
+          "count": 22
+        },
+        "electronica": {
+          "score": 0.5700000000000001,
+          "count": 20
+        },
+        "breaks": {
+          "score": 0.6571428571428571,
+          "count": 14
+        },
+        "indie-dance nu-disco": {
+          "score": 0.8214285714285714,
+          "count": 14
+        },
+        "minimal": {
+          "score": 0.29090909090909095,
+          "count": 11
+        },
+        "chill-out": {
+          "score": 0.5636363636363636,
+          "count": 11
+        },
+        "pop rock": {
+          "score": 0.8142857142857143,
+          "count": 7
+        },
+        "glitch-hop": {
+          "score": 0.6666666666666666,
+          "count": 6
+        },
+        "psy-trance": {
+          "score": 0.7,
+          "count": 5
+        },
+        "hard-dance": {
+          "score": 0.875,
+          "count": 4
+        },
+        "hip-hop": {
+          "score": 0.75,
+          "count": 4
+        },
+        "hardcore hard-techno": {
+          "score": 0.5,
+          "count": 3
+        },
+        "dj-tools": {
+          "score": 0.2333333333333333,
+          "count": 3
+        },
+        "reggae dub": {
+          "score": 0.6666666666666666,
+          "count": 3
+        },
+        "funk r&b": {
+          "score": 1.0,
+          "count": 3
+        }
+      },
+      "analysed": 604,
+      "missing": 0
+    },
+    "tempo-giantsteps": {
+      "headline": {
+        "tempo_accuracy1": 0.6369137670196672,
+        "tempo_accuracy2": 0.8290468986384266,
+        "librosa_accuracy1": 0.583963691376702
+      },
+      "methods": {
+        "ours": {
+          "accuracy1": 0.6369137670196672,
+          "accuracy2": 0.8290468986384266,
+          "count": 661
+        },
+        "librosa_beat_track": {
+          "accuracy1": 0.583963691376702,
+          "accuracy2": 0.7413010590015129,
+          "count": 661
+        },
+        "essentia_rhythm2013": {
+          "accuracy1": 0.6081694402420574,
+          "accuracy2": 0.8184568835098336,
+          "count": 661
+        }
+      },
+      "by_genre": {
+        "drum-and-bass": {
+          "score": 0.6690647482014388,
+          "count": 139
+        },
+        "dubstep": {
+          "score": 0.6578947368421053,
+          "count": 76
+        },
+        "trance": {
+          "score": 0.3918918918918919,
+          "count": 74
+        },
+        "techno": {
+          "score": 0.6885245901639344,
+          "count": 61
+        },
+        "electronica": {
+          "score": 0.5576923076923077,
+          "count": 52
+        },
+        "psy-trance": {
+          "score": 0.7352941176470589,
+          "count": 34
+        },
+        "breaks": {
+          "score": 0.8076923076923077,
+          "count": 26
+        },
+        "deep-house": {
+          "score": 0.75,
+          "count": 24
+        },
+        "house": {
+          "score": 0.9565217391304348,
+          "count": 23
+        },
+        "tech-house": {
+          "score": 0.6818181818181818,
+          "count": 22
+        },
+        "electro-house": {
+          "score": 0.8181818181818182,
+          "count": 22
+        },
+        "progressive-house": {
+          "score": 0.5263157894736842,
+          "count": 19
+        },
+        "glitch-hop": {
+          "score": 0.6470588235294118,
+          "count": 17
+        },
+        "chill-out": {
+          "score": 0.26666666666666666,
+          "count": 15
+        },
+        "hardcore-hard-techno": {
+          "score": 0.5714285714285714,
+          "count": 14
+        },
+        "indie-dance-nu-disco": {
+          "score": 0.45454545454545453,
+          "count": 11
+        },
+        "hard-dance": {
+          "score": 0.625,
+          "count": 8
+        },
+        "dj-tools": {
+          "score": 0.625,
+          "count": 8
+        },
+        "minimal": {
+          "score": 1.0,
+          "count": 8
+        },
+        "pop-rock": {
+          "score": 0.3333333333333333,
+          "count": 3
+        },
+        "reggae-dub": {
+          "score": 0.0,
+          "count": 2
+        },
+        "hip-hop": {
+          "score": 0.5,
+          "count": 2
+        },
+        "funk-r-and-b": {
+          "score": 1.0,
+          "count": 1
+        }
+      },
+      "beat_by_genre": {
+        "electronica": {
+          "four_on_floor": 18,
+          "half_time": 11,
+          "beatless": 5,
+          "breakbeat": 11,
+          "backbeat": 2,
+          "two_step": 3,
+          "dembow": 2
+        },
+        "drum-and-bass": {
+          "breakbeat": 51,
+          "two_step": 17,
+          "half_time": 19,
+          "four_on_floor": 26,
+          "beatless": 13,
+          "backbeat": 9,
+          "dembow": 1,
+          "none": 3
+        },
+        "breaks": {
+          "breakbeat": 11,
+          "four_on_floor": 3,
+          "two_step": 6,
+          "half_time": 5,
+          "none": 1
+        },
+        "dubstep": {
+          "breakbeat": 18,
+          "beatless": 11,
+          "four_on_floor": 11,
+          "two_step": 2,
+          "half_time": 26,
+          "none": 5,
+          "backbeat": 3
+        },
+        "hard-dance": {
+          "four_on_floor": 6,
+          "beatless": 1,
+          "baile_funk": 1
+        },
+        "hardcore-hard-techno": {
+          "half_time": 1,
+          "four_on_floor": 6,
+          "breakbeat": 2,
+          "beatless": 3,
+          "none": 1,
+          "two_step": 1
+        },
+        "trance": {
+          "breakbeat": 20,
+          "four_on_floor": 28,
+          "half_time": 14,
+          "beatless": 10,
+          "none": 2
+        },
+        "deep-house": {
+          "four_on_floor": 12,
+          "breakbeat": 9,
+          "half_time": 3
+        },
+        "progressive-house": {
+          "beatless": 5,
+          "four_on_floor": 8,
+          "half_time": 1,
+          "breakbeat": 5
+        },
+        "techno": {
+          "four_on_floor": 32,
+          "breakbeat": 23,
+          "half_time": 5,
+          "beatless": 1
+        },
+        "tech-house": {
+          "breakbeat": 11,
+          "four_on_floor": 9,
+          "beatless": 1,
+          "half_time": 1
+        },
+        "house": {
+          "four_on_floor": 8,
+          "dembow": 1,
+          "two_step": 2,
+          "breakbeat": 4,
+          "half_time": 8
+        },
+        "chill-out": {
+          "two_step": 1,
+          "beatless": 1,
+          "four_on_floor": 2,
+          "backbeat": 3,
+          "half_time": 5,
+          "breakbeat": 3
+        },
+        "pop-rock": {
+          "four_on_floor": 2,
+          "breakbeat": 1
+        },
+        "psy-trance": {
+          "four_on_floor": 23,
+          "half_time": 4,
+          "breakbeat": 4,
+          "baile_funk": 1,
+          "backbeat": 2
+        },
+        "indie-dance-nu-disco": {
+          "four_on_floor": 4,
+          "half_time": 3,
+          "dembow": 2,
+          "breakbeat": 2
+        },
+        "reggae-dub": {
+          "four_on_floor": 1,
+          "half_time": 1
+        },
+        "dj-tools": {
+          "four_on_floor": 1,
+          "half_time": 2,
+          "breakbeat": 3,
+          "beatless": 2
+        },
+        "electro-house": {
+          "breakbeat": 9,
+          "beatless": 2,
+          "four_on_floor": 9,
+          "half_time": 2
+        },
+        "glitch-hop": {
+          "backbeat": 2,
+          "half_time": 5,
+          "four_on_floor": 7,
+          "breakbeat": 2,
+          "two_step": 1
+        },
+        "hip-hop": {
+          "backbeat": 1,
+          "breakbeat": 1
+        },
+        "minimal": {
+          "four_on_floor": 4,
+          "breakbeat": 3,
+          "half_time": 1
+        },
+        "funk-r-and-b": {
+          "two_step": 1
+        }
+      },
+      "analysed": 661,
+      "missing": 3
+    },
+    "sorting-fma": {
+      "headline": {
+        "sorter_top1": 0.448822800495663,
+        "sorter_top3": 0.8089219330855019,
+        "sorter_macro_f1": 0.430980873382654,
+        "sorter_ece": 0.02681286520756082,
+        "logistic_top1": 0.42577447335811647,
+        "auto_precision_current": 0.581081081081081,
+        "auto_coverage_current": 0.07732497387669801,
+        "coverage_at_95_precision": 0.0,
+        "novelty_auroc": 0.5008072697232548,
+        "nowhere_auto_filed": 0.08133333333333333
+      },
+      "lower_is_better": [
+        "sorter_ece",
+        "nowhere_auto_filed"
+      ],
+      "settings": {
+        "trials": 50,
+        "min_groups": 4,
+        "max_groups": 10,
+        "min_refs": 8,
+        "max_refs": 300,
+        "queries_per_group": 15,
+        "novel_queries": 15,
+        "query_share": 0.3,
+        "seed": 0
+      },
+      "trials": 50,
+      "methods": {
+        "sorter": {
+          "top1": 0.448822800495663,
+          "top3": 0.8089219330855019,
+          "macro_f1": 0.430980873382654,
+          "balanced_accuracy": 0.43888692410077107,
+          "ece": 0.02681286520756082,
+          "brier": 0.23041067233393975,
+          "aurc": 0.4288601462292604,
+          "recall_by_folder_size": {
+            "small (<20)": {
+              "recall": 0.3230769230769231,
+              "queries": 975
+            },
+            "medium (20-99)": {
+              "recall": 0.44114583333333335,
+              "queries": 1920
+            },
+            "large (100+)": {
+              "recall": 0.5692982456140351,
+              "queries": 1140
+            }
+          },
+          "queries": 4035
+        },
+        "majority": {
+          "top1": 0.18587360594795538,
+          "top3": 0.5576208178438662,
+          "macro_f1": 0.17959483482870903,
+          "balanced_accuracy": 0.18621930215382165,
+          "ece": null,
+          "brier": null,
+          "aurc": null,
+          "recall_by_folder_size": {
+            "small (<20)": {
+              "recall": 0.0,
+              "queries": 975
+            },
+            "medium (20-99)": {
+              "recall": 0.09375,
+              "queries": 1920
+            },
+            "large (100+)": {
+              "recall": 0.5,
+              "queries": 1140
+            }
+          },
+          "queries": 4035
+        },
+        "tempo_only": {
+          "top1": 0.22428748451053285,
+          "top3": 0.6002478314745973,
+          "macro_f1": 0.21234852928089193,
+          "balanced_accuracy": 0.22198508816354057,
+          "ece": null,
+          "brier": null,
+          "aurc": null,
+          "recall_by_folder_size": {
+            "small (<20)": {
+              "recall": 0.2246153846153846,
+              "queries": 975
+            },
+            "medium (20-99)": {
+              "recall": 0.23541666666666666,
+              "queries": 1920
+            },
+            "large (100+)": {
+              "recall": 0.20526315789473684,
+              "queries": 1140
+            }
+          },
+          "queries": 4035
+        },
+        "logistic": {
+          "top1": 0.42577447335811647,
+          "top3": 0.7828996282527881,
+          "macro_f1": 0.41849710648047383,
+          "balanced_accuracy": 0.42002751828028967,
+          "ece": 0.31751414256362503,
+          "brier": 0.33872270672057786,
+          "aurc": 0.46147556004939067,
+          "recall_by_folder_size": {
+            "small (<20)": {
+              "recall": 0.18256410256410258,
+              "queries": 975
+            },
+            "medium (20-99)": {
+              "recall": 0.4036458333333333,
+              "queries": 1920
+            },
+            "large (100+)": {
+              "recall": 0.6710526315789473,
+              "queries": 1140
+            }
+          },
+          "queries": 4035
+        },
+        "knn": {
+          "top1": 0.3856257744733581,
+          "top3": 0.7439900867410161,
+          "macro_f1": 0.37119593907646986,
+          "balanced_accuracy": 0.3781034997971106,
+          "ece": 0.2721685254027262,
+          "brier": 0.3047633209417597,
+          "aurc": 0.4993547425549286,
+          "recall_by_folder_size": {
+            "small (<20)": {
+              "recall": 0.12307692307692308,
+              "queries": 975
+            },
+            "medium (20-99)": {
+              "recall": 0.346875,
+              "queries": 1920
+            },
+            "large (100+)": {
+              "recall": 0.6754385964912281,
+              "queries": 1140
+            }
+          },
+          "queries": 4035
+        }
+      },
+      "sorter": {
+        "current_thresholds": {
+          "auto_accept_confidence": 0.7,
+          "min_margin": 0.08,
+          "novelty_factor": 3.0,
+          "precision": 0.581081081081081,
+          "coverage": 0.07732497387669801
+        },
+        "auto_rate_known": 0.07657992565055761,
+        "auto_precision_known": 0.6957928802588996,
+        "nowhere_flagged_unmatched": 0.0026666666666666666,
+        "nowhere_auto_filed": 0.08133333333333333,
+        "known_flagged_unmatched": 0.002973977695167286,
+        "novelty_auroc": 0.5008072697232548,
+        "reliability": [
+          {
+            "low": 0.1,
+            "high": 0.2,
+            "count": 19,
+            "confidence": 0.19062262637834196,
+            "accuracy": 0.05263157894736842
+          },
+          {
+            "low": 0.2,
+            "high": 0.30000000000000004,
+            "count": 755,
+            "confidence": 0.2619244820310348,
+            "accuracy": 0.2582781456953642
+          },
+          {
+            "low": 0.30000000000000004,
+            "high": 0.4,
+            "count": 1176,
+            "confidence": 0.3499565609860791,
+            "accuracy": 0.3903061224489796
+          },
+          {
+            "low": 0.4,
+            "high": 0.5,
+            "count": 845,
+            "confidence": 0.4459024767818452,
+            "accuracy": 0.4544378698224852
+          },
+          {
+            "low": 0.5,
+            "high": 0.6000000000000001,
+            "count": 584,
+            "confidence": 0.545981572068203,
+            "accuracy": 0.5753424657534246
+          },
+          {
+            "low": 0.6000000000000001,
+            "high": 0.7000000000000001,
+            "count": 345,
+            "confidence": 0.6469260941036573,
+            "accuracy": 0.6376811594202898
+          },
+          {
+            "low": 0.7000000000000001,
+            "high": 0.8,
+            "count": 208,
+            "confidence": 0.7463577786306227,
+            "accuracy": 0.6778846153846154
+          },
+          {
+            "low": 0.8,
+            "high": 0.9,
+            "count": 85,
+            "confidence": 0.8463458526749916,
+            "accuracy": 0.6941176470588235
+          },
+          {
+            "low": 0.9,
+            "high": 1.0,
+            "count": 18,
+            "confidence": 0.9240847815389601,
+            "accuracy": 0.8888888888888888
+          }
+        ],
+        "risk_coverage": [
+          {
+            "coverage": 0.10012391573729863,
+            "precision": 0.6757425742574258,
+            "threshold": 0.6696928669593466
+          },
+          {
+            "coverage": 0.2,
+            "precision": 0.6517967781908303,
+            "threshold": 0.5690940372848776
+          },
+          {
+            "coverage": 0.30012391573729863,
+            "precision": 0.6251032204789431,
+            "threshold": 0.5045116536952798
+          },
+          {
+            "coverage": 0.4,
+            "precision": 0.5817843866171004,
+            "threshold": 0.4479020516030382
+          },
+          {
+            "coverage": 0.5001239157372986,
+            "precision": 0.5545094152626363,
+            "threshold": 0.40776427106806645
+          },
+          {
+            "coverage": 0.6,
+            "precision": 0.5344898802147873,
+            "threshold": 0.37082355855975996
+          },
+          {
+            "coverage": 0.7001239157372986,
+            "precision": 0.5132743362831859,
+            "threshold": 0.33730253385638703
+          },
+          {
+            "coverage": 0.8,
+            "precision": 0.4962825278810409,
+            "threshold": 0.3024776160402408
+          },
+          {
+            "coverage": 0.9001239157372987,
+            "precision": 0.4713656387665198,
+            "threshold": 0.26573144608846117
+          },
+          {
+            "coverage": 1.0,
+            "precision": 0.448822800495663,
+            "threshold": 0.17021213392714885
+          }
+        ],
+        "threshold_sweep": [
+          {
+            "confidence": 0.3,
+            "margin": 0.0,
+            "precision": 0.41696844283497153,
+            "coverage": 0.8079414838035528
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.04,
+            "precision": 0.4234965034965035,
+            "coverage": 0.7471264367816092
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.08,
+            "precision": 0.433489827856025,
+            "coverage": 0.6677115987460815
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.15,
+            "precision": 0.46477699041267195,
+            "coverage": 0.5013584117032392
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.25,
+            "precision": 0.5081555834378921,
+            "coverage": 0.33312434691745035
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.4,
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.0,
+            "precision": 0.463610776035384,
+            "coverage": 0.5197492163009404
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.04,
+            "precision": 0.4663402692778458,
+            "coverage": 0.5122257053291536
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.08,
+            "precision": 0.46915652538816616,
+            "coverage": 0.4980146290491118
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.15,
+            "precision": 0.48065268065268063,
+            "coverage": 0.4482758620689655
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.25,
+            "precision": 0.5081761006289308,
+            "coverage": 0.3322884012539185
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.4,
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.0,
+            "precision": 0.5241660993873384,
+            "coverage": 0.3070010449320794
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.04,
+            "precision": 0.5241660993873384,
+            "coverage": 0.3070010449320794
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.08,
+            "precision": 0.5238744884038199,
+            "coverage": 0.30637408568443053
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.15,
+            "precision": 0.5252595155709343,
+            "coverage": 0.3019853709508882
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.25,
+            "precision": 0.5309009679821296,
+            "coverage": 0.2806687565308255
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.4,
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.0,
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.04,
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.08,
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.15,
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.25,
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
+          },
+          {
+            "confidence": 0.6,
+            "margin": 0.4,
+            "precision": 0.5583684950773559,
+            "coverage": 0.14858934169278998
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.0,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.04,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.08,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.15,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.25,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.7,
+            "margin": 0.4,
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.0,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.04,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.08,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.15,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.25,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.8,
+            "margin": 0.4,
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.0,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.04,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.08,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.15,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.25,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.9,
+            "margin": 0.4,
+            "precision": 0.8888888888888888,
+            "coverage": 0.003761755485893417
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.0,
+            "precision": 1.0,
+            "coverage": 0.0
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.04,
+            "precision": 1.0,
+            "coverage": 0.0
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.08,
+            "precision": 1.0,
+            "coverage": 0.0
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.15,
+            "precision": 1.0,
+            "coverage": 0.0
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.25,
+            "precision": 1.0,
+            "coverage": 0.0
+          },
+          {
+            "confidence": 0.95,
+            "margin": 0.4,
+            "precision": 1.0,
+            "coverage": 0.0
+          }
+        ],
+        "operating_points": {
+          "precision_90": null,
+          "precision_95": null
+        },
+        "confusions": [
+          [
+            "Electronic",
+            "Hip-Hop",
+            109
+          ],
+          [
+            "Pop",
+            "Rock",
+            94
+          ],
+          [
+            "Folk",
+            "Instrumental",
+            85
+          ],
+          [
+            "Experimental",
+            "Rock",
+            83
+          ],
+          [
+            "Hip-Hop",
+            "Electronic",
+            79
+          ]
+        ]
+      },
+      "tracks": 7994,
+      "labels": [
+        "Electronic",
+        "Experimental",
+        "Folk",
+        "Hip-Hop",
+        "Instrumental",
+        "International",
+        "Pop",
+        "Rock"
+      ]
+    }
+  }
+}
