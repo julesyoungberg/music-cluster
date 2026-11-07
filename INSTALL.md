@@ -112,7 +112,7 @@ same commands.
 | --- | --- |
 | `lint.yml` | `ruff format --check`, `ruff check`, `mypy`; prettier, eslint and `svelte-check` for the UI; `cargo fmt` and `clippy` for the desktop shell |
 | `test-unit.yml` | `pytest tests/unit` on Python 3.10–3.12 and on all three platforms, plus `npm test` (vitest) |
-| `test-e2e.yml` | `pytest tests/e2e tests/integration` against real audio, plus the Playwright browser suite against a real API and a real build |
+| `test-e2e.yml` | `pytest tests/e2e tests/integration` against real audio, plus the Playwright browser suite against a real API and a real build, and the UI snapshot (uploaded as an artifact) |
 | `build.yml` | Freezes the API, builds the UI, and bundles installers for macOS (both architectures), Windows and Linux |
 
 `build.yml` runs the full matrix on `main` and on `v*` tags, and a single Linux
@@ -134,6 +134,12 @@ npx playwright test
 
 The browser suite seeds its own throwaway library and starts both servers
 itself; `scripts/seed_e2e_library.py` is what builds that fixture.
+
+`npm run ui:snapshot` (from `ui/`) walks the same kind of library through every
+screen and saves a screenshot, the accessibility tree and any browser errors
+for each into `ui/ui-snapshots/`. It is for looking at the UI, not a pass/fail
+check; CI attaches it to every pull request as the `ui-snapshots` artifact. See
+[ui/snapshots/README.md](ui/snapshots/README.md).
 
 ## Troubleshooting
 

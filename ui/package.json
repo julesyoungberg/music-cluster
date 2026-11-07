@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start:all": "concurrently -n \"API,UI\" -c \"blue,green\" \"cd .. && uvicorn music_cluster.api:app --reload --port 8000\" \"npm run dev\""
+    "start:all": "concurrently -n \"API,UI\" -c \"blue,green\" \"cd .. && uvicorn music_cluster.api:app --reload --port 8000\" \"npm run dev\"",
+    "ui:snapshot": "playwright test -c playwright.snapshot.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

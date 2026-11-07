@@ -401,6 +401,7 @@ npm install
 npm run format:check && npm run lint && npm run check
 npm test                                      # vitest
 npx playwright test                           # the UI against a real API
+npm run ui:snapshot                           # screenshots of every screen, for looking at
 ```
 
 CI runs exactly these, plus a packaging job that produces installers for macOS,
