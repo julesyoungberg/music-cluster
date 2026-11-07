@@ -1,8 +1,8 @@
 {
   "meta": {
-    "created": "2026-11-07T05:36:38+00:00",
+    "created": "2026-11-07T08:11:35+00:00",
     "version": "2.0.0",
-    "commit": "8b81f7a",
+    "commit": "849bc4d",
     "python": "3.12.15",
     "args": {
       "suites": [
@@ -19,30 +19,30 @@
   "suites": {
     "key-giantsteps": {
       "headline": {
-        "key_weighted": 0.5129139072847683,
-        "key_correct": 0.40397350993377484,
-        "key_tagged_correct": 0.48534201954397393,
-        "key_share_tagged": 0.5082781456953642
+        "key_weighted": 0.5885761589403974,
+        "key_correct": 0.49337748344370863,
+        "key_tagged_correct": 0.5813953488372093,
+        "key_share_tagged": 0.5695364238410596
       },
       "methods": {
         "ours_all": {
-          "weighted": 0.5129139072847683,
+          "weighted": 0.5885761589403974,
           "count": 604,
-          "correct": 0.40397350993377484,
-          "fifth": 0.1490066225165563,
-          "relative": 0.052980132450331126,
-          "parallel": 0.09271523178807947,
-          "other": 0.30132450331125826
+          "correct": 0.49337748344370863,
+          "fifth": 0.12086092715231789,
+          "relative": 0.08278145695364239,
+          "parallel": 0.04966887417218543,
+          "other": 0.2533112582781457
         },
         "ours_tagged_only": {
-          "weighted": 0.5954397394136808,
-          "count": 307,
-          "correct": 0.48534201954397393,
-          "fifth": 0.1498371335504886,
-          "relative": 0.05863192182410423,
-          "parallel": 0.08794788273615635,
-          "other": 0.2182410423452769,
-          "share_tagged": 0.5082781456953642
+          "weighted": 0.6747093023255814,
+          "count": 344,
+          "correct": 0.5813953488372093,
+          "fifth": 0.11046511627906977,
+          "relative": 0.09593023255813954,
+          "parallel": 0.046511627906976744,
+          "other": 0.16569767441860464,
+          "share_tagged": 0.5695364238410596
         },
         "most_common_key": {
           "weighted": 0.14950331125827818,
@@ -65,47 +65,47 @@
       },
       "by_genre": {
         "progressive-house": {
-          "score": 0.43409090909090914,
+          "score": 0.6272727272727273,
           "count": 88
         },
         "tech-house": {
-          "score": 0.5234567901234568,
+          "score": 0.5703703703703704,
           "count": 81
         },
         "deep-house": {
-          "score": 0.5246753246753245,
+          "score": 0.674025974025974,
           "count": 77
         },
         "trance": {
-          "score": 0.5103448275862069,
+          "score": 0.606896551724138,
           "count": 58
         },
         "electro-house": {
-          "score": 0.6156862745098038,
+          "score": 0.5549019607843136,
           "count": 51
         },
         "house": {
-          "score": 0.4595744680851063,
+          "score": 0.5468085106382978,
           "count": 47
         },
         "drum-and-bass": {
-          "score": 0.31315789473684214,
+          "score": 0.3631578947368421,
           "count": 38
         },
         "techno": {
-          "score": 0.46764705882352936,
+          "score": 0.5176470588235295,
           "count": 34
         },
         "dubstep": {
-          "score": 0.45454545454545453,
+          "score": 0.5181818181818182,
           "count": 22
         },
         "electronica": {
-          "score": 0.5700000000000001,
+          "score": 0.525,
           "count": 20
         },
         "breaks": {
-          "score": 0.6571428571428571,
+          "score": 0.6785714285714286,
           "count": 14
         },
         "indie-dance nu-disco": {
@@ -117,19 +117,19 @@
           "count": 11
         },
         "chill-out": {
-          "score": 0.5636363636363636,
+          "score": 0.5909090909090909,
           "count": 11
         },
         "pop rock": {
-          "score": 0.8142857142857143,
+          "score": 0.8571428571428571,
           "count": 7
         },
         "glitch-hop": {
-          "score": 0.6666666666666666,
+          "score": 0.8333333333333334,
           "count": 6
         },
         "psy-trance": {
-          "score": 0.7,
+          "score": 1.0,
           "count": 5
         },
         "hard-dance": {
@@ -141,19 +141,19 @@
           "count": 4
         },
         "hardcore hard-techno": {
-          "score": 0.5,
+          "score": 0.16666666666666666,
           "count": 3
         },
         "dj-tools": {
-          "score": 0.2333333333333333,
+          "score": 0.5,
           "count": 3
         },
         "reggae dub": {
-          "score": 0.6666666666666666,
+          "score": 0.8333333333333334,
           "count": 3
         },
         "funk r&b": {
-          "score": 1.0,
+          "score": 0.6666666666666666,
           "count": 3
         }
       },
