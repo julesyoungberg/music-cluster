@@ -246,7 +246,7 @@ def build_rekordbox_xml(playlists: Sequence[Playlist], folder_name: str) -> ET.E
 
 def rekordbox_location(filepath: str) -> str:
     """A file URL the way Rekordbox writes them: ``file://localhost/...``."""
-    path = filepath if _is_windows_path(filepath) else os.path.abspath(filepath)
+    path = _absolute(filepath)
     if _is_windows_path(path):
         posix = PureWindowsPath(path).as_posix()  # C:/Users/... or //server/share/...
         if posix.startswith("//"):
@@ -330,7 +330,7 @@ def traktor_location(filepath: str) -> Tuple[str, str, str]:
     ``/Users/dj/Music/a.mp3`` on the Mac's start-up disk becomes
     ``("Macintosh HD", "/:Users/:dj/:Music/:", "a.mp3")``.
     """
-    path = filepath if _is_windows_path(filepath) else os.path.abspath(filepath)
+    path = _absolute(filepath)
     if _is_windows_path(path):
         windows = PureWindowsPath(path)
         volume = windows.drive  # "C:"
@@ -365,6 +365,18 @@ def _startup_volume_name() -> str:
     except OSError:
         pass
     return "Macintosh HD"
+
+
+def _absolute(path: str) -> str:
+    """The path as given if already absolute in either convention, else made absolute.
+
+    The library stores absolute paths, so this only matters for relative ones;
+    keeping ``/Users/...`` as it is also means a Mac path is written the same
+    way whichever OS runs the export.
+    """
+    if path.startswith("/") or _is_windows_path(path):
+        return path
+    return os.path.abspath(path)
 
 
 def _is_windows_path(path: str) -> bool:
