@@ -215,10 +215,11 @@ this different from clustering a library and hoping the results mean something.
    and lose the ability to notice a track that resembles nothing you own.
 
 3. **Fair comparison across group sizes.** A track's distance to a group blends
-   its *k* nearest references (handles a folder containing several distinct
-   sounds) with the group centroid (stable for a group of eight), then divides
-   by that group's own internal spread. Without that last step a sprawling
-   900-track folder wins everything and an 8-track crate never wins anything.
+   its group centroid (stable for a group of eight) with its *k* nearest
+   references (handles a folder containing several distinct sounds), leaning on
+   the centroid. Dividing by each group's own spread is available
+   (`sorting.scale_normalization`) but off by default: on simulated libraries it
+   left 8–20 track crates almost never winning (10% recall, against 32% without).
 
 4. **A decision, with a confidence.** Scores across groups yield a confidence
    and a top-1/top-2 margin. Clear the thresholds and a track can be auto-filed;

@@ -66,8 +66,8 @@ Fifty trials by default. The report pools every query across trials:
   Macro-F1 weighs an 8-track folder as much as a 300-track one.
 - `ece`, `brier`, reliability bins — does a confidence of 0.8 mean right 80%
   of the time? The review screen shows it and auto-filing trusts it.
-- `recall_by_folder_size` — does scale normalisation really stop big folders
-  winning everything?
+- `recall_by_folder_size` — do small folders still win their own tracks, or do
+  big folders win everything?
 - `auto_precision_current`, `auto_coverage_current` — what auto-filing does
   today at `auto_accept_confidence` and `min_margin`, counting a
   "belongs nowhere" track that gets filed as an error.

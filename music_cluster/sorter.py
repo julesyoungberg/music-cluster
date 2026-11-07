@@ -4,10 +4,11 @@ Unlike unsupervised clustering, the groups here are given. A group may be a
 900-track genre folder or eight hand-picked seed tracks, so the scoring has to
 be fair across wildly different group sizes and spreads:
 
-* distance to a group is a blend of its k nearest references (handles broad,
-  multi-modal folders) and its centroid (stable for tiny groups);
-* each group's distance is divided by that group's own internal spread, so a
-  sprawling folder does not swallow everything and a tight one is not ignored;
+* distance to a group is a blend of its centroid (stable for tiny groups) and
+  its k nearest references (handles broad, multi-modal folders);
+* optionally, each group's distance is divided by that group's own spread
+  (``scale_normalization``). It is off by default: measured on simulated
+  libraries, it buried small folders rather than protecting them;
 * the resulting scores yield a confidence and a top-1/top-2 margin, which is
   what decides whether a track is auto-filed or sent to the human queue.
 """
@@ -39,9 +40,9 @@ class SorterConfig:
     max_components: int = 40
     discriminant_weight: float = 0.7
     neighbors: int = 5
-    knn_weight: float = 0.7
-    scale_normalization: bool = True
-    temperature: float = 0.5
+    knn_weight: float = 0.3
+    scale_normalization: bool = False
+    temperature: float = 0.25
     auto_accept_confidence: float = 0.6
     min_margin: float = 0.08
     novelty_factor: float = 3.0
