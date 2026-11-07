@@ -1,0 +1,99 @@
+name: Evaluation
+
+on:
+  pull_request:
+    paths:
+      - 'music_cluster/**'
+      - 'eval/baselines/**'
+      - '.github/workflows/eval.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: 'Suites to run, space separated (e.g. "key-giantsteps tempo-giantsteps sorting-fma")'
+        default: 'beats-synthetic keys-synthetic'
+        required: true
+      trials:
+        description: 'Simulated libraries per sorting suite'
+        default: '50'
+        required: true
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    name: Evaluate against the baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Choose suites
+        id: suites
+        env:
+          REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
+        run: |
+          args=""
+          for suite in $REQUESTED; do args="$args --suite $suite"; done
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "key=$(echo "$REQUESTED" | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+
+      # Datasets and the analysis cache are kept between runs.
+      - name: Cache datasets
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/cache@v4
+        with:
+          path: ~/.music-cluster-eval
+          key: eval-data-${{ steps.suites.outputs.key }}-${{ hashFiles('music_cluster/extractor.py', 'music_cluster/features.py', 'music_cluster/tagging.py', 'music_cluster/rhythm.py') }}
+          restore-keys: eval-data-${{ steps.suites.outputs.key }}-
+
+      - name: Download datasets
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REQUESTED: ${{ github.event.inputs.suites }}
+        run: |
+          case "$REQUESTED" in *key-giantsteps*) music-cluster eval download giantsteps-key ;; esac
+          case "$REQUESTED" in *tempo-giantsteps*) music-cluster eval download giantsteps-tempo ;; esac
+          case "$REQUESTED" in *sorting-fma-sub*) music-cluster eval download fma-medium ;; esac
+          case "$REQUESTED" in *"sorting-fma "*|*"sorting-fma") music-cluster eval download fma-small ;; esac
+
+      - name: Run
+        run: |
+          baseline=""
+          if [ -f eval/baselines/synthetic.json ]; then baseline="--baseline eval/baselines/synthetic.json"; fi
+          music-cluster eval run ${{ steps.suites.outputs.args }} \
+            --trials ${{ github.event.inputs.trials || '50' }} \
+            --out eval-report.json $baseline
+          cat eval-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: |
+            eval-report.json
+            eval-report.md
+          if-no-files-found: warn

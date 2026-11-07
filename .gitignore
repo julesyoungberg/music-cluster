@@ -78,3 +78,7 @@ dist/
 
 # Browser end-to-end workspace, seeded by scripts/seed_e2e_library.py
 .e2e-workspace/
+
+# Evaluation reports from local runs (baselines live in eval/baselines/)
+eval-report.json
+eval-report.md

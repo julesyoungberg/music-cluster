@@ -1319,6 +1319,115 @@ def tags_vocabulary():
         click.echo("")
 
 
+# ----------------------------------------------------------------------
+# Evaluation
+# ----------------------------------------------------------------------
+
+
+@cli.group("eval")
+def eval_group():
+    """Score each feature against labelled audio and simple baselines."""
+
+
+@eval_group.command("download")
+@click.argument(
+    "dataset", type=click.Choice(["fma-small", "fma-medium", "giantsteps-key", "giantsteps-tempo"])
+)
+@click.option("--data-dir", default=None, help="Where datasets live (~/.music-cluster-eval/data)")
+def eval_download(dataset, data_dir):
+    """Fetch a public dataset into the eval data directory (never your library)."""
+    from .eval import download
+
+    if dataset.startswith("fma-"):
+        path = download.download_fma(dataset.split("-", 1)[1], data_dir, echo=click.echo)
+    else:
+        path = download.download_giantsteps(dataset.split("-", 1)[1], data_dir, echo=click.echo)
+    click.echo(f"Ready: {path}")
+
+
+@eval_group.command("run")
+@click.option(
+    "--suite",
+    "suites",
+    multiple=True,
+    help="Suite to run (repeatable): beats-synthetic, keys-synthetic, sorting-fma, "
+    "sorting-fma-sub, key-giantsteps, tempo-giantsteps. Default: the synthetic suites.",
+)
+@click.option("--all", "run_all", is_flag=True, help="Every suite whose data is present")
+@click.option("--folders", default=None, help="Also simulate sorting into this folder tree")
+@click.option("--data-dir", default=None, help="Where datasets live (~/.music-cluster-eval/data)")
+@click.option(
+    "--trials", default=50, show_default=True, help="Simulated libraries per sorting suite"
+)
+@click.option("--limit", type=int, default=None, help="Use at most this many files per dataset")
+@click.option("--quick", is_flag=True, help="Fewer synthetic variations")
+@click.option("--seed", default=0, show_default=True)
+@click.option("--workers", default=-1, show_default=True, help="-1 uses every core")
+@click.option("--out", default="eval-report.json", show_default=True, help="Report path (JSON)")
+@click.option("--baseline", default=None, help="Compare against this earlier report")
+@click.option("--tolerance", default=0.02, show_default=True, help="Allowed drop before failing")
+def eval_run(
+    suites,
+    run_all,
+    folders,
+    data_dir,
+    trials,
+    limit,
+    quick,
+    seed,
+    workers,
+    out,
+    baseline,
+    tolerance,
+):
+    """Run evaluation suites and write a report."""
+    from pathlib import Path
+
+    from .eval import report as report_mod
+    from .eval import runner
+
+    chosen = list(runner.ALL_SUITES) if run_all else (list(suites) or list(runner.SYNTHETIC_SUITES))
+    results = runner.run(
+        chosen,
+        root=data_dir,
+        quick=quick,
+        trials=trials,
+        workers=workers,
+        limit=limit,
+        folders=folders,
+        seed=seed,
+        echo=click.echo,
+    )
+    args = {"suites": chosen, "trials": trials, "limit": limit, "quick": quick, "seed": seed}
+    built = report_mod.build(results, args)
+    path = report_mod.save(built, out)
+    comparison = (
+        report_mod.compare(built, report_mod.load(baseline), tolerance) if baseline else None
+    )
+    summary = report_mod.markdown(built, comparison)
+    Path(path).with_suffix(".md").write_text(summary + "\n", encoding="utf-8")
+    click.echo("")
+    click.echo(summary)
+    click.echo(f"Report: {path}")
+    if comparison and any(row["regressed"] for row in comparison):
+        echo_error(f"Regressed by more than {tolerance} against {baseline}")
+        sys.exit(1)
+
+
+@eval_group.command("compare")
+@click.argument("current", type=click.Path(exists=True))
+@click.argument("baseline", type=click.Path(exists=True))
+@click.option("--tolerance", default=0.02, show_default=True)
+def eval_compare(current, baseline, tolerance):
+    """Diff two reports' headline numbers; exits 1 on a regression."""
+    from .eval import report as report_mod
+
+    comparison = report_mod.compare(report_mod.load(current), report_mod.load(baseline), tolerance)
+    click.echo(report_mod.markdown({"suites": {}}, comparison))
+    if any(row["regressed"] for row in comparison):
+        sys.exit(1)
+
+
 def main():
     try:
         cli()

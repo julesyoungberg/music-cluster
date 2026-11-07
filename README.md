@@ -406,6 +406,21 @@ npx playwright test                           # the UI against a real API
 CI runs exactly these, plus a packaging job that produces installers for macOS,
 Windows and Linux. See [INSTALL.md](INSTALL.md#continuous-integration).
 
+### Evaluation
+
+Tests say the code does what it was written to do; `music-cluster eval` says
+how well that works on music. It scores beat type, tempo and key on audio
+whose answers are known, sorting on simulated libraries built from public
+datasets (FMA, GiantSteps), and each against simple baselines, then diffs the
+numbers against a committed baseline:
+
+```bash
+music-cluster eval run --baseline eval/baselines/synthetic.json
+music-cluster eval download giantsteps-key && music-cluster eval run --suite key-giantsteps
+```
+
+See [EVALUATION.md](EVALUATION.md).
+
 ## License
 
 MIT

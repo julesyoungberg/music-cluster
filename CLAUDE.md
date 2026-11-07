@@ -20,6 +20,8 @@ explains the product; INSTALL.md covers setup, CI and troubleshooting.
   - `sorter.py` — scores a track against groups; `sorting.py` — sort sessions/review queue
   - `organizer.py` — applies decisions to disk (playlist/copy/move/symlink, dry run, undo)
   - `discovery.py`, `clustering.py`, `naming.py`, `llm.py` — proposing candidate groups from an unsorted pile
+  - `eval/` — `music-cluster eval`: synthetic known-answer audio, public datasets, simulated
+    libraries and baselines; see EVALUATION.md. Baseline numbers live in `eval/baselines/`
 - `ui/` — SvelteKit + Tailwind front end (vitest unit tests, Playwright e2e in `ui/e2e/`)
 - `src-tauri/` — Tauri 1 desktop shell; `scripts/build_sidecar.py` freezes the API into it
 - `tests/unit` (synthetic vectors, fast), `tests/integration` and `tests/e2e` (real/synthesised audio, slow)
@@ -40,6 +42,7 @@ python start-dev.py --tauri      # desktop shell
 ruff format . && ruff check --fix . && mypy
 pytest tests/unit                # fast
 pytest tests/e2e tests/integration
+music-cluster eval run --baseline eval/baselines/synthetic.json   # how well, not just whether (EVALUATION.md)
 
 # UI checks (from ui/)
 npm run format:check && npm run lint && npm run check
