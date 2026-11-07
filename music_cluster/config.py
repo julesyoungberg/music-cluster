@@ -42,7 +42,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "scale_normalization": False,
         "temperature": 0.25,
         # Decision thresholds.
-        "auto_accept_confidence": 0.6,
+        # 0.7 on simulated FMA libraries: 58% precise at 7.7% coverage, against
+        # 55% at 16% for 0.6. The sharper sorter is confident more often, so the
+        # bar moves up with it until "matches nothing" detection works.
+        "auto_accept_confidence": 0.7,
         "min_margin": 0.08,
         "novelty_factor": 3.0,
         # Relative importance of each feature family.

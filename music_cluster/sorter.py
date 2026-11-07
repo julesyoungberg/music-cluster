@@ -46,7 +46,7 @@ class SorterConfig:
     knn_weight: float = 0.3
     scale_normalization: bool = False
     temperature: float = 0.25
-    auto_accept_confidence: float = 0.6
+    auto_accept_confidence: float = 0.7
     min_margin: float = 0.08
     novelty_factor: float = 3.0
     feature_weights: Dict[str, float] = field(default_factory=dict)

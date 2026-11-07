@@ -313,7 +313,7 @@ sorting:
 
 ```yaml
 sorting:
-  auto_accept_confidence: 0.6   # how sure before a track can be auto-filed
+  auto_accept_confidence: 0.7   # how sure before a track can be auto-filed
   min_margin: 0.08              # how far ahead of the runner-up
   novelty_factor: 3.0           # group-widths from every group before "matches nothing"
   neighbors: 5                  # references compared against per group
