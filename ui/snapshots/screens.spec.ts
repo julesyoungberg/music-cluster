@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test } from './capture';
-import { workspace } from './paths';
+import { apiBase, workspace } from './paths';
 
 /**
  * Every screen of the app, and the main states inside each flow, captured
@@ -188,9 +188,13 @@ test.describe('narrow window', () => {
     await expect(page.getByText(/tracks in the library/)).toBeVisible();
     await shot('narrow-overview', { note: 'Overview in a 760px-wide window' });
 
-    await page.goto('/sort');
-    await page.getByRole('link', { name: 'Snapshot buys' }).click();
-    await expect(page).toHaveURL(/\/sort\/\d+$/);
+    // Reuses the sort flow's session. If that flow broke, skip rather than
+    // report a second, misleading broken flow.
+    const { sessions } = await (await page.request.get(`${apiBase}/api/sessions`)).json();
+    const session = sessions.find((s: { name?: string }) => s.name === 'Snapshot buys');
+    test.skip(!session, 'The sort flow did not create its session; see that flow instead.');
+    await page.goto(`/sort/${session.id}`);
+    await expect(page.getByRole('heading', { name: 'Snapshot buys', level: 1 })).toBeVisible();
     await shot('narrow-sort-review', { note: 'A sort session in a 760px-wide window' });
   });
 });
