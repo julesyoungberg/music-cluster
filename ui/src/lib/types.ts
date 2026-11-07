@@ -313,3 +313,5 @@ export interface TaskStatus {
 }
 
 export type OrganizeMode = 'playlist' | 'copy' | 'move' | 'symlink';
+
+export type ExportFormat = 'rekordbox' | 'traktor' | 'm3u8';

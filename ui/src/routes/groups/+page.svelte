@@ -11,9 +11,17 @@
   import Modal from '$lib/components/Modal.svelte';
   import ProfileBadge from '$lib/components/ProfileBadge.svelte';
   import TaskProgress from '$lib/components/TaskProgress.svelte';
-  import type { AudioProfile, CheckMetrics, Group, TaskStatus } from '$lib/types';
+  import type { AudioProfile, CheckMetrics, ExportFormat, Group, TaskStatus } from '$lib/types';
   import { formatPercent, pluralize } from '$lib/utils';
-  import { FolderPlus, FolderTree, ListPlus, Plus, RefreshCw, TriangleAlert } from 'lucide-svelte';
+  import {
+    Download,
+    FolderPlus,
+    FolderTree,
+    ListPlus,
+    Plus,
+    RefreshCw,
+    TriangleAlert
+  } from 'lucide-svelte';
 
   let groups = $state<Group[]>([]);
   let metrics = $state<CheckMetrics | null>(null);
@@ -25,6 +33,28 @@
   let importTreeOpen = $state(false);
   let importFolderOpen = $state(false);
   let newCollectionOpen = $state(false);
+  let exportOpen = $state(false);
+  let exportFormat = $state<ExportFormat>('rekordbox');
+  let exportPath = $state('');
+  let exporting = $state(false);
+
+  const EXPORT_FORMATS: { value: ExportFormat; label: string; hint: string }[] = [
+    {
+      value: 'rekordbox',
+      label: 'Rekordbox',
+      hint: 'One XML file. In Rekordbox: Preferences → Advanced → rekordbox xml, then open it in the sidebar.'
+    },
+    {
+      value: 'traktor',
+      label: 'Traktor',
+      hint: 'One .nml file. In Traktor: right-click Playlists → Import Playlist.'
+    },
+    {
+      value: 'm3u8',
+      label: 'Serato, Engine DJ, others',
+      hint: 'One M3U playlist per group. Drag them into your DJ app or import them.'
+    }
+  ];
 
   let treePath = $state('');
   let treeMinTracks = $state(1);
@@ -102,6 +132,29 @@
     fitting = true;
     await runTask(() => api.fitCollection(collection.id), 'Groups re-learned');
     fitting = false;
+  }
+
+  async function exportGroups() {
+    if (!collection || !exportPath) return;
+    exporting = true;
+    try {
+      const result = await api.exportGroups(collection.id, exportPath, exportFormat);
+      if (result.files.length === 0) {
+        notifyError('Nothing to export', 'None of the groups has any tracks yet.');
+        return;
+      }
+      exportOpen = false;
+      notifySuccess(
+        'Exported',
+        result.files.length === 1
+          ? result.files[0]
+          : `${pluralize(result.files.length, 'file')} written`
+      );
+    } catch (err) {
+      notifyError('Export failed', err instanceof ApiError ? err.message : String(err));
+    } finally {
+      exporting = false;
+    }
   }
 
   async function createCollection() {
@@ -231,6 +284,12 @@
           </a>
         {/if}
         <button
+          class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 hover:bg-secondary"
+          onclick={() => (exportOpen = true)}
+        >
+          <Download class="h-4 w-4" /> Export to DJ app
+        </button>
+        <button
           class="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 hover:bg-secondary disabled:opacity-50"
           onclick={fit}
           disabled={fitting || groups.length < 2}
@@ -340,6 +399,51 @@
       disabled={!folderPath}
     >
       Import
+    </button>
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={exportOpen}
+  title="Export to DJ app"
+  description="Each group becomes a playlist. This only writes a new file; your music stays where it is. Export again whenever your groups change."
+>
+  <div class="space-y-4">
+    <div class="space-y-2" role="radiogroup" aria-label="DJ app">
+      {#each EXPORT_FORMATS as option (option.value)}
+        <label
+          class="flex cursor-pointer gap-3 rounded-md border px-3 py-2 text-sm {exportFormat ===
+          option.value
+            ? 'border-primary bg-primary/5'
+            : 'border-input'}"
+        >
+          <input
+            type="radio"
+            name="export-format"
+            value={option.value}
+            bind:group={exportFormat}
+            class="mt-1"
+          />
+          <span>
+            <span class="font-medium">{option.label}</span>
+            <span class="block text-muted-foreground">{option.hint}</span>
+          </span>
+        </label>
+      {/each}
+    </div>
+    <FolderPicker bind:value={exportPath} label="Save to folder" />
+  </div>
+  {#snippet footer()}
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (exportOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={exportGroups}
+      disabled={!exportPath || exporting}
+    >
+      {exporting ? 'Exporting...' : 'Export'}
     </button>
   {/snippet}
 </Modal>

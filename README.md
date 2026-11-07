@@ -288,6 +288,28 @@ music-cluster undo 3                          # put everything back
 
 Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 
+## Exporting to DJ software
+
+Export every group as a playlist for your DJ app. This only writes a new file;
+your music stays where it is. Run it again whenever your groups change.
+
+| Format | For | Import it via |
+| --- | --- | --- |
+| `rekordbox` | Rekordbox | Preferences → Advanced → rekordbox xml, then the "rekordbox xml" tree in the sidebar |
+| `traktor` | Traktor | Right-click Playlists → Import Playlist |
+| `m3u8` / `m3u` | Serato, Engine DJ, VirtualDJ, others | Drag the playlists in, or the app's playlist import |
+
+```bash
+music-cluster groups export --format rekordbox --output ~/Music/exports
+```
+
+Rekordbox and Traktor exports carry BPM, key and genre. Tags already in your
+files win; music-cluster's own measurements only fill the gaps. The app has the
+same export behind "Export to DJ app" on the Groups page.
+
+If a DJ app already manages a track, prefer `playlist` or `copy` filing: moving
+the file breaks the app's link to it.
+
 ## Commands
 
 | | |
@@ -297,7 +319,7 @@ Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 | `groups import-tree PARENT` | Import every subfolder as a group |
 | `groups add NAME --folder/--playlist/--track` | Build a group from a folder, playlist, or seed tracks |
 | `groups list` / `show` / `rename` / `set-destination` / `remove` | Manage groups |
-| `groups export` | One playlist per group |
+| `groups export` | Playlists for DJ apps (M3U, Rekordbox XML, Traktor NML) |
 | `fit` | Learn the groups |
 | `check` | Per-group accuracy and overlap |
 | `sort PATH` | Score new music, then review |

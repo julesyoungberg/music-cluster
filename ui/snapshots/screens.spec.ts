@@ -26,6 +26,11 @@ test.describe('browsing', () => {
     await expect(page.getByText('Techno', { exact: true }).first()).toBeVisible();
     await shot('groups', { note: 'The collection’s groups' });
 
+    await page.getByRole('button', { name: 'Export to DJ app' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await shot('groups-export-dialog', { note: 'Choosing a DJ app to export the groups to' });
+    await page.keyboard.press('Escape');
+
     await page.getByRole('button', { name: /Import my folders/ }).click();
     const importDialog = page.getByRole('dialog');
     await importDialog.getByPlaceholder('/path/to/folder').fill(path.join(music, 'DJ'));

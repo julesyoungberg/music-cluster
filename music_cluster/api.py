@@ -20,8 +20,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from pydantic import BaseModel, Field
 
 from . import discovery as discovery_mod
+from . import djexport, organizer, profiles, samples, sorting, tagging
 from . import groups as groups_mod
-from . import organizer, profiles, samples, sorting, tagging
 from .config import Config
 from .database import Database
 from .features import build_layout
@@ -926,15 +926,27 @@ async def import_playlist(collection_id: int, request: ImportRequest):
 
 @app.post("/api/collections/{collection_id}/export")
 async def export_groups(
-    collection_id: int, output: str = Query(...), playlist_format: str = "m3u8"
+    collection_id: int,
+    output: str = Query(...),
+    format: str = "m3u8",
+    playlist_format: Optional[str] = None,
 ):
-    """Write one playlist per group."""
+    """Export every group as a playlist for DJ software (m3u8, m3u, rekordbox, traktor)."""
     db = get_db()
-    _require_collection(db, collection_id)
-    written = organizer.export_groups_as_playlists(
-        db, db.list_groups(collection_id), output, playlist_format=playlist_format
-    )
-    return {"playlists": written}
+    collection = _require_collection(db, collection_id)
+    if playlist_format is not None:
+        raise HTTPException(status_code=422, detail="playlist_format was renamed to format")
+    if format not in djexport.FORMATS:
+        raise HTTPException(
+            status_code=422, detail=f"format must be one of {', '.join(djexport.FORMATS)}"
+        )
+    try:
+        written = djexport.export_collection(db, collection, output, fmt=format)
+    except djexport.ExportConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"Could not write to {output}: {exc}") from exc
+    return {"format": format, "files": written}
 
 
 # ----------------------------------------------------------------------
