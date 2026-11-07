@@ -135,13 +135,104 @@ test.describe('sorting new music', () => {
   });
 });
 
+/**
+ * The player's audio element never joins the DOM, so the tests keep a handle
+ * on every media element the page starts, to read what is really playing.
+ */
+async function watchAudio(page: Page) {
+  await page.addInitScript(() => {
+    const started: HTMLMediaElement[] = [];
+    (window as unknown as { __audio: HTMLMediaElement[] }).__audio = started;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (!started.includes(this)) started.push(this);
+      return play.call(this);
+    };
+  });
+}
+
+/** Every media element the page has started, and where each one is now. */
+function audio(page: Page) {
+  return page.evaluate(() =>
+    (window as unknown as { __audio: HTMLMediaElement[] }).__audio.map((element) => ({
+      playing: !element.paused,
+      // Paused by the user, rather than stopped by reaching the end.
+      paused: element.paused && !element.ended,
+      time: element.currentTime,
+      src: element.src
+    }))
+  );
+}
+
+/** Wait for the one audible element to be past `seconds`, and return it. */
+async function playingPast(page: Page, seconds = 0) {
+  let found: Awaited<ReturnType<typeof audio>>[number] | undefined;
+  await expect
+    .poll(async () => {
+      const playing = (await audio(page)).filter((a) => a.playing && a.time > seconds);
+      found = playing[0];
+      return playing.length;
+    })
+    .toBe(1);
+  return found!;
+}
+
 test.describe('auditioning a track', () => {
   test('the review screen draws a waveform for the current track', async ({ page }) => {
     await startSession(page, 'Waveform');
+    const waveform = page.getByRole('slider', { name: /^Waveform for/ });
 
-    // The waveform is fetched from the API and drawn to a canvas; if the
-    // request or the draw fails, the canvas never appears.
-    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 30_000 });
+    await expect(waveform).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+
+    // Moving through the queue and straight back cancels and re-asks for
+    // waveforms mid-flight; each one still has to arrive.
+    for (const key of ['j', 'k', 'j', 'j', 'k', 'k']) await page.keyboard.press(key);
+    await expect(waveform).toHaveAttribute('data-state', 'ready');
+    await expect(page.getByText('1 / 6')).toBeVisible();
+  });
+
+  test('the play button and the space bar play and pause', async ({ page }) => {
+    await watchAudio(page);
+    await startSession(page, 'Play and pause');
+    const button = page.getByRole('button', { name: /^(Play|Pause) New / });
+
+    await button.click();
+    await playingPast(page);
+    await expect(button).toHaveAccessibleName(/^Pause /);
+
+    await button.click();
+    await expect.poll(async () => (await audio(page)).every((a) => a.paused)).toBe(true);
+
+    // Space reaches both the waveform and the page when the waveform has
+    // focus; it must still toggle exactly once. The waveform only handles keys
+    // once it has drawn.
+    const waveform = page.getByRole('slider', { name: /^Waveform for/ });
+    await expect(waveform).toHaveAttribute('data-state', 'ready');
+    await waveform.focus();
+    await page.keyboard.press(' ');
+    await playingPast(page);
+    await page.keyboard.press(' ');
+    await expect.poll(async () => (await audio(page)).every((a) => a.paused)).toBe(true);
+  });
+
+  test('clicking the waveform plays from there, and the next track replaces it', async ({
+    page
+  }) => {
+    await watchAudio(page);
+    await startSession(page, 'Seek and switch');
+    const waveform = page.getByRole('slider', { name: /^Waveform for/ });
+    await expect(waveform).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+
+    // The seeded tracks are four seconds long: a quarter in is one second.
+    const box = (await waveform.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 4, box.y + box.height / 2);
+    const first = await playingPast(page, 0.75);
+
+    await page.keyboard.press('j');
+    await page.getByRole('button', { name: /^Play New / }).click();
+    const second = await playingPast(page);
+
+    expect(second.src).not.toBe(first.src);
   });
 
   test('the API serves audio the player can load', async ({ page, request }) => {

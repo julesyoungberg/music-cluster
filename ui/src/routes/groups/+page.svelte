@@ -1,4 +1,6 @@
 <script lang="ts">
+  import CrateSwatch from '$lib/components/CrateSwatch.svelte';
+  import { crateColor } from '$lib/crateColors';
   import { api, ApiError, pollTask } from '$lib/services/api';
   import { activeCollection, loadCollections, loadGroups, selectCollection } from '$lib/stores/app';
   import { notifyError, notifySuccess } from '$lib/stores/notifications';
@@ -303,10 +305,14 @@
         {@const quality = accuracyByGroup.get(group.id)}
         <a
           href="/groups/{group.id}"
-          class="group rounded-lg border border-border p-4 transition-colors hover:border-primary"
+          class="group rounded-lg border border-l-4 border-border p-4 transition-colors hover:border-primary"
+          style="border-left-color: {crateColor(group)}"
         >
           <div class="flex items-start justify-between gap-2">
-            <p class="truncate font-medium">{group.name}</p>
+            <p class="flex min-w-0 items-center gap-2 font-medium">
+              <CrateSwatch {group} />
+              <span class="truncate">{group.name}</span>
+            </p>
             {#if quality}
               <span
                 class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums

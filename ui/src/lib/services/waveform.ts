@@ -17,7 +17,22 @@ export interface WaveformData {
 const CACHE_LIMIT = 300;
 
 const cache = new Map<string, WaveformData>();
-const inFlight = new Map<string, Promise<WaveformData>>();
+
+/**
+ * Requests in flight, shared by everyone waiting on the same waveform.
+ *
+ * The request runs on its own controller rather than any one caller's signal:
+ * otherwise the first caller to give up (a component re-rendering, the review
+ * screen moving on and straight back) cancels it for everyone else, who then
+ * wait on a cancelled request forever. It is cancelled only once every caller
+ * has given up.
+ */
+interface Shared {
+  promise: Promise<WaveformData>;
+  controller: AbortController;
+  waiting: number;
+}
+const inFlight = new Map<string, Shared>();
 
 const keyFor = (trackId: number, samples: number) => `${trackId}:${samples}`;
 
@@ -25,22 +40,10 @@ export function cachedWaveform(trackId: number, samples: number): WaveformData |
   return cache.get(keyFor(trackId, samples));
 }
 
-export function loadWaveform(
-  trackId: number,
-  samples: number,
-  signal?: AbortSignal
-): Promise<WaveformData> {
-  const key = keyFor(trackId, samples);
-
-  const hit = cache.get(key);
-  if (hit) return Promise.resolve(hit);
-
-  // Two components asking for the same waveform share one request.
-  const existing = inFlight.get(key);
-  if (existing) return existing;
-
-  const request = api
-    .waveform(trackId, samples, signal)
+function fetchShared(trackId: number, samples: number, key: string): Shared {
+  const controller = new AbortController();
+  const promise = api
+    .waveform(trackId, samples, controller.signal)
     .then((result) => {
       const data: WaveformData = {
         peaks: Array.isArray(result?.peaks) ? result.peaks : [],
@@ -58,11 +61,59 @@ export function loadWaveform(
       return data;
     })
     .finally(() => {
-      inFlight.delete(key);
+      if (inFlight.get(key) === shared) inFlight.delete(key);
     });
+  const shared: Shared = { promise, controller, waiting: 0 };
+  return shared;
+}
 
-  inFlight.set(key, request);
-  return request;
+const aborted = () => new DOMException('The waveform request was cancelled', 'AbortError');
+
+export function loadWaveform(
+  trackId: number,
+  samples: number,
+  signal?: AbortSignal
+): Promise<WaveformData> {
+  const key = keyFor(trackId, samples);
+
+  const hit = cache.get(key);
+  if (hit) return Promise.resolve(hit);
+  if (signal?.aborted) return Promise.reject(aborted());
+
+  // Two components asking for the same waveform share one request.
+  let shared = inFlight.get(key);
+  if (!shared) {
+    shared = fetchShared(trackId, samples, key);
+    inFlight.set(key, shared);
+  }
+  const request = shared;
+  request.waiting += 1;
+
+  if (!signal) return request.promise;
+
+  return new Promise<WaveformData>((resolve, reject) => {
+    const giveUp = () => {
+      request.waiting -= 1;
+      if (request.waiting === 0) {
+        // Nobody wants it any more. Forget it first, so a caller arriving
+        // later starts a fresh request instead of joining a cancelled one.
+        if (inFlight.get(key) === request) inFlight.delete(key);
+        request.controller.abort();
+      }
+      reject(aborted());
+    };
+    signal.addEventListener('abort', giveUp, { once: true });
+    request.promise.then(
+      (data) => {
+        signal.removeEventListener('abort', giveUp);
+        resolve(data);
+      },
+      (error) => {
+        signal.removeEventListener('abort', giveUp);
+        reject(error);
+      }
+    );
+  });
 }
 
 /** Forget a track's waveform so the next request re-fetches it. */

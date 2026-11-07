@@ -420,3 +420,35 @@ def test_tagging_runs_as_a_task(client, seeded):
     assert task["status"] == "completed"
     assert task["result"]["tagged"] == 0
     assert task["result"]["failed"] == 24
+
+
+def test_a_group_colour_persists_without_marking_the_fit_stale(client, seeded):
+    db, collection_id, group_ids = seeded
+
+    def changed_at():
+        return client.get(f"/api/collections/{collection_id}").json()["collection"]["updated_at"]
+
+    before = changed_at()
+
+    updated = client.put(f"/api/groups/{group_ids[0]}", json={"color": "teal"})
+
+    assert updated.json()["color"] == "teal"
+    assert client.get(f"/api/groups/{group_ids[0]}").json()["group"]["color"] == "teal"
+    # A colour is a label for the user, not something the sorter learns from,
+    # so it must not force a re-fit.
+    assert changed_at() == before
+
+
+def test_saving_the_group_form_with_only_new_notes_keeps_the_fit(client, seeded):
+    _, collection_id, group_ids = seeded
+
+    def changed_at():
+        return client.get(f"/api/collections/{collection_id}").json()["collection"]["updated_at"]
+
+    before = changed_at()
+    # The UI's form sends the name back unchanged alongside the edited notes.
+    client.put(f"/api/groups/{group_ids[0]}", json={"name": "Group 0", "description": "Rollers"})
+    assert changed_at() == before
+
+    client.put(f"/api/groups/{group_ids[0]}", json={"name": "Renamed"})
+    assert changed_at() != before

@@ -154,6 +154,9 @@ class GroupRequest(BaseModel):
     color: Optional[str] = None
 
 
+_COSMETIC_GROUP_FIELDS = {"color", "description"}
+
+
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -793,8 +796,14 @@ async def update_group(group_id: int, request: GroupUpdate):
     group = db.get_group(group_id=group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
-    db.update_group(group_id, **request.model_dump(exclude_none=True))
-    db.touch_collection(group["collection_id"])
+    changes = request.model_dump(exclude_none=True)
+    db.update_group(group_id, **changes)
+    # Colour and notes are labels for the user; the sorter does not learn from
+    # them, so changing only those (the form resends the unchanged name) must
+    # not make the fitted model stale.
+    changed = {key for key, value in changes.items() if group.get(key) != value}
+    if changed - _COSMETIC_GROUP_FIELDS:
+        db.touch_collection(group["collection_id"])
     return db.get_group(group_id=group_id)
 
 

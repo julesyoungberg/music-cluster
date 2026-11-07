@@ -1,51 +1,82 @@
+/*
+ * Fonts are bundled (not fetched from a CDN) so the desktop app works offline.
+ * Latin and Latin Extended only; other scripts fall back to the system font.
+ */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-600.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-500.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-ext-500.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-600.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-ext-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-500.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Two themes on one system: hairline borders, condensed labels, mono readouts
+ * and a single signal colour (--primary) for whatever matters right now: the
+ * main action, the top score, the active page, the played waveform.
+ *
+ * Light, "Sleeve": warm paper, ink and signal red, like a printed record sleeve.
+ * Dark, "Booth": graphite and amber, like gear in a dim DJ booth.
+ * The app follows the system setting unless the user picks one in Settings.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --background: 40 25% 95%;
+    --foreground: 20 10% 9%;
+    --card: 40 30% 98%;
+    --card-foreground: 20 10% 9%;
+    --popover: 40 30% 98%;
+    --popover-foreground: 20 10% 9%;
+    /* Deep enough that red text keeps 4.5:1 on paper. */
+    --primary: 6 78% 43%;
+    --primary-foreground: 40 30% 98%;
+    --secondary: 38 18% 89%;
+    --secondary-foreground: 20 10% 9%;
+    --muted: 38 18% 91%;
+    --muted-foreground: 25 6% 38%;
+    --accent: 38 18% 89%;
+    --accent-foreground: 20 10% 9%;
+    --destructive: 0 75% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 12% 80%;
+    --input: 30 12% 74%;
+    --ring: 6 78% 43%;
+    --radius: 0.25rem;
+    color-scheme: light;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 30 6% 7%;
+    --foreground: 40 12% 90%;
+    --card: 30 5% 10%;
+    --card-foreground: 40 12% 90%;
+    --popover: 30 5% 11%;
+    --popover-foreground: 40 12% 90%;
+    --primary: 32 95% 55%;
+    --primary-foreground: 30 30% 8%;
+    --secondary: 30 5% 15%;
+    --secondary-foreground: 40 12% 92%;
+    --muted: 30 5% 13%;
+    --muted-foreground: 35 6% 60%;
+    --accent: 30 5% 15%;
+    --accent-foreground: 40 12% 92%;
+    --destructive: 2 75% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 5% 17%;
+    --input: 30 5% 21%;
+    --ring: 32 95% 55%;
+    color-scheme: dark;
   }
 }
 
@@ -54,6 +85,45 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  /*
+   * Titles use the condensed face, like a label on a piece of gear. They keep
+   * their case: many are names the user typed.
+   */
+  h1,
+  h2 {
+    @apply font-display tracking-wide;
+  }
+  /*
+   * Measured numbers (BPM, key, scores, counts) are readouts: every element
+   * that already asks for tabular figures gets the mono face, and small
+   * uppercase labels get the condensed one (their tracking stays their own).
+   */
+  .tabular-nums {
+    @apply font-mono;
+  }
+  .uppercase {
+    @apply font-display;
+  }
+}
+
+/*
+ * Native dropdowns, themed: the OS arrow and grey field clash with both
+ * themes. The selector outranks spacing utilities, so the arrow always has room.
+ */
+@layer components {
+  select:not([multiple]) {
+    appearance: none;
+    padding-right: 2rem;
+    background-color: hsl(var(--card));
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23908a84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+  }
+  option {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
   }
 }

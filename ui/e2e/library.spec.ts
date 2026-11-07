@@ -93,6 +93,25 @@ test.describe('groups', () => {
     await expect(page).toHaveURL(/\/groups\/\d+$/);
     await expect(page.getByText('Techno Artist').first()).toBeVisible();
   });
+
+  test('a crate colour picked on a group is saved', async ({ page }) => {
+    await page.goto('/groups');
+    await page
+      .getByRole('link', { name: /Deep House/ })
+      .first()
+      .click();
+    const colours = page.getByRole('group', { name: 'Colour' });
+    await colours.getByRole('button', { name: 'violet' }).click();
+    await expect(colours.getByRole('button', { name: 'violet' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    await page.reload();
+    await expect(
+      page.getByRole('group', { name: 'Colour' }).getByRole('button', { name: 'violet' })
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 test.describe('library', () => {
@@ -131,5 +150,29 @@ test.describe('when the API is unreachable', () => {
 
     await expect(page.getByText(/Cannot reach the/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /Try again|Retry/i })).toBeVisible();
+  });
+});
+
+test.describe('appearance', () => {
+  test('follows the system theme until the user picks one', async ({ page }) => {
+    const html = page.locator('html');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/settings');
+    await expect(html).toHaveClass(/\bdark\b/);
+    // While following the system, an OS switch applies without a reload.
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    await page.getByRole('button', { name: 'light', exact: true }).click();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+
+    await page.reload();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await expect(page.getByRole('button', { name: 'light', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 });

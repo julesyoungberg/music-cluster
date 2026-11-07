@@ -33,6 +33,30 @@ export const player = writable<PlayerState>(initial);
 let audio: HTMLAudioElement | null = null;
 
 /**
+ * Where the live audio element is kept across copies of this module.
+ *
+ * Normally there is one copy. But when the dev server hot-reloads this file (a
+ * `git pull` while the app is open is enough) a fresh copy starts with no
+ * element, makes its own, and the old one carries on playing where nothing can
+ * reach it: two tracks at once, and a Stop button that stops only one. Each
+ * new element retires whatever the previous copy left here.
+ */
+const LIVE_ELEMENT = '__musicClusterAudio';
+type WithLiveElement = typeof globalThis & { [LIVE_ELEMENT]?: HTMLAudioElement };
+
+function retire(element: HTMLAudioElement): void {
+  element.pause();
+  element.removeAttribute('src');
+  element.load();
+}
+
+/**
+ * Bumped by every new track. A `play()` that settles after the user has moved
+ * on belongs to the old track and must not touch the new one's state.
+ */
+let generation = 0;
+
+/**
  * Where playback should land once the track is ready.
  *
  * Seeking is only allowed after metadata has loaded, so a click on the waveform
@@ -78,8 +102,13 @@ function applyPending(): void {
 function element(): HTMLAudioElement {
   if (audio) return audio;
 
+  const live = globalThis as WithLiveElement;
+  const previous = live[LIVE_ELEMENT];
+  if (previous) retire(previous);
+
   audio = new Audio();
   audio.preload = 'metadata';
+  live[LIVE_ELEMENT] = audio;
 
   audio.addEventListener('timeupdate', () =>
     player.update((state) => ({ ...state, currentTime: audio!.currentTime }))
@@ -123,23 +152,48 @@ function element(): HTMLAudioElement {
   return audio;
 }
 
+/** Start the element, reporting a refusal only if it is still this track's turn. */
+async function start(el: HTMLAudioElement, load: number): Promise<void> {
+  try {
+    await el.play();
+  } catch {
+    // Moving to another track rejects the old track's play(); that is not a
+    // failure of the new one, which is still loading.
+    if (load !== generation) return;
+    player.update((state) => ({ ...state, playing: false, loading: false }));
+  }
+}
+
 /**
- * Play a track, or toggle it if it is already loaded.
+ * Play a track, or pause it if it is the one playing.
  *
- * `startAt` seeks before playing; on a track that is not loaded yet the seek is
- * held until its metadata arrives.
+ * `startAt` seeks before playing (and never pauses); on a track that is not
+ * loaded yet the seek is held until its metadata arrives.
  */
 export async function playTrack(track: Track, startAt?: number): Promise<void> {
   const el = element();
   const current = get(player);
 
   if (current.track?.id === track.id) {
-    if (startAt !== undefined) seek(startAt);
-    if (current.playing) return;
-    await el.play().catch(() => undefined);
+    if (startAt !== undefined) {
+      seek(startAt);
+      if (el.paused) await start(el, generation);
+      return;
+    }
+    // The play button and the space bar both come here, and both read as
+    // pause while the track is playing.
+    if (!el.paused) {
+      el.pause();
+      return;
+    }
+    // Shown until 'playing' fires, in case it has to buffer first.
+    player.update((state) => ({ ...state, loading: true, error: '' }));
+    await start(el, generation);
     return;
   }
 
+  generation += 1;
+  const load = generation;
   pending = startAt === undefined ? null : { seconds: startAt };
   player.update((state) => ({
     ...state,
@@ -153,12 +207,12 @@ export async function playTrack(track: Track, startAt?: number): Promise<void> {
 
   el.src = api.audioUrl(track.id);
   el.load();
-  await el.play().catch(() => player.update((state) => ({ ...state, loading: false })));
+  await start(el, load);
 }
 
 export function togglePlay(): void {
   const el = element();
-  if (el.paused) void el.play().catch(() => undefined);
+  if (el.paused) void start(el, generation);
   else el.pause();
 }
 
@@ -202,4 +256,13 @@ export function nudge(seconds: number): void {
 
 export function setVolume(volume: number): void {
   element().volume = Math.max(0, Math.min(1, volume));
+}
+
+// Hot reloads replace this module; silence the copy being replaced straight
+// away rather than when the new copy next plays.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    stopFollowing();
+    if (audio) retire(audio);
+  });
 }

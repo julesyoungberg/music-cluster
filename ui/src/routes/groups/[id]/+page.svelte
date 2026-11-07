@@ -1,4 +1,11 @@
 <script lang="ts">
+  import CrateSwatch from '$lib/components/CrateSwatch.svelte';
+  import {
+    CRATE_COLORS,
+    CRATE_COLOR_NAMES,
+    crateColorName,
+    type CrateColorName
+  } from '$lib/crateColors';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/services/api';
@@ -70,6 +77,24 @@
     }
   }
 
+  /** Colours save at once: they only label the group, so there is nothing to confirm. */
+  async function setColor(color: CrateColorName) {
+    if (!group) return;
+    try {
+      const { id, collection_id } = group;
+      const saved = await api.updateGroup(id, { color });
+      // Only the colour: the user may have moved to another group, or picked
+      // again, while this request was in flight.
+      if (group?.id === id && saved.color === color) group = { ...group, color };
+      await loadGroups(collection_id);
+    } catch (err) {
+      notifyError(
+        'Could not change the colour',
+        err instanceof ApiError ? err.message : String(err)
+      );
+    }
+  }
+
   async function removeMember(track: Track) {
     if (!group) return;
     try {
@@ -121,6 +146,29 @@
           />
         </label>
 
+        <div class="text-sm">
+          <span class="font-medium" id="crate-colour-label">Colour</span>
+          <div
+            class="mt-1 flex flex-wrap gap-1.5"
+            role="group"
+            aria-labelledby="crate-colour-label"
+          >
+            {#each CRATE_COLOR_NAMES as option (option)}
+              {@const selected = crateColorName(group) === option}
+              <button
+                class="h-6 w-6 rounded-sm ring-offset-2 ring-offset-card transition-shadow {selected
+                  ? 'ring-2 ring-foreground'
+                  : 'hover:ring-2 hover:ring-border'}"
+                style="background-color: {CRATE_COLORS[option]}"
+                aria-label={option}
+                aria-pressed={selected}
+                title={option}
+                onclick={() => setColor(option)}
+              ></button>
+            {/each}
+          </div>
+        </div>
+
         <label class="block text-sm">
           <span class="font-medium">Notes</span>
           <textarea
@@ -159,7 +207,7 @@
       <div class="rounded-lg border border-border p-4 text-sm">
         <p class="font-medium">Self-check</p>
         {#if quality}
-          <p class="mt-2 text-2xl font-semibold">{formatPercent(quality.accuracy)}</p>
+          <p class="mt-2 text-2xl font-semibold tabular-nums">{formatPercent(quality.accuracy)}</p>
           <p class="mt-1 text-xs text-muted-foreground">
             {quality.correct} of {quality.size} reference tracks get filed back here when tested against
             the other groups.
@@ -186,7 +234,9 @@
 
     <section>
       <div class="mb-3 flex items-baseline justify-between">
-        <h1 class="text-xl font-semibold">{group.name}</h1>
+        <h1 class="flex items-center gap-2 text-xl font-semibold">
+          <CrateSwatch {group} size="md" />{group.name}
+        </h1>
         <p class="text-sm text-muted-foreground">{pluralize(size, 'reference track')}</p>
       </div>
 

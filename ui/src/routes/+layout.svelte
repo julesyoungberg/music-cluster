@@ -8,22 +8,19 @@
   import { notifyError } from '$lib/stores/notifications';
   import { ApiError } from '$lib/services/api';
   import { player } from '$lib/stores/player';
+  import { applyTheme, storedTheme } from '$lib/theme';
 
   let { children }: { children: Snippet } = $props();
 
-  let theme = $state<'light' | 'dark' | 'system'>('system');
-
   $effect(() => {
-    const stored = localStorage.getItem('music-cluster:theme') as typeof theme | null;
-    if (stored) theme = stored;
-  });
-
-  $effect(() => {
-    const dark =
-      theme === 'dark' ||
-      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('music-cluster:theme', theme);
+    applyTheme(storedTheme());
+    // In "system" mode, follow the OS when it switches while the app is open.
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const follow = () => {
+      if (storedTheme() === 'system') applyTheme('system');
+    };
+    media.addEventListener('change', follow);
+    return () => media.removeEventListener('change', follow);
   });
 
   // The collection list is needed by nearly every page, so it is loaded once here.

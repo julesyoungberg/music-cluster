@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Group } from '$lib/types';
   import { Search } from 'lucide-svelte';
+  import CrateSwatch from './CrateSwatch.svelte';
 
   /** Searchable list of groups — the fallback when a suggestion is wrong. */
   let {
@@ -37,7 +38,10 @@
           : 'border-transparent hover:bg-secondary'}"
         onclick={() => onSelect(group)}
       >
-        <span class="truncate">{group.name}</span>
+        <span class="flex min-w-0 items-center gap-2">
+          <CrateSwatch {group} />
+          <span class="truncate">{group.name}</span>
+        </span>
         <span class="shrink-0 text-xs text-muted-foreground">{group.size ?? 0}</span>
       </button>
     {:else}
