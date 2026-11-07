@@ -129,7 +129,7 @@ class EmbeddingSpace:
         unique, counts = np.unique(labels, return_counts=True)
         # LDA needs at least two classes, and enough members per class that the
         # within-class scatter is not pure noise.
-        return len(unique) >= 2 and counts.min() >= 3 and scaled.shape[0] >= 3 * len(unique)
+        return len(unique) >= 2 and int(np.min(counts)) >= 3 and scaled.shape[0] >= 3 * len(unique)
 
     def _fit_reducer(self, scaled: np.ndarray, labels: Optional[np.ndarray], projection: str):
         if projection == "none":

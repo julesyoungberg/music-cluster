@@ -185,7 +185,7 @@ def _chroma_peak_count(y: np.ndarray, sr: int) -> float:
     # Subtracting the median removes the broadband floor that noise spreads
     # evenly across all twelve bins, leaving only genuine peaks standing.
     whitened = np.clip(chroma - np.median(chroma), 0.0, None)
-    ceiling = float(whitened.max())
+    ceiling = float(np.max(whitened))
     if ceiling <= 0:
         return 0.0
     return float(np.count_nonzero(whitened >= 0.5 * ceiling))

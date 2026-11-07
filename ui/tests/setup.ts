@@ -19,3 +19,16 @@ if (!globalThis.ResizeObserver) {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// Node 25+ ships its own global `localStorage`, which shadows jsdom's and is
+// unusable unless Node is started with `--localstorage-file`. Put the jsdom
+// window's storage back so tests behave the same on every Node version.
+const jsdomWindow = (globalThis as { jsdom?: { window: Window } }).jsdom?.window;
+if (jsdomWindow && typeof globalThis.localStorage?.clear !== 'function') {
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      value: jsdomWindow[name]
+    });
+  }
+}
