@@ -54,6 +54,32 @@ npm run ui:snapshot              # not a gate: screenshots + a11y text of every 
 FFmpeg must be installed for any audio decoding. CI (`.github/workflows/`) runs
 exactly the commands above; keep them passing before opening a PR.
 
+## Testing
+
+Every new feature, bug fix or change in behaviour ships with its tests in the
+same PR: add tests for new behaviour, and update (never just delete) tests whose
+expectations changed. Lean test-first: for a bug, write the test that fails
+first; for a new behaviour, write down what it should do as a test before or
+while building it.
+
+Test each behaviour once, at the lowest layer that can prove it. Aim for
+sufficient coverage, not maximal: don't re-test the same rule through several
+layers, and don't add a test that only restates the code.
+
+| Layer       | Where                            | Owns                                                                                                                                            |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python unit | `tests/unit`                     | Scoring, tagging, grouping, filing rules: logic over synthetic vectors, fast                                                                    |
+| Closed loop | `tests/e2e`, `tests/integration` | Real CLI and HTTP routes over a temp SQLite library and synthesised audio: request shapes, persistence, files really written and undone         |
+| UI unit     | `ui/src/**/*.test.ts` (vitest)   | Pure UI logic: the API client, stores, formatting and maths helpers                                                                             |
+| Browser     | `ui/e2e` (Playwright)            | User journeys through the real UI and API: what the user sees and that a click reaches the backend. Not edge cases a lower layer already covers |
+| Screenshots | `npm run ui:snapshot`            | Looking at screens while working on them. Not a test and not a gate                                                                             |
+
+So a new scoring rule gets a unit test; a new route gets a closed-loop test; a
+new screen or button gets a browser test of its happy path (and a `shot`); a
+store or helper with branching logic gets a vitest test. Anything that writes,
+moves or deletes user files needs a closed-loop test of both the dry run and
+the undo.
+
 ## Conventions
 
 - Ruff with line length 100. Type hints use `typing` (`List`, `Optional`, …)
