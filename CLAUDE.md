@@ -48,6 +48,7 @@ music-cluster eval run --baseline eval/baselines/synthetic.json   # how well, no
 npm run format:check && npm run lint && npm run check
 npm test
 npx playwright test              # seeds its own library via scripts/seed_e2e_library.py
+npm run ui:snapshot              # not a gate: screenshots + a11y text of every screen → ui-snapshots/report.md
 ```
 
 FFmpeg must be installed for any audio decoding. CI (`.github/workflows/`) runs
@@ -61,6 +62,9 @@ exactly the commands above; keep them passing before opening a PR.
 - mypy is progressive: annotate new code, but missing annotations are not errors.
 - Unit tests use synthetic feature vectors (`tests/conftest.py`), not audio.
   Mark tests that decode or synthesise audio `slow` or `e2e`.
+- After changing the UI, run `npm run ui:snapshot` and look at the screens you
+  touched (`ui-snapshots/report.md` lists them, and any browser errors). When
+  you add a screen or state, add a `shot` for it in `ui/snapshots/screens.spec.ts`.
 - Never move, copy or delete user files without an explicit confirmation step;
   every filing mode has a dry run and an undo, and new modes must too.
 - Tags and sample categories are readable rules over measured quantities, not
