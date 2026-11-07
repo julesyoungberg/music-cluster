@@ -26,6 +26,25 @@ test.describe('browsing', () => {
     await expect(page.getByText('Techno', { exact: true }).first()).toBeVisible();
     await shot('groups', { note: 'The collection’s groups' });
 
+    await page.getByRole('button', { name: /Import my folders/ }).click();
+    const importDialog = page.getByRole('dialog');
+    await importDialog.getByPlaceholder('/path/to/folder').fill(path.join(music, 'DJ'));
+    await importDialog.getByPlaceholder('/path/to/folder').press('Enter');
+    await expect(importDialog.getByText('Techno', { exact: true })).toBeVisible();
+    await shot('groups-import-dialog', {
+      note: 'Importing a folder of genre folders as groups',
+      viewportOnly: true
+    });
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: /New collection/ }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await shot('groups-new-collection-dialog', {
+      note: 'Creating a collection: music or samples',
+      viewportOnly: true
+    });
+    await page.keyboard.press('Escape');
+
     await page
       .getByRole('link', { name: /Techno/ })
       .first()
@@ -46,6 +65,32 @@ test.describe('browsing', () => {
     await page.getByPlaceholder(/Search/i).fill('Drum & Bass Artist');
     await expect(page.getByText('Deep House Artist')).toHaveCount(0);
     await shot('library-search', { note: 'Search narrowed to one genre' });
+
+    await page
+      .getByRole('button', { name: /Find tracks similar to/ })
+      .first()
+      .click();
+    await expect(page.getByRole('dialog', { name: 'Sounds like' })).toBeVisible();
+    await expect(page.getByText(/distance/).first()).toBeVisible();
+    await shot('library-similar', {
+      note: 'Tracks that sound like the one picked',
+      viewportOnly: true
+    });
+    await page.keyboard.press('Escape');
+
+    await page.getByPlaceholder(/Search/i).fill('');
+    await page.getByLabel('Genre').selectOption('deep_house');
+    await expect(page.getByText('Drum & Bass Artist')).toHaveCount(0);
+    await shot('library-tag-filter', { note: 'Library filtered by an auto-tag (genre)' });
+
+    await page.getByRole('button', { name: /Analyse a folder/ }).click();
+    const analyzeDialog = page.getByRole('dialog');
+    await analyzeDialog.getByPlaceholder('/path/to/folder').fill(path.join(music, 'NewMusic'));
+    await analyzeDialog.getByPlaceholder('/path/to/folder').press('Enter');
+    await shot('library-analyze-dialog', {
+      note: 'Analysing a folder as music or as samples',
+      viewportOnly: true
+    });
   });
 
   test('settings', async ({ page, shot }) => {
@@ -78,6 +123,11 @@ test.describe('sorting new music', () => {
 
     await page.getByRole('button', { name: /Shortcuts/ }).click();
     await shot('sort-shortcuts', { note: 'Keyboard shortcuts help', viewportOnly: true });
+    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('g');
+    await expect(page.getByRole('dialog', { name: 'Choose a group' })).toBeVisible();
+    await shot('sort-group-picker', { note: 'Filing into any group with g', viewportOnly: true });
     await page.keyboard.press('Escape');
 
     await page.keyboard.press('1');

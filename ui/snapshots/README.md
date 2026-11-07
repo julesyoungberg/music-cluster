@@ -41,6 +41,19 @@ artifact, so a reviewer can see the UI without running anything.
 - `screens.spec.ts` is the walk through the app. `capture.ts` provides the
   `shot(name, { note })` fixture that saves a screen.
 
+## Screenshots in the docs
+
+`docs/tutorial.md` uses screenshots from this run. After a UI change, retake
+them with:
+
+```bash
+cd ui && npm run ui:snapshot && cd ..
+python scripts/update_doc_screenshots.py    # copies the screens the docs use into docs/images/
+```
+
+To show a new screen in the docs, add its `shot` here and its name to
+`SCREENS` in that script.
+
 ## Adding a screen
 
 Add a `shot` where the new screen or state appears in `screens.spec.ts`. Wait
