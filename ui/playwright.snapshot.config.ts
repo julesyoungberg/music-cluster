@@ -12,6 +12,10 @@ import {
 
 const run = path.join(workspace, 'run');
 const python = process.env.PYTHON ?? path.join(repoRoot, '.venv', 'bin', 'python');
+const quote = (value: string) => JSON.stringify(value);
+// UI_SNAPSHOT_RESEED=1 synthesises the library again, e.g. after changing
+// analysis code or interrupting the first seed.
+const reseed = process.env.UI_SNAPSHOT_RESEED ? ' --reseed' : '';
 
 /**
  * `npm run ui:snapshot` — capture every screen of the real app for a person or
@@ -34,7 +38,11 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${UI_PORT}`,
     viewport: { width: 1280, height: 800 },
     trace: 'off',
-    screenshot: 'off'
+    screenshot: 'off',
+    // A step that cannot find its element should fail fast and name the
+    // locator, rather than hang until the whole flow times out.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000
   },
 
   projects: [
@@ -54,8 +62,8 @@ export default defineConfig({
     {
       // Every run starts from a fresh copy of the seeded library.
       command:
-        `${python} scripts/prepare_ui_snapshot.py ${workspace} && ` +
-        `${python} -m uvicorn music_cluster.api:app --host 127.0.0.1 --port ${API_PORT}`,
+        `${quote(python)} scripts/prepare_ui_snapshot.py ${quote(workspace)}${reseed} && ` +
+        `${quote(python)} -m uvicorn music_cluster.api:app --host 127.0.0.1 --port ${API_PORT}`,
       cwd: repoRoot,
       url: `${apiBase}/api/info`,
       reuseExistingServer: false,

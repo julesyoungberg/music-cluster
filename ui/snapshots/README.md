@@ -35,7 +35,8 @@ artifact, so a reviewer can see the UI without running anything.
   suite once into `.ui-snapshot-workspace/seed`, then gives each run a fresh
   copy of the database in `.ui-snapshot-workspace/run`. Every run starts from
   the same state, and the playlists the commit step writes stay in there.
-  `--reseed` rebuilds the library.
+  Set `UI_SNAPSHOT_RESEED=1` to synthesise it again, after changing analysis
+  code or interrupting the first seed.
 - The API runs on :8124 and the UI on :4174, apart from the e2e suite's ports.
 - `screens.spec.ts` is the walk through the app. `capture.ts` provides the
   `shot(name, { note })` fixture that saves a screen.
@@ -48,4 +49,6 @@ for what the screen needs first (`await expect(...).toBeVisible()`), give it a
 the errors are the point of the screen, as with the API-down state.
 
 Environment: `PYTHON` (default `../.venv/bin/python`), `UI_SNAPSHOT_OUT`,
-`UI_SNAPSHOT_WORKSPACE`, `PLAYWRIGHT_CHROMIUM_PATH`.
+`UI_SNAPSHOT_WORKSPACE`, `UI_SNAPSHOT_RESEED`, `PLAYWRIGHT_CHROMIUM_PATH`. The
+output folder is cleared on every run, so `UI_SNAPSHOT_OUT` must name a new or
+empty folder (the run refuses a non-empty one it did not create).

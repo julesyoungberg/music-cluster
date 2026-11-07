@@ -42,6 +42,10 @@ def main() -> int:
     subprocess.run(command, check=True)
 
     if run.exists():
+        # Only clear a folder this script made: it holds the copied database.
+        if any(run.iterdir()) and not (run / "library.db").exists():
+            print(f"Refusing to clear {run}: it was not made by this script.", file=sys.stderr)
+            return 1
         shutil.rmtree(run)
     run.mkdir(parents=True)
     shutil.copy2(seed / "library.db", run / "library.db")

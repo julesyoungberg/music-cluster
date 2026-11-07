@@ -45,7 +45,7 @@ pytest tests/e2e tests/integration
 npm run format:check && npm run lint && npm run check
 npm test
 npx playwright test              # seeds its own library via scripts/seed_e2e_library.py
-npm run ui:snapshot              # screenshots + accessibility text of every screen → ui-snapshots/report.md
+npm run ui:snapshot              # not a gate: screenshots + a11y text of every screen → ui-snapshots/report.md
 ```
 
 FFmpeg must be installed for any audio decoding. CI (`.github/workflows/`) runs

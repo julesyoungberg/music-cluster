@@ -1,14 +1,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ScreenRecord } from './capture';
-import { outputDir, screensLog } from './paths';
+import { marker, outputDir, screensLog } from './paths';
 
 /**
  * Turn screens.jsonl into report.md: the file to open first. It lists every
  * screen with its files, and puts anything that looks wrong at the top.
  */
 export default function globalTeardown() {
-  if (!fs.existsSync(screensLog)) return;
+  // Setup refused this folder; leave it exactly as it was.
+  if (!fs.existsSync(marker)) return;
+  if (!fs.existsSync(screensLog)) {
+    fs.writeFileSync(
+      path.join(outputDir, 'report.md'),
+      '# UI snapshot\n\nNo screens were captured: the run stopped before any flow reached ' +
+        'its first screen. Check the output of the run (or the CI job log) for why, usually ' +
+        'seeding the library or starting a server.\n'
+    );
+    return;
+  }
 
   const screens: ScreenRecord[] = fs
     .readFileSync(screensLog, 'utf8')
