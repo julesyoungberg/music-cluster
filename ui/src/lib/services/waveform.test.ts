@@ -118,4 +118,69 @@ describe('loadWaveform', () => {
     await expect(loadWaveform(106, 240)).rejects.toBeInstanceOf(ApiError);
     await expect(loadWaveform(106, 240)).resolves.toMatchObject({ peaks: [0.7] });
   });
+
+  describe('when callers give up', () => {
+    /** A request that settles after a few milliseconds unless its signal aborts first. */
+    function slowWaveform() {
+      const signals: AbortSignal[] = [];
+      waveformSpy.mockImplementation(
+        (_id, _samples, signal) =>
+          new Promise((resolve, reject) => {
+            if (signal) signals.push(signal);
+            const timer = setTimeout(
+              () => resolve({ peaks: [0.6], duration: 20, samples: 240 }),
+              5
+            );
+            signal?.addEventListener('abort', () => {
+              clearTimeout(timer);
+              reject(new DOMException('Aborted', 'AbortError'));
+            });
+          })
+      );
+      return signals;
+    }
+
+    it('does not cancel a shared request for the callers still waiting', async () => {
+      slowWaveform();
+      const leaving = new AbortController();
+
+      const left = loadWaveform(107, 240, leaving.signal);
+      const staying = loadWaveform(107, 240, new AbortController().signal);
+      leaving.abort();
+
+      await expect(left).rejects.toMatchObject({ name: 'AbortError' });
+      await expect(staying).resolves.toMatchObject({ peaks: [0.6] });
+    });
+
+    it('starts afresh for a caller that arrives straight after the last one left', async () => {
+      // A component re-rendering cancels its request and asks again in the
+      // same tick. Joining the cancelled request left the waveform loading
+      // forever.
+      slowWaveform();
+      const first = new AbortController();
+      const abandoned = loadWaveform(108, 240, first.signal);
+      first.abort();
+
+      const again = loadWaveform(108, 240, new AbortController().signal);
+
+      await expect(abandoned).rejects.toMatchObject({ name: 'AbortError' });
+      await expect(again).resolves.toMatchObject({ peaks: [0.6] });
+      expect(waveformSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('cancels the request once every caller has given up', async () => {
+      const signals = slowWaveform();
+      const a = new AbortController();
+      const b = new AbortController();
+      const loads = [loadWaveform(109, 240, a.signal), loadWaveform(109, 240, b.signal)];
+
+      a.abort();
+      expect(signals[0].aborted).toBe(false);
+      b.abort();
+      expect(signals[0].aborted).toBe(true);
+
+      await Promise.allSettled(loads);
+      expect(cachedWaveform(109, 240)).toBeUndefined();
+    });
+  });
 });
