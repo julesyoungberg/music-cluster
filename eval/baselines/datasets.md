@@ -1,6 +1,6 @@
 # music-cluster evaluation
 
-2026-11-07T08:11:35+00:00 · version 2.0.0 · commit 849bc4d
+2026-11-07T09:00:32+00:00 · version 2.0.0 · commit bd9716d
 
 ## key-giantsteps
 
@@ -22,13 +22,13 @@
 
 | Metric | Value |
 | --- | --- |
-| tempo_accuracy1 | 0.637 |
-| tempo_accuracy2 | 0.829 |
+| tempo_accuracy1 | 0.678 |
+| tempo_accuracy2 | 0.885 |
 | librosa_accuracy1 | 0.584 |
 
 | Method | accuracy1 | accuracy2 |
 | --- | --- | --- |
-| ours | 0.637 | 0.829 |
+| ours | 0.678 | 0.885 |
 | librosa_beat_track | 0.584 | 0.741 |
 | essentia_rhythm2013 | 0.608 | 0.818 |
 

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "created": "2026-11-07T08:11:35+00:00",
+    "created": "2026-11-07T09:00:32+00:00",
     "version": "2.0.0",
-    "commit": "849bc4d",
+    "commit": "bd9716d",
     "python": "3.12.15",
     "args": {
       "suites": [
@@ -162,14 +162,14 @@
     },
     "tempo-giantsteps": {
       "headline": {
-        "tempo_accuracy1": 0.6369137670196672,
-        "tempo_accuracy2": 0.8290468986384266,
+        "tempo_accuracy1": 0.6777609682299546,
+        "tempo_accuracy2": 0.8850226928895613,
         "librosa_accuracy1": 0.583963691376702
       },
       "methods": {
         "ours": {
-          "accuracy1": 0.6369137670196672,
-          "accuracy2": 0.8290468986384266,
+          "accuracy1": 0.6777609682299546,
+          "accuracy2": 0.8850226928895613,
           "count": 661
         },
         "librosa_beat_track": {
@@ -185,15 +185,15 @@
       },
       "by_genre": {
         "drum-and-bass": {
-          "score": 0.6690647482014388,
+          "score": 0.7338129496402878,
           "count": 139
         },
         "dubstep": {
-          "score": 0.6578947368421053,
+          "score": 0.6973684210526315,
           "count": 76
         },
         "trance": {
-          "score": 0.3918918918918919,
+          "score": 0.4594594594594595,
           "count": 74
         },
         "techno": {
@@ -201,7 +201,7 @@
           "count": 61
         },
         "electronica": {
-          "score": 0.5576923076923077,
+          "score": 0.6153846153846154,
           "count": 52
         },
         "psy-trance": {
@@ -221,15 +221,15 @@
           "count": 23
         },
         "tech-house": {
-          "score": 0.6818181818181818,
+          "score": 0.7272727272727273,
           "count": 22
         },
         "electro-house": {
-          "score": 0.8181818181818182,
+          "score": 0.8636363636363636,
           "count": 22
         },
         "progressive-house": {
-          "score": 0.5263157894736842,
+          "score": 0.6842105263157895,
           "count": 19
         },
         "glitch-hop": {
@@ -237,11 +237,11 @@
           "count": 17
         },
         "chill-out": {
-          "score": 0.26666666666666666,
+          "score": 0.3333333333333333,
           "count": 15
         },
         "hardcore-hard-techno": {
-          "score": 0.5714285714285714,
+          "score": 0.6428571428571429,
           "count": 14
         },
         "indie-dance-nu-disco": {
@@ -279,59 +279,54 @@
       },
       "beat_by_genre": {
         "electronica": {
-          "four_on_floor": 18,
-          "half_time": 11,
-          "beatless": 5,
+          "four_on_floor": 22,
+          "half_time": 12,
           "breakbeat": 11,
           "backbeat": 2,
           "two_step": 3,
           "dembow": 2
         },
         "drum-and-bass": {
-          "breakbeat": 51,
-          "two_step": 17,
-          "half_time": 19,
-          "four_on_floor": 26,
-          "beatless": 13,
-          "backbeat": 9,
+          "breakbeat": 58,
+          "two_step": 18,
+          "half_time": 20,
+          "four_on_floor": 29,
+          "backbeat": 10,
           "dembow": 1,
-          "none": 3
+          "none": 2,
+          "beatless": 1
         },
         "breaks": {
           "breakbeat": 11,
-          "four_on_floor": 3,
+          "four_on_floor": 4,
           "two_step": 6,
-          "half_time": 5,
-          "none": 1
+          "half_time": 5
         },
         "dubstep": {
-          "breakbeat": 18,
-          "beatless": 11,
-          "four_on_floor": 11,
-          "two_step": 2,
-          "half_time": 26,
-          "none": 5,
-          "backbeat": 3
+          "breakbeat": 19,
+          "backbeat": 5,
+          "four_on_floor": 14,
+          "two_step": 3,
+          "half_time": 29,
+          "beatless": 5,
+          "none": 1
         },
         "hard-dance": {
           "four_on_floor": 6,
-          "beatless": 1,
+          "breakbeat": 1,
           "baile_funk": 1
         },
         "hardcore-hard-techno": {
-          "half_time": 1,
-          "four_on_floor": 6,
+          "half_time": 2,
+          "four_on_floor": 8,
           "breakbeat": 2,
-          "beatless": 3,
-          "none": 1,
+          "beatless": 1,
           "two_step": 1
         },
         "trance": {
-          "breakbeat": 20,
-          "four_on_floor": 28,
-          "half_time": 14,
-          "beatless": 10,
-          "none": 2
+          "breakbeat": 22,
+          "four_on_floor": 44,
+          "half_time": 8
         },
         "deep-house": {
           "four_on_floor": 12,
@@ -339,22 +334,20 @@
           "half_time": 3
         },
         "progressive-house": {
-          "beatless": 5,
-          "four_on_floor": 8,
+          "beatless": 1,
+          "four_on_floor": 10,
           "half_time": 1,
-          "breakbeat": 5
+          "breakbeat": 7
         },
         "techno": {
-          "four_on_floor": 32,
-          "breakbeat": 23,
-          "half_time": 5,
-          "beatless": 1
+          "four_on_floor": 34,
+          "breakbeat": 21,
+          "half_time": 6
         },
         "tech-house": {
           "breakbeat": 11,
           "four_on_floor": 9,
-          "beatless": 1,
-          "half_time": 1
+          "half_time": 2
         },
         "house": {
           "four_on_floor": 8,
@@ -365,21 +358,19 @@
         },
         "chill-out": {
           "two_step": 1,
-          "beatless": 1,
+          "breakbeat": 4,
           "four_on_floor": 2,
           "backbeat": 3,
-          "half_time": 5,
-          "breakbeat": 3
+          "half_time": 5
         },
         "pop-rock": {
           "four_on_floor": 2,
           "breakbeat": 1
         },
         "psy-trance": {
-          "four_on_floor": 23,
-          "half_time": 4,
+          "four_on_floor": 25,
+          "half_time": 3,
           "breakbeat": 4,
-          "baile_funk": 1,
           "backbeat": 2
         },
         "indie-dance-nu-disco": {
@@ -400,9 +391,8 @@
         },
         "electro-house": {
           "breakbeat": 9,
-          "beatless": 2,
-          "four_on_floor": 9,
-          "half_time": 2
+          "half_time": 3,
+          "four_on_floor": 10
         },
         "glitch-hop": {
           "backbeat": 2,
