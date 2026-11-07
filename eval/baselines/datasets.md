@@ -1,6 +1,6 @@
 # music-cluster evaluation
 
-2026-11-07T05:33:45+00:00 · version 2.0.0 · commit 290ee44
+2026-11-07T05:36:38+00:00 · version 2.0.0 · commit 8b81f7a
 
 ## key-giantsteps
 
@@ -41,11 +41,11 @@
 | sorter_macro_f1 | 0.431 |
 | sorter_ece | 0.027 |
 | logistic_top1 | 0.426 |
-| auto_precision_current | 0.554 |
-| auto_coverage_current | 0.164 |
+| auto_precision_current | 0.581 |
+| auto_coverage_current | 0.077 |
 | coverage_at_95_precision | 0.000 |
 | novelty_auroc | 0.501 |
-| nowhere_auto_filed | 0.176 |
+| nowhere_auto_filed | 0.081 |
 
 | Method | top1 | top3 | macro_f1 | ece | aurc |
 | --- | --- | --- | --- | --- | --- |
@@ -57,7 +57,7 @@
 
 Auto-file operating points (novel tracks count as errors):
 
-- current (confidence ≥ 0.6, margin ≥ 0.08): precision 0.554, coverage 0.164
+- current (confidence ≥ 0.7, margin ≥ 0.08): precision 0.581, coverage 0.077
 - precision 90: not reachable
 - precision 95: not reachable
 
