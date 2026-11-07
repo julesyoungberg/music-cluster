@@ -128,6 +128,25 @@ def test_no_drums_is_beatless_whatever_the_pattern_says():
     assert best_beat(profile) == "beatless"
 
 
+@pytest.mark.parametrize("late", [1, 2, 3])
+def test_four_on_the_floor_survives_a_beat_grid_off_the_kick(late):
+    """Trackers often lock onto the hats: the kicks then land a sixteenth or two late."""
+    kicks = [(step + late) % 16 for step in (0, 4, 8, 12)]
+    assert best_beat(groove(kick=kicks, snare=[(4 + late) % 16, (12 + late) % 16])) == (
+        "four_on_floor"
+    )
+
+
+def test_soft_breaks_are_still_drums():
+    """Rolled-off breaks measure under 0.02; a pad sits near 0.01."""
+    soft = groove(**GROOVES["breakbeat"])
+    soft["transient_strength"] = 0.017
+    assert best_beat(soft) == "breakbeat"
+    pad = groove(kick=[0, 4, 8, 12], snare=[4, 12])
+    pad["transient_strength"] = 0.009
+    assert best_beat(pad) == "beatless"
+
+
 def test_no_pattern_is_beatless():
     assert tagging.beat_scores({}) == {"beatless": pytest.approx(1.0)}
 

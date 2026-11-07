@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 #: Bumped whenever a rule or a measurement changes, so stale tags can be found
 #: and re-run without re-running everything.
-TAGGER_VERSION = "2"  # 2: EDM key profiles, key gate 0.10
+TAGGER_VERSION = "3"  # 2: EDM key profiles, key gate 0.10. 3: off-grid kicks, soft breaks
 
 
 # ----------------------------------------------------------------------
@@ -306,6 +306,14 @@ class _Groove:
             np.roll(self.kick, shift), np.roll(self.snare, shift), np.roll(self.hat, shift)
         )
 
+    def shifted(self, sixteenths: int) -> "_Groove":
+        """The bar read a few sixteenths later, for a beat grid that sits off the kick."""
+        return _Groove(
+            np.roll(self.kick, -sixteenths),
+            np.roll(self.snare, -sixteenths),
+            np.roll(self.hat, -sixteenths),
+        )
+
 
 QUARTERS = [0, 4, 8, 12]
 OFF_QUARTERS = [i for i in range(16) if i not in QUARTERS]
@@ -422,7 +430,10 @@ def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
     clarity = measured.pulse_clarity
     # Is there anything drum-like at all? Without this, the gentle swell of a
     # pad is folded into bars and read as a very tidy four-to-the-floor.
-    drums = _ramp(measured.transient_strength, 0.01, 0.03)
+    # Rolled-off breaks (a lot of drum & bass) measure around 0.02, so the ramp
+    # tops out there; pads stay near 0.01. On GiantSteps, 0.03 called 13 of
+    # 139 drum & bass previews beatless.
+    drums = _ramp(measured.transient_strength, 0.01, 0.02)
     beatless = max(
         1.0 - drums,
         _mean([1.0 - _ramp(clarity, 0.1, 0.35), 1.0 - _ramp(measured.onset_rate, 1.0, 2.5)]),
@@ -440,6 +451,16 @@ def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
         penalty = 1.0 if turn == 0 else _ROTATION_PENALTY
         for key, value in _beat_rules(groove.rotated(turn), measured.bpm).items():
             scores[key] = max(scores.get(key, 0.0), value * penalty)
+    # The beat tracker can lock a sixteenth or two off the kick, onto a hat or a
+    # rolling bassline. A kick on every beat is a four-to-the-floor wherever the
+    # beat was put, so that one rule is also read off the bar shifted by one,
+    # two and three sixteenths. (On GiantSteps, 38 of 79 four-to-the-floor
+    # tracks read as breakbeat had their kicks one to three sixteenths late.)
+    for nudge in (1, 2, 3):
+        shifted = groove.shifted(nudge)
+        for turn in range(4):
+            value = _beat_rules(shifted.rotated(turn), measured.bpm)["four_on_floor"]
+            scores["four_on_floor"] = max(scores["four_on_floor"], value * _ROTATION_PENALTY)
 
     # A pattern only means something if there is a pulse carrying it.
     pulse = _ramp(clarity, 0.1, 0.3)
