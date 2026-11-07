@@ -5,6 +5,7 @@ buys, decide, commit. Background tasks are polled the way the UI polls them.
 """
 
 import time
+from xml.etree import ElementTree as ET
 
 import pytest
 
@@ -192,6 +193,30 @@ class TestImportAndFit:
 
         assert response.status_code == 200
         assert len(list(output.glob("*.m3u8"))) == 3
+
+    def test_exporting_for_rekordbox_writes_one_xml_with_every_group(
+        self, client, fitted, workspace
+    ):
+        output = workspace / "rekordbox"
+
+        response = client.post(
+            f"/api/collections/{fitted['id']}/export",
+            params={"output": str(output), "format": "rekordbox"},
+        )
+
+        assert response.status_code == 200
+        [written] = response.json()["files"]
+        root = ET.parse(written).getroot()
+        assert len(root.find("PLAYLISTS/NODE/NODE")) == 3
+
+    def test_an_unknown_export_format_is_refused(self, client, fitted, workspace):
+        response = client.post(
+            f"/api/collections/{fitted['id']}/export",
+            params={"output": str(workspace / "x"), "format": "itunes"},
+        )
+
+        assert response.status_code == 422
+        assert not (workspace / "x").exists()
 
 
 class TestTracks:

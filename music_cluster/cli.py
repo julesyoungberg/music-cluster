@@ -22,8 +22,8 @@ import click
 from tqdm import tqdm
 
 from . import discovery as discovery_mod
+from . import djexport, organizer, profiles, samples, sorting, tagging
 from . import groups as groups_mod
-from . import organizer, profiles, samples, sorting, tagging
 from .config import Config
 from .database import Database
 from .library import analyze_paths, prune_missing, tag_tracks
@@ -489,20 +489,24 @@ def groups_remove(name, collection_name):
 @groups.command("export")
 @click.option("--collection", "collection_name", default=None)
 @click.option("--output", type=click.Path(file_okay=False), default="./playlists")
-@click.option("--format", "playlist_format", type=click.Choice(["m3u", "m3u8"]), default="m3u8")
-@click.option("--relative-paths", is_flag=True)
-def groups_export(collection_name, output, playlist_format, relative_paths):
-    """Write one playlist per group."""
+@click.option(
+    "--format",
+    "export_format",
+    type=click.Choice(list(djexport.FORMATS)),
+    default="m3u8",
+    help="m3u8/m3u: one playlist per group; rekordbox: rekordbox.xml; traktor: .nml",
+)
+@click.option("--relative-paths", is_flag=True, help="M3U only: paths relative to the file")
+def groups_export(collection_name, output, export_format, relative_paths):
+    """Export every group as a playlist for DJ software. Your music is not touched."""
     _, db = get_context()
     target = resolve_collection_or_exit(db, collection_name)
-    written = organizer.export_groups_as_playlists(
-        db,
-        db.list_groups(target["id"]),
-        output,
-        playlist_format=playlist_format,
-        relative_paths=relative_paths,
+    written = djexport.export_collection(
+        db, target, output, fmt=export_format, relative_paths=relative_paths
     )
-    click.echo(f"Wrote {len(written)} playlist(s) to {os.path.abspath(output)}")
+    for path in written:
+        click.echo(path)
+    click.echo(f"Wrote {len(written)} file(s) to {os.path.abspath(output)}")
 
 
 # ----------------------------------------------------------------------

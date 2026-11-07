@@ -464,6 +464,24 @@ class TestLibraryCommands:
 
         assert len(list(output.glob("*.m3u8"))) == 3
 
+    def test_groups_export_for_traktor_writes_one_nml(self, cli_runner, imported, workspace):
+        output = workspace / "traktor"
+
+        run_cli(
+            cli_runner,
+            "groups",
+            "export",
+            "--collection",
+            "Crates",
+            "--output",
+            str(output),
+            "--format",
+            "traktor",
+        )
+
+        [written] = list(output.glob("*.nml"))
+        assert written.read_text().count('TYPE="PLAYLIST"') == 3
+
     def test_a_group_can_be_renamed_and_pointed_somewhere_else(
         self, cli_runner, imported, workspace
     ):

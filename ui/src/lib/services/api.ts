@@ -5,6 +5,7 @@ import type {
   CommitPlan,
   DiscoveryCandidate,
   DiscoveryRun,
+  ExportFormat,
   Group,
   GroupQuality,
   OrganizeMode,
@@ -133,9 +134,9 @@ export const api = {
     get<{ metrics: CheckMetrics; fitted_at: string; params: Record<string, unknown> }>(
       `/api/collections/${id}/check`
     ),
-  exportGroups: (id: number, output: string, format = 'm3u8') =>
-    post<{ playlists: string[] }>(
-      `/api/collections/${id}/export?output=${encodeURIComponent(output)}&playlist_format=${format}`
+  exportGroups: (id: number, output: string, format: ExportFormat = 'm3u8') =>
+    post<{ format: ExportFormat; files: string[] }>(
+      `/api/collections/${id}/export?output=${encodeURIComponent(output)}&format=${format}`
     ),
 
   // Groups
