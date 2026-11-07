@@ -160,16 +160,17 @@ When it finishes, each group shows its track count and destination folder:
 
 ![The groups screen](images/groups.png)
 
-Click a group to see its reference tracks, rename it, add notes, give it a
+Click a group to see its reference tracks, rename it, add notes, pick its
 **colour**, change its destination folder (**Choose folder**), or remove individual tracks with the
 ✕ next to them. **Delete group** removes the group from the collection; its
 tracks stay in your library and on disk.
 
 ![One group and its reference tracks](images/group-detail.png)
 
-The colour is the group's crate colour: it marks the group wherever it appears,
-in its score bars and swatches while you review, so you can tell crates apart
-at a glance. It saves as soon as you pick it.
+Every group starts with a crate colour of its own, and you can pick another;
+it saves as soon as you click. The colour marks the group wherever it appears:
+on the Groups screen, in the group pickers, and on the score bars and queue
+while you review, so you can tell crates apart at a glance.
 
 Other ways to build a group:
 
