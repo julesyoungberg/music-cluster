@@ -292,6 +292,35 @@ def score_keys(
     }
 
 
+# Beatport genres whose beat type is not in doubt, for a beat-type score until
+# real beat labels exist. Drum & bass accepts any break-based groove.
+_FOUR_ON_FLOOR_GENRES = {
+    "techno",
+    "house",
+    "tech-house",
+    "deep-house",
+    "progressive-house",
+    "minimal",
+    "trance",
+    "psy-trance",
+    "hard-dance",
+}
+_EXPECTED_BEATS = {
+    **{genre: {"four_on_floor"} for genre in _FOUR_ON_FLOOR_GENRES},
+    "dubstep": {"half_time"},
+    "drum-and-bass": {"breakbeat", "two_step", "half_time"},
+}
+
+
+def _beat_label_accuracy(genres: Sequence[str], beats: Sequence[str]) -> Optional[float]:
+    hits = [
+        beat in _EXPECTED_BEATS[genre]
+        for genre, beat in zip(genres, beats, strict=True)
+        if genre in _EXPECTED_BEATS
+    ]
+    return float(np.mean(hits)) if hits else None
+
+
 def score_tempo(
     items: Sequence[Item], records: Sequence[Optional[Dict[str, Any]]]
 ) -> Dict[str, Any]:
@@ -321,11 +350,19 @@ def score_tempo(
         beat = record.get("beat") or "none"
         beats.setdefault(genre, {})
         beats[genre][beat] = beats[genre].get(beat, 0) + 1
+    beat_accuracy = _beat_label_accuracy(
+        [item.meta.get("genre") or "unknown" for item, _, _ in pairs],
+        [record.get("beat") or "none" for _, _, record in pairs],
+    )
     return {
         "headline": {
             "tempo_accuracy1": methods["ours"]["accuracy1"],
             "tempo_accuracy2": methods["ours"]["accuracy2"],
             "librosa_accuracy1": methods["librosa_beat_track"]["accuracy1"],
+            # Share of tracks from unambiguous genres (techno, house, trance
+            # families -> four_on_floor; dubstep -> half_time; drum & bass ->
+            # a break) whose beat type matches.
+            "beat_genre_accuracy": beat_accuracy,
         },
         "methods": methods,
         "by_genre": _by_genre([i for i, _, _ in pairs], per_item),

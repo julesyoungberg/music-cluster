@@ -80,7 +80,8 @@ class RhythmProfile:
     # Onsets per second across the whole spectrum.
     onset_rate: float = 0.0
     # How sharply energy rises relative to its level: near zero for pads and
-    # drones, 0.05 and up for anything with drums in it.
+    # drones, about 0.02 for soft rolled-off breaks, and 0.05 and up for most
+    # tracks with drums in them.
     transient_strength: float = 0.0
     # Share of offbeat sixteenths pushed late towards the triplet, 0-1.
     swing: float = 0.0
