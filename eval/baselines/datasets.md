@@ -1,6 +1,6 @@
 # music-cluster evaluation
 
-2026-11-07T09:00:32+00:00 · version 2.0.0 · commit bd9716d
+2026-11-07T09:36:01+00:00 · version 2.0.0 · commit 26cb88b
 
 ## key-giantsteps
 
@@ -25,6 +25,7 @@
 | tempo_accuracy1 | 0.678 |
 | tempo_accuracy2 | 0.885 |
 | librosa_accuracy1 | 0.584 |
+| beat_genre_accuracy | 0.568 |
 
 | Method | accuracy1 | accuracy2 |
 | --- | --- | --- |

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "created": "2026-11-07T09:00:32+00:00",
+    "created": "2026-11-07T09:36:01+00:00",
     "version": "2.0.0",
-    "commit": "bd9716d",
+    "commit": "26cb88b",
     "python": "3.12.15",
     "args": {
       "suites": [
@@ -164,7 +164,8 @@
       "headline": {
         "tempo_accuracy1": 0.6777609682299546,
         "tempo_accuracy2": 0.8850226928895613,
-        "librosa_accuracy1": 0.583963691376702
+        "librosa_accuracy1": 0.583963691376702,
+        "beat_genre_accuracy": 0.5676229508196722
       },
       "methods": {
         "ours": {
