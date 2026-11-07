@@ -7,7 +7,9 @@ explains the product, INSTALL.md covers setup and troubleshooting, EVALUATION.md
 the eval harness, docs/cli.md every command.
 
 Python package and CLI in `music_cluster/` (FastAPI + SQLite), SvelteKit +
-Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`.
+Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`. The desktop app
+runs a frozen copy of the API: `music_cluster/server.py` is its entry point,
+built by `scripts/build_sidecar.py`.
 
 ## Never
 
@@ -21,6 +23,10 @@ Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`.
   stored features depend on it.
 - Never hand-edit or regenerate `package-lock.json` (root and `ui/`) or
   `src-tauri/Cargo.lock` outside a dependency change; install with `npm ci`.
+- Never run the CLI or API by hand against the default library
+  (`~/.music-cluster/library.db`): it is the owner's real one. Point
+  `MUSIC_CLUSTER_DB`, `MUSIC_CLUSTER_CONFIG` and `MUSIC_CLUSTER_CACHE` at a temp
+  directory, as `tests/e2e/conftest.py` does.
 
 ## Commands
 
@@ -28,7 +34,7 @@ Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`.
 # Setup (CI runs Python 3.10–3.12; librosa/numba may lag newer Pythons)
 uv venv --python 3.12 .venv && source .venv/bin/activate
 uv pip install -r requirements-dev.txt && uv pip install -e .   # uv venvs have no pip
-cd ui && npm ci && cd ..
+npm ci && (cd ui && npm ci)       # root holds the Tauri CLI; start-dev.py would npm install (and rewrite the lock) if either is missing
 
 # Run
 python start-dev.py              # API on :8000 + UI on http://localhost:1420
@@ -46,12 +52,13 @@ npm test
 npx playwright test              # seeds its own library via scripts/seed_e2e_library.py
 npm run ui:snapshot              # not a gate: screenshots + a11y text of every screen → ui-snapshots/report.md
 
-# Desktop shell (from src-tauri/, only if you touched Rust)
+# Desktop shell (from src-tauri/, only if you touched Rust). clippy needs the
+# sidecar binary and ui/build to exist: create the stubs as lint.yml does.
 cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
 ```
 
 FFmpeg must be installed for any audio decoding. CI (`.github/workflows/`) runs
-exactly these commands; keep them passing before opening a PR.
+the same checks (ruff without `--fix`); keep them passing before opening a PR.
 
 ## How to work here
 
@@ -62,8 +69,10 @@ Build what the task needs now, in a shape that is cheap to change later.
   in code.
 - Before non-trivial work, state your assumptions and the simplest approach
   that would work. If the ask can be read two ways, ask rather than guess.
-- Keep diffs surgical: every changed line traces to the task. No drive-by
-  refactors, renames or reformatting of code you did not otherwise touch.
+- Keep diffs surgical: every changed line traces to the task. A small refactor
+  or rename is fine in files the task already changes, in its own commit and
+  listed in the PR description; anything bigger, or elsewhere, gets proposed
+  first. Never reformat code you did not otherwise touch.
 - Reuse the existing pattern instead of adding a second way to do the same
   thing (see "Where code goes"). If two patterns compete and you can't tell
   which is canonical, ask.
@@ -72,22 +81,29 @@ Build what the task needs now, in a shape that is cheap to change later.
   need. Abstract on the third repetition, not the first.
 - Minimise scope, never correctness: input validation at the API and CLI
   boundary, error handling, and tests still ship.
-- No new dependency without saying why in the PR and checking first. Python
-  dependencies are declared twice, in `requirements.txt` and `setup.py`;
-  update both. Large dependencies or models need Jules's approval.
+- No new dependency without saying why in the PR and checking first. Large
+  dependencies or models need Jules's approval. A runtime Python dependency
+  goes in `requirements.txt` and the matching `setup.py` list
+  (`install_requires`, or the `api`/`llm` extra), and in `COLLECT_ALL` or
+  `HIDDEN_IMPORTS` in `scripts/build_sidecar.py` if PyInstaller misses it (only
+  `build.yml` catches that). Test tools go in `requirements-dev.txt`.
 - Done means verified: name the test, command or eval number that proves it,
   and run it before you finish.
 
 ## Where code goes
 
-- Logic lives in the domain modules as plain functions that take `db: Database`
-  and `config: Config` as arguments. `api.py` and `cli.py` stay thin: parse the
-  request, call the module, shape the response. A behaviour both the UI and the
-  CLI need goes in the module, once.
+- `api.py` and `cli.py` stay thin: parse the request, call a module, shape the
+  response. A behaviour both the UI and the CLI need goes in the module, once.
+- Workflow modules (`sorting.py`, `groups.py`, `discovery.py`, `organizer.py`)
+  are functions taking `db: Database` and `config: Config`. They drive the core
+  classes (`GroupSorter`, `EmbeddingSpace`, `FeatureExtractor`,
+  `ClusterEngine`, `FeatureLayout`), which take their own config objects.
+  Extend the existing class rather than adding a parallel function.
 - All SQL lives in `database.py`; nothing else imports `sqlite3`.
-- Tunable numbers go in `DEFAULT_CONFIG` in `config.py` with a comment saying
-  where the value came from (usually an eval run). Add a key only when a
-  measurement or a user asks for it to vary.
+- `DEFAULT_CONFIG` in `config.py` holds only what a user or the eval tunes per
+  library (sorting, discovery, organize); add a key only when someone needs it
+  to vary. Measurement and tag-rule thresholds stay named module constants or
+  inline in the rule, with a comment saying where the value came from.
 - The UI talks to the API only through `ui/src/lib/services/api.ts`; shared
   state lives in `ui/src/lib/stores/`, components in `ui/src/lib/components/`.
 - New eval suites follow "Adding a suite" in EVALUATION.md.
@@ -120,22 +136,24 @@ the undo.
 
 - Unit tests use synthetic feature vectors (`tests/conftest.py`), not audio.
   Mark tests that decode or synthesise audio `slow` or `e2e`.
-- A change to how audio is measured or scored (`extractor.py`, `features.py`,
-  `rhythm.py`, `tagging.py`, `samples.py`, `sorter.py`, `embedding.py`) is
-  judged by the eval run against the baseline, not only by tests. Refresh a
-  file in `eval/baselines/` only in the PR whose change earned the new numbers,
-  and say so in the PR.
+- A change to measuring or scoring code is judged by eval numbers, not only by
+  tests. The synthetic run in Commands covers beats and keys (`rhythm.py`,
+  `tagging.py`, `extractor.py`, `features.py`) only. Changes to `sorter.py` or
+  `embedding.py` need `--suite sorting-fma` against `eval/baselines/datasets.json`
+  with `--tolerance 0.03`, which needs downloaded data: run it through
+  `eval.yml`'s `workflow_dispatch` or on a machine that has it. An unchanged
+  synthetic run proves nothing about sorting. Refresh a baseline file only in
+  the PR whose change earned the new numbers, and say so in the PR.
 - After changing the UI, run `npm run ui:snapshot` and look at the screens you
   touched (`ui-snapshots/report.md` lists them, and any browser errors). When
   you add a screen or state, add a `shot` for it in `ui/snapshots/screens.spec.ts`.
 
 ## Gotchas
 
-- Type hints use `typing` (`List`, `Optional`, …) throughout. Don't rewrite
-  them to PEP 585/604 syntax; those ruff rules are ignored on purpose.
+- Type hints use `typing` (`List`, `Optional`, …). Write new ones that way,
+  and don't rewrite existing ones to PEP 585/604 syntax; those ruff rules are
+  ignored on purpose.
 - mypy is progressive: annotate new code, but don't add annotations to code
   you are not otherwise changing.
-- Dataset eval suites need downloads that the cloud sandbox can't reach; run
-  them on a real machine (EVALUATION.md).
 
 When the same correction comes up twice, propose adding it to this file.
