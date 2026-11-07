@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 #: Bumped whenever a rule or a measurement changes, so stale tags can be found
 #: and re-run without re-running everything.
-TAGGER_VERSION = "1"
+TAGGER_VERSION = "2"  # 2: EDM key profiles, key gate 0.10
 
 
 # ----------------------------------------------------------------------
@@ -143,14 +143,16 @@ PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 
 # Key profiles, tonic first: how much each scale degree sounds in a track in
 # that key. These are the "bgate" profiles from Faraldo, Jordà and Herrera, "A
-# multi-profile method for key estimation in EDM" (AES Semantic Audio 2017),
-# as tabulated in Essentia's key.cpp. Dance music rarely uses the chromatic
+# multi-profile method for key estimation in EDM" (AES Semantic Audio 2017). Dance music rarely uses the chromatic
 # degrees at all, which these profiles say with zeros.
 #
 # Measured with `music-cluster eval` on GiantSteps Key (EDM), same chroma and
 # rule, against the Krumhansl-Kessler profiles used before: MIREX weighted
-# score 0.589 vs 0.513 over all tracks, 0.685 vs 0.595 on tracks that get a key,
-# and better on both halves of the set. Temperley's profiles scored 0.458.
+# score 0.589 vs 0.513 over all tracks, 0.685 vs 0.595 on tracks that get a key
+# at the old 0.15 gate (0.675 at today's 0.10), and better on both halves of
+# the set. One behaviour change: a chroma with no third at all (a drone, a
+# power chord) now reads as minor rather than major, which is usually right in
+# dance music but is a guess, and moods take mode as evidence. Temperley's profiles scored 0.458.
 _MAJOR_PROFILE = np.array([1.00, 0.00, 0.42, 0.00, 0.53, 0.37, 0.00, 0.77, 0.00, 0.38, 0.21, 0.30])
 _MINOR_PROFILE = np.array([1.00, 0.00, 0.36, 0.39, 0.00, 0.38, 0.00, 0.74, 0.27, 0.00, 0.42, 0.23])
 
