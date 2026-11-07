@@ -1,6 +1,7 @@
 """The evaluation harness: metrics on hand-made numbers, loaders on fake datasets."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -208,7 +209,7 @@ def test_folder_tree_labels_by_subfolder(temp_dir):
         for name in names:
             (temp_dir / folder / "sub" / name).write_bytes(b"")
     items = datasets.folder_tree(str(temp_dir), read_artists=False)
-    assert sorted((i.label, i.path.rsplit("/", 1)[-1]) for i in items) == [
+    assert sorted((i.label, Path(i.path).name) for i in items) == [
         ("Deep House", "a.mp3"),
         ("Deep House", "b.wav"),
         ("Techno", "c.flac"),
