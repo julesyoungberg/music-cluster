@@ -5,10 +5,10 @@
 
   const icons = { success: CheckCircle2, error: XCircle, warning: AlertTriangle, info: Info };
   const tones = {
-    success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-    error: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-    warning: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-    info: 'border-border bg-card text-foreground'
+    success: 'border-emerald-500/40 border-l-emerald-500 text-emerald-700 dark:text-emerald-300',
+    error: 'border-rose-500/40 border-l-rose-500 text-rose-700 dark:text-rose-300',
+    warning: 'border-amber-500/40 border-l-amber-500 text-amber-700 dark:text-amber-300',
+    info: 'border-border border-l-primary text-foreground'
   };
 </script>
 
@@ -16,7 +16,7 @@
   {#each $notifications as item (item.id)}
     {@const Icon = icons[item.kind]}
     <div
-      class="pointer-events-auto flex items-start gap-3 rounded-lg border p-3 shadow-lg {tones[
+      class="pointer-events-auto flex items-start gap-3 rounded-lg border border-l-4 bg-popover p-3 shadow-lg {tones[
         item.kind
       ]}"
       role="status"

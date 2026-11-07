@@ -133,3 +133,27 @@ test.describe('when the API is unreachable', () => {
     await expect(page.getByRole('button', { name: /Try again|Retry/i })).toBeVisible();
   });
 });
+
+test.describe('appearance', () => {
+  test('follows the system theme until the user picks one', async ({ page }) => {
+    const html = page.locator('html');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/settings');
+    await expect(html).toHaveClass(/\bdark\b/);
+    // While following the system, an OS switch applies without a reload.
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    await page.getByRole('button', { name: 'light', exact: true }).click();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+
+    await page.reload();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await expect(page.getByRole('button', { name: 'light', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+});

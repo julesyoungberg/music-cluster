@@ -4,12 +4,13 @@
   import ErrorState from '$lib/components/ErrorState.svelte';
   import LoadingState from '$lib/components/LoadingState.svelte';
   import { Save } from 'lucide-svelte';
+  import { applyTheme, storedTheme, type Theme } from '$lib/theme';
 
   let config = $state<Record<string, any> | null>(null);
   let loading = $state(true);
   let error = $state('');
   let saving = $state(false);
-  let theme = $state<'light' | 'dark' | 'system'>('system');
+  let theme = $state<Theme>(storedTheme());
 
   async function load() {
     loading = true;
@@ -25,16 +26,11 @@
 
   $effect(() => {
     void load();
-    theme = (localStorage.getItem('music-cluster:theme') as typeof theme) ?? 'system';
   });
 
-  function setTheme(value: typeof theme) {
+  function setTheme(value: Theme) {
     theme = value;
-    localStorage.setItem('music-cluster:theme', value);
-    const dark =
-      value === 'dark' ||
-      (value === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
+    applyTheme(value);
   }
 
   async function save(values: Record<string, unknown>) {
@@ -141,6 +137,7 @@
           option
             ? 'border-primary bg-primary/10'
             : 'border-input hover:bg-secondary'}"
+          aria-pressed={theme === option}
           onclick={() => setTheme(option as typeof theme)}
         >
           {option}
