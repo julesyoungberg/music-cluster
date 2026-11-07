@@ -419,11 +419,12 @@ _ROTATION_PENALTY = 0.93
 
 
 # Transient strength below which a track has no drums, and above which it
-# certainly does. Rolled-off breaks (a lot of drum & bass) measure about 0.019;
-# gentle pads stay near 0.01, and a pad with a strong tremolo reaches about
-# 0.016. On GiantSteps the old 0.01-0.03 called 13 of 139 drum & bass previews
-# beatless.
-DRUMS_FROM, DRUMS_TO = 0.012, 0.022
+# certainly does. Rolled-off breaks (a lot of drum & bass) measure 0.015-0.02;
+# gentle pads stay near 0.01. On GiantSteps the old 0.01-0.03 called 13 of 139
+# drum & bass previews beatless, and 0.012-0.022 still called 12 tracks with
+# real drums beatless. Known limit: a pad with a strong tremolo reaches about
+# 0.016 too, and transient strength alone cannot tell it from soft drums.
+DRUMS_FROM, DRUMS_TO = 0.01, 0.02
 
 
 def drum_presence(transient_strength: float) -> float:
@@ -466,15 +467,16 @@ def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
     # beat was put, so that one rule is also read off the bar shifted by one,
     # two and three sixteenths. (On GiantSteps, 38 of 79 four-to-the-floor
     # tracks read as breakbeat had their kicks one to three sixteenths late.)
-    # The shifted reading only counts when the kick really is on every beat of
-    # it; otherwise a sparse half-time or backbeat bar would score as a
-    # four-to-the-floor on the strength of its other terms.
+    #
+    # Measured on GiantSteps, most of what this wins is trance read as half-time
+    # turning into four-to-the-floor (11 tracks). A late, sparse half-time or
+    # backbeat bar can tie with four-to-the-floor here on its other terms. Gating
+    # the late reading on kicks stopped that, but cost 0.031 of labelled
+    # accuracy and changed no drum & bass or dubstep tags, so it is left ungated.
     for nudge in (1, 2, 3):
         shifted = groove.shifted(nudge)
         for turn in range(4):
-            reading = shifted.rotated(turn)
-            on_every_beat = _ramp(float(np.min(reading.kick[QUARTERS])), 0.3, 0.6)
-            value = _beat_rules(reading, measured.bpm)["four_on_floor"] * on_every_beat
+            value = _beat_rules(shifted.rotated(turn), measured.bpm)["four_on_floor"]
             scores["four_on_floor"] = max(scores["four_on_floor"], value * _ROTATION_PENALTY)
 
     # A pattern only means something if there is a pulse carrying it.
