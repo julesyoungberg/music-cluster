@@ -54,7 +54,12 @@
   /** Bumped by Retry, which re-runs the loading effect for the same track. */
   let attempt = $state(0);
 
-  const isCurrent = $derived($player.track?.id === track.id);
+  // The review screen hands over a new track object whenever it reloads its
+  // queue. Loading keys on the id alone, so a reload does not cancel and
+  // restart a waveform that is still being decoded.
+  const trackId = $derived(track.id);
+
+  const isCurrent = $derived($player.track?.id === trackId);
 
   /** The waveform's own duration is authoritative until the audio reports its own. */
   const duration = $derived(
@@ -74,8 +79,11 @@
   // Waveforms load one track at a time and are cached, so moving through a
   // review queue does not re-decode anything already seen.
   $effect(() => {
-    const id = track.id;
+    const id = trackId;
     attempt;
+    // A drag that started on the previous track does not carry over.
+    scrubFraction = null;
+    hoverFraction = null;
     if (!Number.isFinite(id)) return;
 
     const ready = cachedWaveform(id, resolution);

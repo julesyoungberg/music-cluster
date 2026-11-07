@@ -186,6 +186,8 @@ export async function playTrack(track: Track, startAt?: number): Promise<void> {
       el.pause();
       return;
     }
+    // Shown until 'playing' fires, in case it has to buffer first.
+    player.update((state) => ({ ...state, loading: true, error: '' }));
     await start(el, generation);
     return;
   }

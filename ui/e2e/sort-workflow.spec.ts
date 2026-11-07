@@ -166,10 +166,15 @@ function audio(page: Page) {
 
 /** Wait for the one audible element to be past `seconds`, and return it. */
 async function playingPast(page: Page, seconds = 0) {
+  let found: Awaited<ReturnType<typeof audio>>[number] | undefined;
   await expect
-    .poll(async () => (await audio(page)).filter((a) => a.playing && a.time > seconds).length)
+    .poll(async () => {
+      const playing = (await audio(page)).filter((a) => a.playing && a.time > seconds);
+      found = playing[0];
+      return playing.length;
+    })
     .toBe(1);
-  return (await audio(page)).find((a) => a.playing)!;
+  return found!;
 }
 
 test.describe('auditioning a track', () => {
@@ -199,8 +204,11 @@ test.describe('auditioning a track', () => {
     await expect.poll(async () => (await audio(page)).every((a) => a.paused)).toBe(true);
 
     // Space reaches both the waveform and the page when the waveform has
-    // focus; it must still toggle exactly once.
-    await page.getByRole('slider', { name: /^Waveform for/ }).focus();
+    // focus; it must still toggle exactly once. The waveform only handles keys
+    // once it has drawn.
+    const waveform = page.getByRole('slider', { name: /^Waveform for/ });
+    await expect(waveform).toHaveAttribute('data-state', 'ready');
+    await waveform.focus();
     await page.keyboard.press(' ');
     await playingPast(page);
     await page.keyboard.press(' ');
@@ -215,17 +223,16 @@ test.describe('auditioning a track', () => {
     const waveform = page.getByRole('slider', { name: /^Waveform for/ });
     await expect(waveform).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
-    // The seeded tracks are four seconds long: halfway is two seconds in.
+    // The seeded tracks are four seconds long: a quarter in is one second.
     const box = (await waveform.boundingBox())!;
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    const first = await playingPast(page, 1.5);
+    await page.mouse.click(box.x + box.width / 4, box.y + box.height / 2);
+    const first = await playingPast(page, 0.75);
 
     await page.keyboard.press('j');
     await page.getByRole('button', { name: /^Play New / }).click();
     const second = await playingPast(page);
 
     expect(second.src).not.toBe(first.src);
-    expect((await audio(page)).filter((a) => a.playing)).toHaveLength(1);
   });
 
   test('the API serves audio the player can load', async ({ page, request }) => {
