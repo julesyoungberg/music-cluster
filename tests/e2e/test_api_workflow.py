@@ -218,6 +218,16 @@ class TestImportAndFit:
         assert response.status_code == 422
         assert not (workspace / "x").exists()
 
+    def test_the_old_format_parameter_is_refused_rather_than_ignored(
+        self, client, fitted, workspace
+    ):
+        response = client.post(
+            f"/api/collections/{fitted['id']}/export",
+            params={"output": str(workspace / "y"), "playlist_format": "m3u"},
+        )
+
+        assert response.status_code == 422
+
 
 class TestTracks:
     def test_lists_tracks_with_their_metadata(self, client, fitted):

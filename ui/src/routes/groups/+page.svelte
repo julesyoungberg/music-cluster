@@ -137,6 +137,10 @@
     exporting = true;
     try {
       const result = await api.exportGroups(collection.id, exportPath, exportFormat);
+      if (result.files.length === 0) {
+        notifyError('Nothing to export', 'None of the groups has any tracks yet.');
+        return;
+      }
       exportOpen = false;
       notifySuccess(
         'Exported',

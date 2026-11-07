@@ -916,16 +916,25 @@ async def import_playlist(collection_id: int, request: ImportRequest):
 
 
 @app.post("/api/collections/{collection_id}/export")
-async def export_groups(collection_id: int, output: str = Query(...), format: str = "m3u8"):
+async def export_groups(
+    collection_id: int,
+    output: str = Query(...),
+    format: str = "m3u8",
+    playlist_format: Optional[str] = None,
+):
     """Export every group as a playlist for DJ software (m3u8, m3u, rekordbox, traktor)."""
     db = get_db()
     collection = _require_collection(db, collection_id)
+    if playlist_format is not None:
+        raise HTTPException(status_code=422, detail="playlist_format was renamed to format")
     if format not in djexport.FORMATS:
         raise HTTPException(
             status_code=422, detail=f"format must be one of {', '.join(djexport.FORMATS)}"
         )
     try:
         written = djexport.export_collection(db, collection, output, fmt=format)
+    except djexport.ExportConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(status_code=400, detail=f"Could not write to {output}: {exc}") from exc
     return {"format": format, "files": written}

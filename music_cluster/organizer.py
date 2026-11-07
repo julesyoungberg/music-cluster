@@ -22,6 +22,10 @@ from .utils import ensure_directory, get_relative_path
 
 
 MODES = ("playlist", "copy", "move", "symlink")
+
+# Written into every playlist and export file music-cluster creates, so a later
+# export can tell its own files (safe to refresh) from the user's (left alone).
+EXPORT_MARKER = "music-cluster export"
 CONFLICT_POLICIES = ("skip", "rename", "overwrite")
 
 
@@ -355,6 +359,7 @@ def write_playlist(
 
     with open(path, "w", encoding="utf-8") as handle:
         handle.write("#EXTM3U\n")
+        handle.write(f"# {EXPORT_MARKER}\n")
         if header:
             handle.write(f"#PLAYLIST:{header}\n")
         for track in tracks:
@@ -364,28 +369,6 @@ def write_playlist(
             handle.write(f"#EXTINF:{duration},{label}\n")
             handle.write(f"{get_relative_path(filepath, base) if relative_paths else filepath}\n")
     return path
-
-
-def export_groups_as_playlists(
-    db: Database,
-    groups: Sequence[Dict],
-    output_dir: str,
-    playlist_format: str = "m3u8",
-    relative_paths: bool = False,
-) -> List[str]:
-    """Write one playlist per group containing all of its reference tracks."""
-    output_dir = os.path.abspath(os.path.expanduser(output_dir))
-    written: List[str] = []
-
-    for group in groups:
-        members = db.get_group_members(group["id"], limit=10**6)
-        if not members:
-            continue
-        path = os.path.join(output_dir, f"{_safe_filename(group['name'])}.{playlist_format}")
-        write_playlist(path, members, relative_paths=relative_paths, header=group["name"])
-        written.append(path)
-
-    return written
 
 
 def _safe_filename(name: str) -> str:

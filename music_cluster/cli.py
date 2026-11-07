@@ -501,9 +501,14 @@ def groups_export(collection_name, output, export_format, relative_paths):
     """Export every group as a playlist for DJ software. Your music is not touched."""
     _, db = get_context()
     target = resolve_collection_or_exit(db, collection_name)
-    written = djexport.export_collection(
-        db, target, output, fmt=export_format, relative_paths=relative_paths
-    )
+    try:
+        written = djexport.export_collection(
+            db, target, output, fmt=export_format, relative_paths=relative_paths
+        )
+    except djexport.ExportConflict as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not written:
+        raise click.ClickException("Nothing to export: none of the groups has any tracks yet.")
     for path in written:
         click.echo(path)
     click.echo(f"Wrote {len(written)} file(s) to {os.path.abspath(output)}")
