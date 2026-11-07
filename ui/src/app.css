@@ -22,33 +22,36 @@
 @tailwind utilities;
 
 /*
- * "Booth": graphite surfaces, hairline borders and one amber signal colour
- * (--primary) for whatever matters right now: the top score, the main action,
- * the active page, the played part of a waveform. Dark is the default theme;
- * light is the same system printed on warm paper.
+ * Two themes on one system: hairline borders, condensed labels, mono readouts
+ * and a single signal colour (--primary) for whatever matters right now: the
+ * main action, the top score, the active page, the played waveform.
+ *
+ * Light, "Sleeve": warm paper, ink and signal red, like a printed record sleeve.
+ * Dark, "Booth": graphite and amber, like gear in a dim DJ booth.
+ * The app follows the system setting unless the user picks one in Settings.
  */
 @layer base {
   :root {
-    --background: 40 20% 95%;
-    --foreground: 30 10% 10%;
-    --card: 40 25% 98%;
-    --card-foreground: 30 10% 10%;
-    --popover: 40 25% 98%;
-    --popover-foreground: 30 10% 10%;
-    /* Darker than the dark theme's amber so amber text keeps 4.5:1 on paper. */
-    --primary: 26 85% 33%;
+    --background: 40 25% 95%;
+    --foreground: 20 10% 9%;
+    --card: 40 30% 98%;
+    --card-foreground: 20 10% 9%;
+    --popover: 40 30% 98%;
+    --popover-foreground: 20 10% 9%;
+    /* Deep enough that red text keeps 4.5:1 on paper. */
+    --primary: 6 78% 43%;
     --primary-foreground: 40 30% 98%;
-    --secondary: 38 14% 89%;
-    --secondary-foreground: 30 10% 10%;
-    --muted: 38 14% 91%;
-    --muted-foreground: 30 6% 38%;
-    --accent: 38 14% 89%;
-    --accent-foreground: 30 10% 10%;
-    --destructive: 2 72% 46%;
+    --secondary: 38 18% 89%;
+    --secondary-foreground: 20 10% 9%;
+    --muted: 38 18% 91%;
+    --muted-foreground: 25 6% 38%;
+    --accent: 38 18% 89%;
+    --accent-foreground: 20 10% 9%;
+    --destructive: 0 75% 40%;
     --destructive-foreground: 0 0% 100%;
-    --border: 32 10% 81%;
-    --input: 32 10% 76%;
-    --ring: 26 85% 33%;
+    --border: 30 12% 80%;
+    --input: 30 12% 74%;
+    --ring: 6 78% 43%;
     --radius: 0.25rem;
     color-scheme: light;
   }

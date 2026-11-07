@@ -2,14 +2,13 @@
  * Light/dark theme choice, shared by the layout (which applies it on load) and
  * the settings page (which changes it).
  *
- * The app is dark first: a sorting session usually happens next to other
- * audio software in a dim room, so with nothing stored it starts dark rather
- * than following the operating system.
+ * Light ("Sleeve") and dark ("Booth") are equal themes, so with nothing stored
+ * the app follows the operating system.
  */
 export type Theme = 'light' | 'dark' | 'system';
 
 export const THEME_KEY = 'music-cluster:theme';
-export const DEFAULT_THEME: Theme = 'dark';
+export const DEFAULT_THEME: Theme = 'system';
 
 export function parseTheme(value: string | null | undefined): Theme {
   return value === 'light' || value === 'dark' || value === 'system' ? value : DEFAULT_THEME;

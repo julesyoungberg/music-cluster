@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_THEME, isDark, parseTheme } from './theme';
 
 describe('theme', () => {
-  it('starts dark when nothing valid is stored', () => {
-    expect(DEFAULT_THEME).toBe('dark');
-    expect(parseTheme(null)).toBe('dark');
-    expect(parseTheme('neon')).toBe('dark');
+  it('follows the system when nothing valid is stored', () => {
+    expect(DEFAULT_THEME).toBe('system');
+    expect(parseTheme(null)).toBe('system');
+    expect(parseTheme('neon')).toBe('system');
   });
 
   it('keeps a stored choice', () => {
     expect(parseTheme('light')).toBe('light');
-    expect(parseTheme('system')).toBe('system');
+    expect(parseTheme('dark')).toBe('dark');
   });
 
   it('follows the system only when asked to', () => {

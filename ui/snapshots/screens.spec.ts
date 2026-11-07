@@ -54,15 +54,15 @@ test.describe('browsing', () => {
     await shot('settings', { note: 'Current configuration' });
   });
 
-  test('light theme', async ({ page, shot }) => {
-    // The app starts dark; these show the same screens in the light theme.
-    await page.addInitScript(() => localStorage.setItem('music-cluster:theme', 'light'));
+  test('dark theme', async ({ page, shot }) => {
+    // The app follows the system, which is light here; these show the dark theme.
+    await page.addInitScript(() => localStorage.setItem('music-cluster:theme', 'dark'));
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
-    await shot('light-overview', { note: 'Overview in the light theme' });
+    await shot('dark-overview', { note: 'Overview in the dark theme' });
     await page.goto('/library');
     await expect(page.getByRole('heading', { name: 'Library', level: 1 })).toBeVisible();
-    await shot('light-library', { note: 'Library and its tag chips in the light theme' });
+    await shot('dark-library', { note: 'Library and its tag chips in the dark theme' });
   });
 });
 

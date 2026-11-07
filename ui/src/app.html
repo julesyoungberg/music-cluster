@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <link
@@ -8,15 +8,14 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
-      // Apply the stored theme before first paint, so a light-theme user does
-      // not see a dark frame while the app loads (mirrors lib/theme.ts).
+      // Apply the theme before first paint so the page never flashes the
+      // other one while the app loads (mirrors lib/theme.ts).
       try {
         var theme = localStorage.getItem('music-cluster:theme');
-        if (
-          theme === 'light' ||
-          (theme === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)
-        )
-          document.documentElement.classList.remove('dark');
+        var dark =
+          theme === 'dark' ||
+          (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
       } catch (e) {}
     </script>
     %sveltekit.head%
