@@ -418,6 +418,19 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
 _ROTATION_PENALTY = 0.93
 
 
+# Transient strength below which a track has no drums, and above which it
+# certainly does. Rolled-off breaks (a lot of drum & bass) measure about 0.019;
+# gentle pads stay near 0.01, and a pad with a strong tremolo reaches about
+# 0.016. On GiantSteps the old 0.01-0.03 called 13 of 139 drum & bass previews
+# beatless.
+DRUMS_FROM, DRUMS_TO = 0.012, 0.022
+
+
+def drum_presence(transient_strength: float) -> float:
+    """0-1: is there anything drum-like at all, from how sharp the onsets are."""
+    return _ramp(transient_strength, DRUMS_FROM, DRUMS_TO)
+
+
 def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
     """Scores for every beat type, from a stored rhythm profile.
 
@@ -430,10 +443,7 @@ def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
     clarity = measured.pulse_clarity
     # Is there anything drum-like at all? Without this, the gentle swell of a
     # pad is folded into bars and read as a very tidy four-to-the-floor.
-    # Rolled-off breaks (a lot of drum & bass) measure around 0.02, so the ramp
-    # tops out there; pads stay near 0.01. On GiantSteps, 0.03 called 13 of
-    # 139 drum & bass previews beatless.
-    drums = _ramp(measured.transient_strength, 0.01, 0.02)
+    drums = drum_presence(measured.transient_strength)
     beatless = max(
         1.0 - drums,
         _mean([1.0 - _ramp(clarity, 0.1, 0.35), 1.0 - _ramp(measured.onset_rate, 1.0, 2.5)]),
@@ -456,10 +466,15 @@ def beat_scores(profile: Dict[str, Any]) -> Dict[str, float]:
     # beat was put, so that one rule is also read off the bar shifted by one,
     # two and three sixteenths. (On GiantSteps, 38 of 79 four-to-the-floor
     # tracks read as breakbeat had their kicks one to three sixteenths late.)
+    # The shifted reading only counts when the kick really is on every beat of
+    # it; otherwise a sparse half-time or backbeat bar would score as a
+    # four-to-the-floor on the strength of its other terms.
     for nudge in (1, 2, 3):
         shifted = groove.shifted(nudge)
         for turn in range(4):
-            value = _beat_rules(shifted.rotated(turn), measured.bpm)["four_on_floor"]
+            reading = shifted.rotated(turn)
+            on_every_beat = _ramp(float(np.min(reading.kick[QUARTERS])), 0.3, 0.6)
+            value = _beat_rules(reading, measured.bpm)["four_on_floor"] * on_every_beat
             scores["four_on_floor"] = max(scores["four_on_floor"], value * _ROTATION_PENALTY)
 
     # A pattern only means something if there is a pulse carrying it.
@@ -499,7 +514,7 @@ def danceability_score(d: Dict[str, Any], beat: Optional[str] = None) -> float:
     ) * (
         0.0
         if beat in (None, "beatless")
-        else _ramp(float(groove.get("transient_strength", 0.0)), 0.01, 0.03)
+        else drum_presence(float(groove.get("transient_strength", 0.0)))
     )
 
 

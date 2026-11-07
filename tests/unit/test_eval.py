@@ -339,3 +339,13 @@ def test_a_corrupt_preview_is_downloaded_again(temp_dir, monkeypatch):
     download.download_giantsteps("key", str(temp_dir), echo=lambda _m: None)
     assert (repo / "audio" / "1.LOFI.mp3").read_bytes() == good
     assert any(url.endswith("1.LOFI.mp3") for url in fetched)
+
+
+def test_beat_genre_accuracy_counts_only_unambiguous_genres():
+    from music_cluster.eval import tag_suites
+
+    genres = ["techno", "techno", "dubstep", "drum-and-bass", "drum-and-bass", "chill-out"]
+    beats = ["four_on_floor", "breakbeat", "half_time", "two_step", "beatless", "backbeat"]
+    # chill-out is not scored; 3 of the 5 scored tracks match.
+    assert tag_suites._beat_label_accuracy(genres, beats) == pytest.approx(0.6)
+    assert tag_suites._beat_label_accuracy(["chill-out"], ["backbeat"]) is None
