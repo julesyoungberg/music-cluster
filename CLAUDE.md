@@ -3,28 +3,24 @@
 Sorts new music (and samples) into groups the user already keeps. The user
 defines the groups; the tool scores, the user confirms, then it files. It never
 invents a category or touches a file the user has not confirmed. README.md
-explains the product; INSTALL.md covers setup, CI and troubleshooting.
+explains the product, INSTALL.md covers setup and troubleshooting, EVALUATION.md
+the eval harness, docs/cli.md every command.
 
-## Layout
+Python package and CLI in `music_cluster/` (FastAPI + SQLite), SvelteKit +
+Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`.
 
-- `music_cluster/` — Python package (CLI + FastAPI server, SQLite storage)
-  - `cli.py` — the `music-cluster` command (entry point `music_cluster.cli:main`)
-  - `api.py` — REST API behind the UI; `server.py` is the frozen-sidecar entry point
-  - `database.py` — all SQLite persistence (`~/.music-cluster/library.db`)
-  - `library.py` → `extractor.py` / `features.py` — ingestion and feature extraction
-  - `profiles.py` — `music` vs `sample` profiles; a collection's profile is fixed at creation
-  - `samples.py` — one-shot classification (kick, snare, hat, bass, chord…)
-  - `rhythm.py`, `tagging.py` — beat measurement and auto-tags (genre, mood, energy, key)
-  - `groups.py` — collections and reference groups
-  - `embedding.py` — LDA+PCA space fitted to the user's groups
-  - `sorter.py` — scores a track against groups; `sorting.py` — sort sessions/review queue
-  - `organizer.py` — applies decisions to disk (playlist/copy/move/symlink, dry run, undo)
-  - `discovery.py`, `clustering.py`, `naming.py`, `llm.py` — proposing candidate groups from an unsorted pile
-  - `eval/` — `music-cluster eval`: synthetic known-answer audio, public datasets, simulated
-    libraries and baselines; see EVALUATION.md. Baseline numbers live in `eval/baselines/`
-- `ui/` — SvelteKit + Tailwind front end (vitest unit tests, Playwright e2e in `ui/e2e/`)
-- `src-tauri/` — Tauri 1 desktop shell; `scripts/build_sidecar.py` freezes the API into it
-- `tests/unit` (synthetic vectors, fast), `tests/integration` and `tests/e2e` (real/synthesised audio, slow)
+## Never
+
+- Never move, copy or delete user files without an explicit confirmation step.
+  Every filing mode in `organizer.py` has a dry run and an undo; a new mode
+  ships with both.
+- Never turn a tag or sample category into a trained model: they are readable
+  rules over measured quantities (`tagging.py`, `samples.py`, `rhythm.py`), so a
+  user can see why a track got its tag.
+- Never change a collection's profile (`music` vs `sample`) after creation; the
+  stored features depend on it.
+- Never hand-edit or regenerate `package-lock.json` (root and `ui/`) or
+  `src-tauri/Cargo.lock` outside a dependency change; install with `npm ci`.
 
 ## Commands
 
@@ -42,17 +38,59 @@ python start-dev.py --tauri      # desktop shell
 ruff format . && ruff check --fix . && mypy
 pytest tests/unit                # fast
 pytest tests/e2e tests/integration
-music-cluster eval run --baseline eval/baselines/synthetic.json   # how well, not just whether (EVALUATION.md)
+music-cluster eval run --baseline eval/baselines/synthetic.json   # how well, not just whether
 
 # UI checks (from ui/)
 npm run format:check && npm run lint && npm run check
 npm test
 npx playwright test              # seeds its own library via scripts/seed_e2e_library.py
 npm run ui:snapshot              # not a gate: screenshots + a11y text of every screen → ui-snapshots/report.md
+
+# Desktop shell (from src-tauri/, only if you touched Rust)
+cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
 ```
 
 FFmpeg must be installed for any audio decoding. CI (`.github/workflows/`) runs
-exactly the commands above; keep them passing before opening a PR.
+exactly these commands; keep them passing before opening a PR.
+
+## How to work here
+
+Build what the task needs now, in a shape that is cheap to change later.
+
+- Solve the stated requirement. No speculative features, flags, config keys or
+  extension points. Ideas for later go in the PR description or an issue, not
+  in code.
+- Before non-trivial work, state your assumptions and the simplest approach
+  that would work. If the ask can be read two ways, ask rather than guess.
+- Keep diffs surgical: every changed line traces to the task. No drive-by
+  refactors, renames or reformatting of code you did not otherwise touch.
+- Reuse the existing pattern instead of adding a second way to do the same
+  thing (see "Where code goes"). If two patterns compete and you can't tell
+  which is canonical, ask.
+- Extensibility comes from small functions, clear names and dependencies
+  passed in, not from base classes, registries or plugin systems built ahead of
+  need. Abstract on the third repetition, not the first.
+- Minimise scope, never correctness: input validation at the API and CLI
+  boundary, error handling, and tests still ship.
+- No new dependency without saying why in the PR and checking first. Python
+  dependencies are declared twice, in `requirements.txt` and `setup.py`;
+  update both. Large dependencies or models need Jules's approval.
+- Done means verified: name the test, command or eval number that proves it,
+  and run it before you finish.
+
+## Where code goes
+
+- Logic lives in the domain modules as plain functions that take `db: Database`
+  and `config: Config` as arguments. `api.py` and `cli.py` stay thin: parse the
+  request, call the module, shape the response. A behaviour both the UI and the
+  CLI need goes in the module, once.
+- All SQL lives in `database.py`; nothing else imports `sqlite3`.
+- Tunable numbers go in `DEFAULT_CONFIG` in `config.py` with a comment saying
+  where the value came from (usually an eval run). Add a key only when a
+  measurement or a user asks for it to vary.
+- The UI talks to the API only through `ui/src/lib/services/api.ts`; shared
+  state lives in `ui/src/lib/stores/`, components in `ui/src/lib/components/`.
+- New eval suites follow "Adding a suite" in EVALUATION.md.
 
 ## Testing
 
@@ -80,20 +118,24 @@ store or helper with branching logic gets a vitest test. Anything that writes,
 moves or deletes user files needs a closed-loop test of both the dry run and
 the undo.
 
-## Conventions
-
-- Ruff with line length 100. Type hints use `typing` (`List`, `Optional`, …)
-  consistently — do not rewrite to PEP 585/604 syntax (those rules are ignored on
-  purpose in `pyproject.toml`).
-- mypy is progressive: annotate new code, but missing annotations are not errors.
 - Unit tests use synthetic feature vectors (`tests/conftest.py`), not audio.
   Mark tests that decode or synthesise audio `slow` or `e2e`.
+- A change to how audio is measured or scored (`extractor.py`, `features.py`,
+  `rhythm.py`, `tagging.py`, `samples.py`, `sorter.py`, `embedding.py`) is
+  judged by the eval run against the baseline, not only by tests. Refresh a
+  file in `eval/baselines/` only in the PR whose change earned the new numbers,
+  and say so in the PR.
 - After changing the UI, run `npm run ui:snapshot` and look at the screens you
   touched (`ui-snapshots/report.md` lists them, and any browser errors). When
   you add a screen or state, add a `shot` for it in `ui/snapshots/screens.spec.ts`.
-- Never move, copy or delete user files without an explicit confirmation step;
-  every filing mode has a dry run and an undo, and new modes must too.
-- Tags and sample categories are readable rules over measured quantities, not
-  trained models — keep them explainable.
-- `package-lock.json` (root and `ui/`) and `src-tauri/Cargo.lock` are committed;
-  install with `npm ci`.
+
+## Gotchas
+
+- Type hints use `typing` (`List`, `Optional`, …) throughout. Don't rewrite
+  them to PEP 585/604 syntax; those ruff rules are ignored on purpose.
+- mypy is progressive: annotate new code, but don't add annotations to code
+  you are not otherwise changing.
+- Dataset eval suites need downloads that the cloud sandbox can't reach; run
+  them on a real machine (EVALUATION.md).
+
+When the same correction comes up twice, propose adding it to this file.
