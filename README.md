@@ -19,6 +19,10 @@ basses and chords and it learns those folders too — see
 **You define the groups.** The tool never invents a category and never moves a
 file you have not confirmed.
 
+**New here?** The [tutorial](docs/tutorial.md) walks through a first sort,
+screen by screen. Every command and option is in the
+[command-line reference](docs/cli.md).
+
 ## The two workflows
 
 **I already have folders.** Point it at the parent of your genre folders. Each
@@ -291,6 +295,8 @@ Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 | `samples classify PATH` | Report what a folder of one-shots looks like |
 | `samples categories` | List the sample categories used for naming |
 | `config --set KEY=VALUE` | Read or change settings |
+
+Every option of every command, with examples: [docs/cli.md](docs/cli.md).
 
 Add `--collection NAME` to work with more than one sorting scheme, and
 `--profile sample` when creating or analysing one that holds one-shots.
