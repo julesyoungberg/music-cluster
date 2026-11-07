@@ -14,6 +14,13 @@
 
   $effect(() => {
     applyTheme(storedTheme());
+    // In "system" mode, follow the OS when it switches while the app is open.
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const follow = () => {
+      if (storedTheme() === 'system') applyTheme('system');
+    };
+    media.addEventListener('change', follow);
+    return () => media.removeEventListener('change', follow);
   });
 
   // The collection list is needed by nearly every page, so it is loaded once here.

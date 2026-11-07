@@ -140,6 +140,11 @@ test.describe('appearance', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/settings');
     await expect(html).toHaveClass(/\bdark\b/);
+    // While following the system, an OS switch applies without a reload.
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(html).toHaveClass(/\bdark\b/);
 
     await page.getByRole('button', { name: 'light', exact: true }).click();
     await expect(html).not.toHaveClass(/\bdark\b/);
