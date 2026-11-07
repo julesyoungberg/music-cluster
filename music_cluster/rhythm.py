@@ -386,7 +386,8 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
     # energy that *jumps*: its rises are tiny next to its level.
     amplitude = np.sqrt(mel.sum(axis=0))
     rises = np.maximum(np.diff(amplitude, prepend=amplitude[:1]), 0.0)
-    transient_strength = float(rises.sum() / amplitude.sum()) if amplitude.sum() > 0 else 0.0
+    total = float(amplitude.sum())
+    transient_strength = float(rises.sum()) / total if total > 0 else 0.0
 
     profile = RhythmProfile(
         onset_rate=onset_rate,

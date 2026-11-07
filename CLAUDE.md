@@ -31,7 +31,7 @@ explains the product; INSTALL.md covers setup, CI and troubleshooting.
 ```bash
 # Setup (CI runs Python 3.10–3.12; librosa/numba may lag newer Pythons)
 uv venv --python 3.12 .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt && pip install -e .
+uv pip install -r requirements-dev.txt && uv pip install -e .   # uv venvs have no pip
 cd ui && npm ci && cd ..
 
 # Run
