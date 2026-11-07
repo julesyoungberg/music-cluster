@@ -77,6 +77,8 @@ Fifty trials by default. The report pools every query across trials:
   optimistic; the grid is coarse (8 × 6 settings), which keeps that small.
 - `novelty_auroc` — does distance separate "belongs nowhere" from "belongs
   somewhere"? 0.5 is chance.
+- `nowhere_auto_filed` — share of "belongs nowhere" tracks that clear the
+  auto-accept thresholds. Lower is better.
 
 ## Ground rules
 
@@ -85,6 +87,13 @@ Fifty trials by default. The report pools every query across trials:
   leak into a genre score.
 - Reports commit, data does not. `eval/baselines/` holds the numbers each
   suite is compared against; refresh one deliberately, in the PR that earns it.
+  `synthetic.json` is deterministic. `datasets.json` was measured on a Mac with
+  Essentia installed; at 50 trials the sorting numbers move about 0.02 between
+  seeds, so compare dataset runs with `--tolerance 0.03`:
+  `music-cluster eval run --suite sorting-fma --baseline eval/baselines/datasets.json --tolerance 0.03`.
+  Its headline also carries the baselines' own scores (`logistic_top1`,
+  `librosa_accuracy1`), so a library upgrade can move those without our code
+  changing.
 
 ## CI
 
@@ -92,7 +101,8 @@ Fifty trials by default. The report pools every query across trials:
 `eval/baselines/synthetic.json` on every pull request that touches
 `music_cluster/`, and weekly. The dataset suites run from the
 Actions tab (`workflow_dispatch`) with the suites to run as input; the
-downloaded data is cached between runs.
+downloaded data is cached between runs. Those runs report their numbers but
+are not gated: compare them against `datasets.json` by hand, as above.
 
 ## Adding a suite
 

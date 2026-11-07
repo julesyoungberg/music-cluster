@@ -6,9 +6,12 @@ be fair across wildly different group sizes and spreads:
 
 * distance to a group is a blend of its centroid (stable for tiny groups) and
   its k nearest references (handles broad, multi-modal folders);
-* optionally, each group's distance is divided by that group's own spread
-  (``scale_normalization``). It is off by default: measured on simulated
-  libraries, it buried small folders rather than protecting them;
+* groups are ranked on that distance in the units of the whole library. Dividing
+  each group's distance by its own spread for ranking (``scale_normalization``)
+  is optional and off by default: measured on simulated libraries, it buried
+  small folders rather than protecting them;
+* "matches nothing" is still judged against each group's own spread, so
+  ``novelty_factor`` keeps meaning "this many group-widths from every group";
 * the resulting scores yield a confidence and a top-1/top-2 margin, which is
   what decides whether a track is auto-filed or sent to the human queue.
 """
@@ -66,8 +69,12 @@ class GroupProfile:
     name: str
     vectors: np.ndarray  # projected reference vectors
     centroid: np.ndarray
-    scale: float  # typical internal distance, used to normalise
+    scale: float  # divisor for ranking distances (own spread, or the library's)
     size: int
+    # The group's own typical member-to-centre distance, used for the
+    # "matches nothing" check whatever ``scale_normalization`` says. Sorters
+    # stored before it existed fall back to ``scale``.
+    spread: Optional[float] = None
 
 
 @dataclass
@@ -165,18 +172,28 @@ class GroupSorter:
                     centroid=vectors.mean(axis=0),
                     scale=self._group_scale(vectors),
                     size=count,
+                    spread=self._own_spread(vectors),
                 )
             )
         return self
 
     def _group_scale(self, vectors: np.ndarray) -> float:
+        """The divisor for a group's ranking distance.
+
+        The library-wide scale unless ``scale_normalization`` asks for each
+        group's own spread.
+        """
+        if not self.config.scale_normalization:
+            return self._global_scale
+        return self._own_spread(vectors)
+
+    def _own_spread(self, vectors: np.ndarray) -> float:
         """Typical distance from a group's members to its centre.
 
-        Used to make distances comparable between a tight seed group and a
-        broad folder. Falls back to the global scale when a group is too small
-        to estimate its own spread.
+        Falls back to the global scale when a group is too small to estimate
+        its own spread.
         """
-        if not self.config.scale_normalization or len(vectors) < 3:
+        if len(vectors) < 3:
             return self._global_scale
         distances = np.linalg.norm(vectors - vectors.mean(axis=0), axis=1)
         scale = float(np.median(distances))
@@ -245,13 +262,16 @@ class GroupSorter:
         top_k: int,
     ) -> Suggestion:
         scored: List[Tuple[GroupProfile, float]] = []
+        novelty_distances: List[float] = []
         for profile in self.profiles:
             skip = (
                 exclude_index[1] if exclude_index and exclude_index[0] == profile.group_id else None
             )
-            distance = self._distance_to_group(point, profile, skip)
-            if distance is not None:
-                scored.append((profile, distance))
+            raw = self._distance_to_group(point, profile, skip)
+            if raw is not None:
+                scored.append((profile, raw / max(profile.scale, 1e-9)))
+                spread = profile.spread if profile.spread is not None else profile.scale
+                novelty_distances.append(raw / max(spread, 1e-9))
 
         if not scored:
             return Suggestion(track_id, [], STATUS_UNMATCHED, 0.0, 0.0, float("inf"))
@@ -259,7 +279,7 @@ class GroupSorter:
         scored.sort(key=lambda item: item[1])
         distances = np.array([distance for _, distance in scored])
 
-        # Softmax over negative normalised distance gives a comparable
+        # Softmax over negative scaled distance gives a comparable
         # confidence regardless of the absolute scale of the space.
         temperature = max(self.config.temperature, 1e-3)
         weights = np.exp(-(distances - distances[0]) / temperature)
@@ -277,7 +297,9 @@ class GroupSorter:
 
         confidence = float(probabilities[0])
         margin = float(probabilities[0] - probabilities[1]) if len(probabilities) > 1 else 1.0
-        best_distance = float(distances[0])
+        # How far the track is from the nearest group, in that group's own
+        # widths: the "matches nothing" signal.
+        best_distance = float(min(novelty_distances))
 
         status = self._decide(confidence, margin, best_distance)
         return Suggestion(track_id, ranked, status, confidence, margin, best_distance)
@@ -285,7 +307,7 @@ class GroupSorter:
     def _distance_to_group(
         self, point: np.ndarray, profile: GroupProfile, skip_index: Optional[int]
     ) -> Optional[float]:
-        """Scale-normalised distance from a point to a group."""
+        """Blended k-nearest/centroid distance from a point to a group, unscaled."""
         vectors = profile.vectors
         if skip_index is not None:
             mask = np.ones(len(vectors), dtype=bool)
@@ -303,8 +325,7 @@ class GroupSorter:
         centroid_distance = float(np.linalg.norm(centroid - point))
 
         weight = float(np.clip(self.config.knn_weight, 0.0, 1.0))
-        blended = weight * knn_distance + (1.0 - weight) * centroid_distance
-        return blended / max(profile.scale, 1e-9)
+        return weight * knn_distance + (1.0 - weight) * centroid_distance
 
     def _decide(self, confidence: float, margin: float, distance: float) -> str:
         if distance > self.config.novelty_factor:
@@ -444,6 +465,7 @@ class GroupSorter:
                         "centroid": profile.centroid,
                         "scale": profile.scale,
                         "size": profile.size,
+                        "spread": profile.spread,
                     }
                     for profile in self.profiles
                 ],

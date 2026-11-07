@@ -98,7 +98,9 @@ PROFILES: Dict[str, Profile] = {
             },
             # Sample folders are big and multi-modal — a "Kicks" folder holds
             # 808s, acoustic kicks and layered kicks — so lean further on
-            # nearest neighbours than on the centroid.
+            # nearest neighbours than on the centroid. Unlike the music
+            # defaults this has not been measured yet (no labelled sample
+            # benchmark in `music-cluster eval`), so treat it as a guess.
             "neighbors": 7,
             "knn_weight": 0.8,
         },

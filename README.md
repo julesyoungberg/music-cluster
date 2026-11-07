@@ -315,9 +315,9 @@ sorting:
 sorting:
   auto_accept_confidence: 0.6   # how sure before a track can be auto-filed
   min_margin: 0.08              # how far ahead of the runner-up
-  novelty_factor: 3.0           # beyond this, report "matches nothing"
+  novelty_factor: 3.0           # group-widths from every group before "matches nothing"
   neighbors: 5                  # references compared against per group
-  knn_weight: 0.7               # 1.0 = nearest tracks only, 0 = centroid only
+  knn_weight: 0.3               # 1.0 = nearest tracks only, 0 = centroid only
   discriminant_weight: 0.7      # focus on your boundaries vs general character
   feature_weights:              # what "similar" means to you
     timbre: 1.0
