@@ -81,8 +81,12 @@
   async function setColor(color: CrateColorName) {
     if (!group) return;
     try {
-      group = await api.updateGroup(group.id, { color });
-      await loadGroups(group.collection_id);
+      const { id, collection_id } = group;
+      const saved = await api.updateGroup(id, { color });
+      // Only the colour: the user may have moved to another group, or picked
+      // again, while this request was in flight.
+      if (group?.id === id && saved.color === color) group = { ...group, color };
+      await loadGroups(collection_id);
     } catch (err) {
       notifyError(
         'Could not change the colour',

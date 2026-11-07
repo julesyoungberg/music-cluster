@@ -799,8 +799,10 @@ async def update_group(group_id: int, request: GroupUpdate):
     changes = request.model_dump(exclude_none=True)
     db.update_group(group_id, **changes)
     # Colour and notes are labels for the user; the sorter does not learn from
-    # them, so changing only those must not make the fitted model stale.
-    if set(changes) - _COSMETIC_GROUP_FIELDS:
+    # them, so changing only those (the form resends the unchanged name) must
+    # not make the fitted model stale.
+    changed = {key for key, value in changes.items() if group.get(key) != value}
+    if changed - _COSMETIC_GROUP_FIELDS:
         db.touch_collection(group["collection_id"])
     return db.get_group(group_id=group_id)
 
