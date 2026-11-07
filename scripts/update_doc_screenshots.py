@@ -40,6 +40,7 @@ SCREENS = [
     "library-similar",
     "library-analyze-dialog",
     "settings",
+    "dark-group-detail",
 ]
 
 

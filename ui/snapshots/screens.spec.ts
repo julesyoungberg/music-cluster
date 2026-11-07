@@ -109,6 +109,13 @@ test.describe('browsing', () => {
     await page.goto('/library');
     await expect(page.getByRole('heading', { name: 'Library', level: 1 })).toBeVisible();
     await shot('dark-library', { note: 'Library and its tag chips in the dark theme' });
+    await page.goto('/groups');
+    await page
+      .getByRole('link', { name: /Drum & Bass/ })
+      .first()
+      .click();
+    await expect(page.getByText('Drum & Bass Artist').first()).toBeVisible();
+    await shot('dark-group-detail', { note: 'A group, its crate colour and tracks, dark theme' });
   });
 });
 
@@ -129,6 +136,10 @@ test.describe('sorting new music', () => {
     await expect(page).toHaveURL(/\/sort\/\d+$/, { timeout: 120_000 });
     await expect(page.getByText('6 to review')).toBeVisible();
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 30_000 });
+    // The "Ready to review" toast would cover the queue in the docs' main image.
+    for (const dismiss of await page.getByRole('button', { name: 'Dismiss' }).all()) {
+      await dismiss.click();
+    }
     await shot('sort-review', {
       note: 'Review queue: six tracks, each with its suggested group and a waveform'
     });
