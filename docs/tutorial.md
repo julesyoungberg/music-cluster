@@ -160,12 +160,17 @@ When it finishes, each group shows its track count and destination folder:
 
 ![The groups screen](images/groups.png)
 
-Click a group to see its reference tracks, rename it, add notes, change its
-destination folder (**Choose folder**), or remove individual tracks with the
+Click a group to see its reference tracks, rename it, add notes, pick its
+**colour**, change its destination folder (**Choose folder**), or remove individual tracks with the
 ✕ next to them. **Delete group** removes the group from the collection; its
 tracks stay in your library and on disk.
 
 ![One group and its reference tracks](images/group-detail.png)
+
+Every group starts with a crate colour of its own, and you can pick another;
+it saves as soon as you click. The colour marks the group wherever it appears:
+on the Groups screen, in the group pickers, and on the score bars and queue
+while you review, so you can tell crates apart at a glance.
 
 Other ways to build a group:
 
@@ -262,7 +267,8 @@ The session opens on its first track:
   [auto-tags](#10-browse-the-library-and-its-auto-tags), and a waveform. Press
   the play button (or **Space**) to listen; the player bar at the bottom of the
   window keeps playing while you move around.
-- **Suggested groups** ranks your groups with a confidence for each. A track
+- **Suggested groups** ranks your groups with a confidence for each, each
+  bar in its group's crate colour. A track
   that is far from all of them says so (*Nothing in this collection sounds
   close to this track*) instead of being forced into the least-bad group.
 - On the right, the **queue** lists every track with its top suggestion.
