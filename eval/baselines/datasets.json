@@ -1,8 +1,8 @@
 {
   "meta": {
-    "created": "2026-11-07T05:19:33+00:00",
+    "created": "2026-11-07T05:33:45+00:00",
     "version": "2.0.0",
-    "commit": "b51299b",
+    "commit": "290ee44",
     "python": "3.12.15",
     "args": {
       "suites": [
@@ -434,13 +434,15 @@
         "sorter_macro_f1": 0.430980873382654,
         "sorter_ece": 0.02681286520756082,
         "logistic_top1": 0.42577447335811647,
-        "auto_precision_current": 0.5535714285714286,
-        "auto_coverage_current": 0.1638453500522466,
+        "auto_precision_current": 0.554140127388535,
+        "auto_coverage_current": 0.16405433646812956,
         "coverage_at_95_precision": 0.0,
-        "novelty_auroc": 0.5176419661296985
+        "novelty_auroc": 0.5008072697232548,
+        "nowhere_auto_filed": 0.176
       },
       "lower_is_better": [
-        "sorter_ece"
+        "sorter_ece",
+        "nowhere_auto_filed"
       ],
       "settings": {
         "trials": 50,
@@ -581,15 +583,15 @@
           "auto_accept_confidence": 0.6,
           "min_margin": 0.08,
           "novelty_factor": 3.0,
-          "precision": 0.5535714285714286,
-          "coverage": 0.1638453500522466
+          "precision": 0.554140127388535,
+          "coverage": 0.16405433646812956
         },
-        "auto_rate_known": 0.16158612143742254,
-        "auto_precision_known": 0.6656441717791411,
-        "nowhere_flagged_unmatched": 0.004,
+        "auto_rate_known": 0.16183395291201982,
+        "auto_precision_known": 0.666156202143951,
+        "nowhere_flagged_unmatched": 0.0026666666666666666,
         "nowhere_auto_filed": 0.176,
-        "known_flagged_unmatched": 0.003965303593556382,
-        "novelty_auroc": 0.5176419661296985,
+        "known_flagged_unmatched": 0.002973977695167286,
+        "novelty_auroc": 0.5008072697232548,
         "reliability": [
           {
             "low": 0.1,
@@ -711,218 +713,218 @@
           {
             "confidence": 0.3,
             "margin": 0.0,
-            "precision": 0.4171413775245987,
-            "coverage": 0.807105538140021
+            "precision": 0.41696844283497153,
+            "coverage": 0.8079414838035528
           },
           {
             "confidence": 0.3,
             "margin": 0.04,
-            "precision": 0.4236908429011481,
-            "coverage": 0.7462904911180773
+            "precision": 0.4234965034965035,
+            "coverage": 0.7471264367816092
           },
           {
             "confidence": 0.3,
             "margin": 0.08,
-            "precision": 0.43358395989974935,
-            "coverage": 0.6670846394984326
+            "precision": 0.433489827856025,
+            "coverage": 0.6677115987460815
           },
           {
             "confidence": 0.3,
             "margin": 0.15,
-            "precision": 0.46494156928213687,
-            "coverage": 0.5007314524555904
+            "precision": 0.46477699041267195,
+            "coverage": 0.5013584117032392
           },
           {
             "confidence": 0.3,
+            "margin": 0.25,
+            "precision": 0.5081555834378921,
+            "coverage": 0.33312434691745035
+          },
+          {
+            "confidence": 0.3,
+            "margin": 0.4,
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.0,
+            "precision": 0.463610776035384,
+            "coverage": 0.5197492163009404
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.04,
+            "precision": 0.4663402692778458,
+            "coverage": 0.5122257053291536
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.08,
+            "precision": 0.46915652538816616,
+            "coverage": 0.4980146290491118
+          },
+          {
+            "confidence": 0.4,
+            "margin": 0.15,
+            "precision": 0.48065268065268063,
+            "coverage": 0.4482758620689655
+          },
+          {
+            "confidence": 0.4,
             "margin": 0.25,
             "precision": 0.5081761006289308,
             "coverage": 0.3322884012539185
           },
           {
-            "confidence": 0.3,
-            "margin": 0.4,
-            "precision": 0.5548705302096177,
-            "coverage": 0.16948798328108672
-          },
-          {
-            "confidence": 0.4,
-            "margin": 0.0,
-            "precision": 0.463768115942029,
-            "coverage": 0.5191222570532915
-          },
-          {
-            "confidence": 0.4,
-            "margin": 0.04,
-            "precision": 0.4665032679738562,
-            "coverage": 0.5115987460815047
-          },
-          {
-            "confidence": 0.4,
-            "margin": 0.08,
-            "precision": 0.469327731092437,
-            "coverage": 0.49738766980146293
-          },
-          {
-            "confidence": 0.4,
-            "margin": 0.15,
-            "precision": 0.480859010270775,
-            "coverage": 0.44764890282131664
-          },
-          {
-            "confidence": 0.4,
-            "margin": 0.25,
-            "precision": 0.5081967213114754,
-            "coverage": 0.3314524555903866
-          },
-          {
             "confidence": 0.4,
             "margin": 0.4,
-            "precision": 0.5548705302096177,
-            "coverage": 0.16948798328108672
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
           },
           {
             "confidence": 0.5,
             "margin": 0.0,
+            "precision": 0.5241660993873384,
+            "coverage": 0.3070010449320794
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.04,
+            "precision": 0.5241660993873384,
+            "coverage": 0.3070010449320794
+          },
+          {
+            "confidence": 0.5,
+            "margin": 0.08,
             "precision": 0.5238744884038199,
             "coverage": 0.30637408568443053
           },
           {
             "confidence": 0.5,
-            "margin": 0.04,
-            "precision": 0.5238744884038199,
-            "coverage": 0.30637408568443053
-          },
-          {
-            "confidence": 0.5,
-            "margin": 0.08,
-            "precision": 0.5235816814764184,
-            "coverage": 0.3057471264367816
-          },
-          {
-            "confidence": 0.5,
             "margin": 0.15,
-            "precision": 0.5249653259361997,
-            "coverage": 0.3013584117032393
+            "precision": 0.5252595155709343,
+            "coverage": 0.3019853709508882
           },
           {
             "confidence": 0.5,
             "margin": 0.25,
-            "precision": 0.5305970149253731,
-            "coverage": 0.2800417972831766
+            "precision": 0.5309009679821296,
+            "coverage": 0.2806687565308255
           },
           {
             "confidence": 0.5,
             "margin": 0.4,
-            "precision": 0.5548705302096177,
-            "coverage": 0.16948798328108672
+            "precision": 0.5554187192118226,
+            "coverage": 0.1696969696969697
           },
           {
             "confidence": 0.6,
             "margin": 0.0,
-            "precision": 0.5535714285714286,
-            "coverage": 0.1638453500522466
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
           },
           {
             "confidence": 0.6,
             "margin": 0.04,
-            "precision": 0.5535714285714286,
-            "coverage": 0.1638453500522466
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
           },
           {
             "confidence": 0.6,
             "margin": 0.08,
-            "precision": 0.5535714285714286,
-            "coverage": 0.1638453500522466
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
           },
           {
             "confidence": 0.6,
             "margin": 0.15,
-            "precision": 0.5535714285714286,
-            "coverage": 0.1638453500522466
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
           },
           {
             "confidence": 0.6,
             "margin": 0.25,
-            "precision": 0.5535714285714286,
-            "coverage": 0.1638453500522466
+            "precision": 0.554140127388535,
+            "coverage": 0.16405433646812956
           },
           {
             "confidence": 0.6,
             "margin": 0.4,
-            "precision": 0.5577464788732395,
-            "coverage": 0.148380355276907
+            "precision": 0.5583684950773559,
+            "coverage": 0.14858934169278998
           },
           {
             "confidence": 0.7,
             "margin": 0.0,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.7,
             "margin": 0.04,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.7,
             "margin": 0.08,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.7,
             "margin": 0.15,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.7,
             "margin": 0.25,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.7,
             "margin": 0.4,
-            "precision": 0.5799457994579946,
-            "coverage": 0.07711598746081505
+            "precision": 0.581081081081081,
+            "coverage": 0.07732497387669801
           },
           {
             "confidence": 0.8,
             "margin": 0.0,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.8,
             "margin": 0.04,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.8,
             "margin": 0.08,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.8,
             "margin": 0.15,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.8,
             "margin": 0.25,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.8,
             "margin": 0.4,
-            "precision": 0.6134453781512605,
-            "coverage": 0.024869383490073144
+            "precision": 0.6166666666666667,
+            "coverage": 0.025078369905956112
           },
           {
             "confidence": 0.9,

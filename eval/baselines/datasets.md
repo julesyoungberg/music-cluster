@@ -1,6 +1,6 @@
 # music-cluster evaluation
 
-2026-11-07T05:19:33+00:00 · version 2.0.0 · commit b51299b
+2026-11-07T05:33:45+00:00 · version 2.0.0 · commit 290ee44
 
 ## key-giantsteps
 
@@ -44,7 +44,8 @@
 | auto_precision_current | 0.554 |
 | auto_coverage_current | 0.164 |
 | coverage_at_95_precision | 0.000 |
-| novelty_auroc | 0.518 |
+| novelty_auroc | 0.501 |
+| nowhere_auto_filed | 0.176 |
 
 | Method | top1 | top3 | macro_f1 | ece | aurc |
 | --- | --- | --- | --- | --- | --- |
