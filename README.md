@@ -23,6 +23,21 @@ file you have not confirmed.
 screen by screen. Every command and option is in the
 [command-line reference](docs/cli.md).
 
+## What it looks like
+
+![Reviewing a new track: the suggested groups with their scores, the waveform and the queue](docs/images/sort-review.png)
+_Sorting new buys: every track gets its likely groups and a score, and you
+decide where it goes._
+
+| Your groups                                                          | One group, in the dark theme                                                                  |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| ![The groups in a collection, each with its colour](docs/images/groups.png) | ![A group's colour, notes, destination and reference tracks](docs/images/dark-group-detail.png) |
+
+The app follows your system's light or dark setting (Settings › Appearance
+overrides it). These screenshots are retaken with `npm run ui:snapshot` and
+`python scripts/update_doc_screenshots.py`; the [tutorial](docs/tutorial.md)
+has one for every step.
+
 ## The two workflows
 
 **I already have folders.** Point it at the parent of your genre folders. Each

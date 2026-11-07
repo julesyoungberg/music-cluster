@@ -109,6 +109,13 @@ test.describe('browsing', () => {
     await page.goto('/library');
     await expect(page.getByRole('heading', { name: 'Library', level: 1 })).toBeVisible();
     await shot('dark-library', { note: 'Library and its tag chips in the dark theme' });
+    await page.goto('/groups');
+    await page
+      .getByRole('link', { name: /Techno/ })
+      .first()
+      .click();
+    await expect(page.getByText('Techno Artist').first()).toBeVisible();
+    await shot('dark-group-detail', { note: 'A group, its crate colour and tracks, dark theme' });
   });
 });
 
