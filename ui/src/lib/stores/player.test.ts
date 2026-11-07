@@ -29,8 +29,12 @@ class FakeAudio extends EventTarget {
 
   play() {
     this.paused = false;
-    this.dispatchEvent(new Event('playing'));
     return Promise.resolve();
+  }
+
+  /** Enough of the file has buffered for sound to start. */
+  started() {
+    this.dispatchEvent(new Event('playing'));
   }
 
   pause() {
@@ -63,7 +67,11 @@ describe('player', () => {
     await playTrack(track(7));
 
     expect(FakeAudio.last.src).toMatch(/\/api\/tracks\/7\/audio$/);
-    expect(get(player)).toMatchObject({ track: { id: 7 }, playing: true });
+    expect(get(player)).toMatchObject({ track: { id: 7 }, loading: true, playing: false });
+
+    FakeAudio.last.started();
+
+    expect(get(player)).toMatchObject({ loading: false, playing: true });
   });
 
   it('does not reload a track that is already loaded', async () => {
@@ -101,8 +109,10 @@ describe('player', () => {
     seek(-5);
     expect(FakeAudio.last.currentTime).toBe(0);
 
+    // Just short of the end, so seeking past it does not fire 'ended'.
     seek(99);
-    expect(FakeAudio.last.currentTime).toBeLessThan(10);
+    expect(FakeAudio.last.currentTime).toBeCloseTo(9.95);
+    expect(get(player).currentTime).toBeCloseTo(9.95);
   });
 
   it('reports a track that cannot be played and drops any held seek', async () => {

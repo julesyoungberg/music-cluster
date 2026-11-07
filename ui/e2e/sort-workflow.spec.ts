@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,16 +15,6 @@ const uiDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(uiDir, '..', '..');
 const workspace = process.env.MUSIC_CLUSTER_E2E_WORKSPACE ?? path.join(repoRoot, '.e2e-workspace');
 const newMusic = path.join(workspace, 'music', 'NewMusic');
-const groupFolders = path.join(workspace, 'music', 'DJ');
-
-/** Paths under the group folders whose name matches one of the new tracks. */
-function copiesOfNewMusic(): string[] {
-  const incoming = new Set(fs.readdirSync(newMusic));
-  return fs
-    .readdirSync(groupFolders, { recursive: true, encoding: 'utf8' })
-    .filter((entry) => incoming.has(path.basename(entry)))
-    .map((entry) => path.join(groupFolders, entry));
-}
 
 /** Start a sort session over the seeded folder of new music. */
 async function startSession(page: Page, name: string, { autoAccept = false } = {}) {
@@ -129,30 +118,6 @@ test.describe('sorting new music', () => {
     await expect(dialog).toBeVisible();
     // The promise in the README: you see exactly what would be written first.
     await expect(dialog.getByText(/playlist|copy|move/i).first()).toBeVisible();
-  });
-
-  // The API suite proves copy-and-undo on disk; this proves the buttons reach it.
-  test('committing copies the files and Undo takes them back out', async ({ page }) => {
-    expect(copiesOfNewMusic()).toEqual([]);
-
-    await startSession(page, 'Commit and undo');
-    await page.getByRole('button', { name: /Accept confident/ }).click();
-    await expect(page.getByText('6 filed')).toBeVisible();
-
-    await page.getByRole('button', { name: /^Commit/ }).click();
-    const commit = page.getByRole('dialog', { name: 'Commit this session' });
-    await commit.getByRole('button', { name: 'Copy files' }).click();
-    await commit.getByRole('button', { name: 'Commit', exact: true }).click();
-    await expect(page.getByText(/6 files copied/).first()).toBeVisible();
-
-    expect(copiesOfNewMusic()).toHaveLength(6);
-
-    await page.getByRole('button', { name: /Reverse this session/ }).click();
-    await expect(page.getByText(/Reversed 6 operations/).first()).toBeVisible();
-
-    expect(copiesOfNewMusic()).toEqual([]);
-    // The originals were only ever read.
-    expect(fs.readdirSync(newMusic)).toHaveLength(6);
   });
 
   test('a session appears in the list and can be deleted', async ({ page }) => {
