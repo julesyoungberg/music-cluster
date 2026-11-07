@@ -1,4 +1,6 @@
 <script lang="ts">
+  import CrateSwatch from '$lib/components/CrateSwatch.svelte';
+  import { crateColor } from '$lib/crateColors';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/services/api';
   import { loadCollections, loadGroups } from '$lib/stores/app';
@@ -48,6 +50,8 @@
   // goes through the track.
   const currentTrack = $derived(current ? trackOf(current) : null);
   const groupsById = $derived(new Map(groups.map((group) => [group.id, group])));
+  /** A group id with the colour its group was given, for crate colours. */
+  const crate = (id: number) => ({ id, color: groupsById.get(id)?.color });
   const pendingCount = $derived(summary.pending ?? 0);
   const acceptedCount = $derived(summary.accepted ?? 0);
   const totalCount = $derived(Object.values(summary).reduce((sum, value) => sum + value, 0));
@@ -359,9 +363,16 @@
                     {index + 1}
                   </kbd>
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate font-medium">{entry.group_name}</span>
+                    <span class="flex items-center gap-2">
+                      <CrateSwatch group={crate(entry.group_id)} />
+                      <span class="truncate font-medium">{entry.group_name}</span>
+                    </span>
                     <span class="mt-1 block h-1 w-full overflow-hidden rounded-full bg-secondary">
-                      <span class="block h-full bg-primary" style="width: {entry.score * 100}%"
+                      <span
+                        class="block h-full"
+                        style="width: {entry.score * 100}%; background-color: {crateColor(
+                          crate(entry.group_id)
+                        )}"
                       ></span>
                     </span>
                   </span>
@@ -425,10 +436,21 @@
               >
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-sm">{trackLabel(item)}</span>
-                  <span class="block truncate text-xs text-muted-foreground">
-                    {item.status === 'accepted'
-                      ? (item.final_group_name ?? 'filed')
-                      : (item.ranked[0]?.group_name ?? 'no match')}
+                  <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {#if (item.status === 'accepted' ? item.final_group_id : item.ranked[0]?.group_id) != null}
+                      <CrateSwatch
+                        group={crate(
+                          (item.status === 'accepted'
+                            ? item.final_group_id
+                            : item.ranked[0]?.group_id) as number
+                        )}
+                      />
+                    {/if}
+                    <span class="truncate">
+                      {item.status === 'accepted'
+                        ? (item.final_group_name ?? 'filed')
+                        : (item.ranked[0]?.group_name ?? 'no match')}
+                    </span>
                   </span>
                 </span>
                 <ConfidenceBadge confidence={item.ranked[0]?.score ?? null} />
