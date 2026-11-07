@@ -1,20 +1,20 @@
 # music-cluster evaluation
 
-2026-11-07T05:36:38+00:00 · version 2.0.0 · commit 8b81f7a
+2026-11-07T08:11:35+00:00 · version 2.0.0 · commit 849bc4d
 
 ## key-giantsteps
 
 | Metric | Value |
 | --- | --- |
-| key_weighted | 0.513 |
-| key_correct | 0.404 |
-| key_tagged_correct | 0.485 |
-| key_share_tagged | 0.508 |
+| key_weighted | 0.589 |
+| key_correct | 0.493 |
+| key_tagged_correct | 0.581 |
+| key_share_tagged | 0.570 |
 
 | Method | weighted | correct |
 | --- | --- | --- |
-| ours_all | 0.513 | 0.404 |
-| ours_tagged_only | 0.595 | 0.485 |
+| ours_all | 0.589 | 0.493 |
+| ours_tagged_only | 0.675 | 0.581 |
 | most_common_key | 0.150 | 0.121 |
 | essentia_edma | 0.658 | 0.591 |
 
