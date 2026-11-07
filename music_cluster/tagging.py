@@ -35,8 +35,9 @@ is a kick to follow, and whether the tempo is one people dance at.
 one or two of: dark, euphoric, melancholic, aggressive, chill, hypnotic,
 groovy.
 
-**Key** — Krumhansl-Schmuckler key finding on the chroma, reported with its
-Camelot code for harmonic mixing.
+**Key** — template matching on the chroma against major and minor key
+profiles measured on electronic dance music, reported with its Camelot code
+for harmonic mixing.
 """
 
 import logging
@@ -140,9 +141,18 @@ TAGGING_SAMPLE_RATE = 22050
 
 PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
-# Krumhansl-Kessler key profiles.
-_MAJOR_PROFILE = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-_MINOR_PROFILE = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+# Key profiles, tonic first: how much each scale degree sounds in a track in
+# that key. These are the "bgate" profiles from Faraldo, Jordà and Herrera, "A
+# multi-profile method for key estimation in EDM" (AES Semantic Audio 2017),
+# as tabulated in Essentia's key.cpp. Dance music rarely uses the chromatic
+# degrees at all, which these profiles say with zeros.
+#
+# Measured with `music-cluster eval` on GiantSteps Key (EDM), same chroma and
+# rule, against the Krumhansl-Kessler profiles used before: MIREX weighted
+# score 0.589 vs 0.513 over all tracks, 0.685 vs 0.595 on tracks that get a key,
+# and better on both halves of the set. Temperley's profiles scored 0.458.
+_MAJOR_PROFILE = np.array([1.00, 0.00, 0.42, 0.00, 0.53, 0.37, 0.00, 0.77, 0.00, 0.38, 0.21, 0.30])
+_MINOR_PROFILE = np.array([1.00, 0.00, 0.36, 0.39, 0.00, 0.38, 0.00, 0.74, 0.27, 0.00, 0.42, 0.23])
 
 # Camelot wheel numbers, indexed by pitch class of the tonic.
 _CAMELOT_MAJOR = (8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1)
@@ -636,7 +646,9 @@ def genre_scores(
 MIN_BEAT_SCORE = 0.45
 MIN_GENRE_SCORE = 0.45
 MIN_MOOD_SCORE = 0.55
-MIN_KEY_STRENGTH = 0.15
+# On GiantSteps, 0.10 gives a key to 57% of tracks at 0.675 weighted score;
+# 0.15 gave 49% at 0.685. Counting untagged tracks as misses, 0.10 is better.
+MIN_KEY_STRENGTH = 0.10
 MAX_MOODS = 2
 OPPOSED_MOODS = {
     frozenset(pair)
