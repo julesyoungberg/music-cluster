@@ -91,24 +91,24 @@
       <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-lg border border-border p-4">
           <p class="text-xs uppercase tracking-wide text-muted-foreground">Groups</p>
-          <p class="mt-1 text-2xl font-semibold">{current?.group_count ?? 0}</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">{current?.group_count ?? 0}</p>
           <p class="text-xs text-muted-foreground">in {current?.name ?? '—'}</p>
         </div>
         <div class="rounded-lg border border-border p-4">
           <p class="text-xs uppercase tracking-wide text-muted-foreground">Reference tracks</p>
-          <p class="mt-1 text-2xl font-semibold">{current?.track_count ?? 0}</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">{current?.track_count ?? 0}</p>
           <p class="text-xs text-muted-foreground">defining those groups</p>
         </div>
         <div class="rounded-lg border border-border p-4">
           <p class="text-xs uppercase tracking-wide text-muted-foreground">Self-check</p>
-          <p class="mt-1 text-2xl font-semibold">{formatPercent(current?.accuracy)}</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">{formatPercent(current?.accuracy)}</p>
           <p class="text-xs text-muted-foreground">
             {current?.fitted ? `fitted ${formatDate(current.fitted_at)}` : 'not fitted yet'}
           </p>
         </div>
         <div class="rounded-lg border border-border p-4">
           <p class="text-xs uppercase tracking-wide text-muted-foreground">Waiting to review</p>
-          <p class="mt-1 text-2xl font-semibold">
+          <p class="mt-1 text-2xl font-semibold tabular-nums">
             {openSessions.reduce((sum, session) => sum + (session.pending_count ?? 0), 0)}
           </p>
           <p class="text-xs text-muted-foreground">

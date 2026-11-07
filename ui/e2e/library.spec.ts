@@ -93,6 +93,25 @@ test.describe('groups', () => {
     await expect(page).toHaveURL(/\/groups\/\d+$/);
     await expect(page.getByText('Techno Artist').first()).toBeVisible();
   });
+
+  test('a crate colour picked on a group is saved', async ({ page }) => {
+    await page.goto('/groups');
+    await page
+      .getByRole('link', { name: /Deep House/ })
+      .first()
+      .click();
+    const colours = page.getByRole('group', { name: 'Colour' });
+    await colours.getByRole('button', { name: 'violet' }).click();
+    await expect(colours.getByRole('button', { name: 'violet' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    await page.reload();
+    await expect(
+      page.getByRole('group', { name: 'Colour' }).getByRole('button', { name: 'violet' })
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 test.describe('library', () => {

@@ -72,15 +72,15 @@
     <div class="grid gap-4 sm:grid-cols-3">
       <div class="rounded-lg border border-border p-4">
         <p class="text-xs uppercase tracking-wide text-muted-foreground">Overall</p>
-        <p class="mt-1 text-2xl font-semibold">{formatPercent(metrics.accuracy)}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{formatPercent(metrics.accuracy)}</p>
       </div>
       <div class="rounded-lg border border-border p-4">
         <p class="text-xs uppercase tracking-wide text-muted-foreground">Reference tracks</p>
-        <p class="mt-1 text-2xl font-semibold">{metrics.n_tracks}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{metrics.n_tracks}</p>
       </div>
       <div class="rounded-lg border border-border p-4">
         <p class="text-xs uppercase tracking-wide text-muted-foreground">Groups</p>
-        <p class="mt-1 text-2xl font-semibold">{metrics.n_groups}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{metrics.n_groups}</p>
       </div>
     </div>
 
