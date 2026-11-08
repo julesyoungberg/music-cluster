@@ -1,10 +1,10 @@
 """Run named suites and collect their results."""
 
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import analysis, datasets, sorting_sim, tag_suites
+from . import analysis, datasets, pretrained, sorting_sim, tag_suites
 
 
 Echo = Callable[[str], None]
@@ -26,7 +26,9 @@ def _sorting(
     workers: int,
     root: Optional[str],
     echo: Echo,
-) -> Dict[str, Any]:
+    embedding: Optional[str] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """The suite's result, plus one result per feature set when an embedding is asked for."""
     echo(f"  analysing {len(items)} files (cached after the first run)")
     records = analysis.analyze(
         items, cache_name, tags=False, workers=workers, root=root, progress=_progress(echo)
@@ -45,7 +47,72 @@ def _sorting(
     result = sorting_sim.simulate(x, labels, artists, settings)
     result["tracks"] = len(keep)
     result["labels"] = sorted(set(labels))
-    return result
+    out = {"": result}
+    if embedding:
+        out.update(
+            _with_embedding(
+                keep, x, labels, artists, cache_name, settings, workers, root, echo, embedding
+            )
+        )
+    return out
+
+
+def _with_embedding(
+    keep: List[Tuple[datasets.Item, Any]],
+    x: np.ndarray,
+    labels: List[str],
+    artists: List[Optional[str]],
+    cache_name: str,
+    settings: sorting_sim.SimulationSettings,
+    workers: int,
+    root: Optional[str],
+    echo: Echo,
+    model: str,
+) -> Dict[str, Dict[str, Any]]:
+    """Score the embedding alone and appended to the hand features.
+
+    All three feature sets run on the same tracks with the same seed, so every
+    trial draws the same folders, references and queries: the comparison is
+    paired, and the difference is the features alone.
+    """
+    about = pretrained.spec(model)
+    echo(f"  embedding {len(keep)} files with {about.repo} (cached after the first run)")
+    vectors = pretrained.embed(
+        [item for item, _ in keep], model, cache_name, root, workers, _progress(echo)
+    )
+    rows = [i for i, v in enumerate(vectors) if v is not None]
+    if not rows:
+        raise sorting_sim.NotEnoughData(f"No files could be embedded with {model}")
+    if len(rows) < len(keep):
+        echo(f"  {len(keep) - len(rows)} files could not be embedded and are left out")
+    hand = x[rows]
+    learned = np.vstack([vectors[i] for i in rows])
+    sub_labels = [labels[i] for i in rows]
+    sub_artists = [artists[i] for i in rows]
+    tempo = sorting_sim.find_tempo_column(hand.shape[1])
+    variants = {
+        f"+{model}:features": (hand, tempo),
+        f"+{model}:embedding": (learned, None),
+        f"+{model}:both": (np.hstack([hand, learned]), tempo),
+    }
+    out: Dict[str, Dict[str, Any]] = {}
+    for suffix, (matrix, column) in variants.items():
+        echo(f"  simulating {suffix[1:]} ({matrix.shape[1]} dimensions)")
+        result = sorting_sim.simulate(
+            matrix, sub_labels, sub_artists, settings, tempo_column=column, infer_tempo=False
+        )
+        result["tracks"] = len(rows)
+        result["dimensions"] = int(matrix.shape[1])
+        result["model"] = {"repo": about.repo, "licence": about.licence, "about": about.about}
+        out[suffix] = result
+    return out
+
+
+def _store(
+    results: Dict[str, Dict[str, Any]], suite: str, found: Dict[str, Dict[str, Any]]
+) -> None:
+    for suffix, result in found.items():
+        results[suite + suffix] = result
 
 
 def _progress(echo: Echo) -> Callable[[int, int], None]:
@@ -66,6 +133,7 @@ def run(
     folders: Optional[str] = None,
     seed: int = 0,
     echo: Echo = print,
+    embedding: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Run each suite; a suite whose data is missing is reported, not fatal.
 
@@ -82,6 +150,9 @@ def run(
         picked = sorted(rng.choice(len(items), size=limit, replace=False))
         return [items[i] for i in picked]
 
+    if embedding:
+        pretrained.spec(embedding)
+        pretrained.require()
     wanted = list(suites)
     if folders and "sorting-folders" not in wanted:
         wanted.append("sorting-folders")
@@ -98,7 +169,11 @@ def run(
                 results[suite] = tag_suites.run_keys(workers=workers)
             elif suite == "sorting-fma":
                 items = trim(datasets.fma(root, subset="small", level="top"))
-                results[suite] = _sorting(items, "fma-small", settings, workers, root, echo)
+                _store(
+                    results,
+                    suite,
+                    _sorting(items, "fma-small", settings, workers, root, echo, embedding),
+                )
             elif suite == "sorting-fma-sub":
                 # Sub-genres need the bigger subset to have enough tracks each.
                 items = trim(datasets.fma(root, subset="medium", level="sub"))
@@ -106,12 +181,20 @@ def run(
                 for item in items:
                     counts[item.label or ""] = counts.get(item.label or "", 0) + 1
                 items = [item for item in items if counts[item.label or ""] >= 40]
-                results[suite] = _sorting(items, "fma-medium", settings, workers, root, echo)
+                _store(
+                    results,
+                    suite,
+                    _sorting(items, "fma-medium", settings, workers, root, echo, embedding),
+                )
             elif suite == "sorting-folders":
                 if not folders:
                     raise sorting_sim.NotEnoughData("Pass --folders PARENT to score a folder tree")
                 items = trim(datasets.folder_tree(folders))
-                results[suite] = _sorting(items, "folders", settings, workers, root, echo)
+                _store(
+                    results,
+                    suite,
+                    _sorting(items, "folders", settings, workers, root, echo, embedding),
+                )
             elif suite == "key-giantsteps":
                 items = trim(datasets.giantsteps_key(root))
                 echo(f"  analysing {len(items)} previews")

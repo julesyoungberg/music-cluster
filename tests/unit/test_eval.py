@@ -349,3 +349,78 @@ def test_beat_genre_accuracy_counts_only_unambiguous_genres():
     # chill-out is not scored; 3 of the 5 scored tracks match.
     assert tag_suites._beat_label_accuracy(genres, beats) == pytest.approx(0.6)
     assert tag_suites._beat_label_accuracy(["chill-out"], ["backbeat"]) is None
+
+
+# ----------------------------------------------------------------------
+# Pretrained embeddings (a fake model; the real ones need torch)
+# ----------------------------------------------------------------------
+
+
+def test_embeddings_pool_windows_and_are_cached(temp_dir, monkeypatch):
+    from music_cluster.eval import pretrained
+
+    paths = []
+    for name in ("a", "b", "broken"):
+        audio = temp_dir / f"{name}.mp3"
+        audio.write_bytes(name.encode())
+        paths.append(str(audio))
+    items = [datasets.Item(path=p, label="x") for p in paths]
+
+    def fake_windows(path, _model):
+        if path.endswith("broken.mp3"):
+            return None
+        # Two windows pointing different ways: the pooled vector is their mean direction.
+        return [np.array([3.0, 0.0], dtype=np.float32), np.array([0.0, 5.0], dtype=np.float32)]
+
+    calls = []
+
+    def fake_model(clips):
+        calls.append(len(clips))
+        return np.vstack(clips)
+
+    monkeypatch.setattr(pretrained, "windows", fake_windows)
+    root = str(temp_dir / "data")
+    first = pretrained.embed(items, "clap", "t", root=root, workers=1, embedder=fake_model)
+    assert first[2] is None
+    np.testing.assert_allclose(first[0], [0.5, 0.5])
+    assert calls == [4]
+
+    again = pretrained.embed(items, "clap", "t", root=root, workers=1, embedder=fake_model)
+    np.testing.assert_allclose(again[1], [0.5, 0.5])
+    assert calls == [4]  # only the undecodable file was tried again, and it never reached the model
+    assert pretrained.cache_path("t", "clap", root).is_relative_to(temp_dir / "data")
+
+    with pytest.raises(ValueError, match="Unknown embedding"):
+        pretrained.spec("no-such-model")
+
+
+def test_an_embedding_is_scored_alone_and_with_the_features(rng, monkeypatch):
+    from music_cluster.eval import pretrained, runner
+
+    x, y, who = _library(rng, groups=5, artists=6, per_artist=4)
+    items = [
+        datasets.Item(path=f"/t/{i}.mp3", label=label, artist=a)
+        for i, (label, a) in enumerate(zip(y, who, strict=True))
+    ]
+    keep = list(zip(items, x, strict=True))
+    # The "embedding" is the label made obvious, so it must beat the noisy features.
+    codes = {label: rng.normal(0, 1, 16) * 5 for label in set(y)}
+
+    def fake_embed(chosen, *_args, **_kwargs):
+        return [codes[item.label] + rng.normal(0, 0.1, 16) for item in chosen]
+
+    monkeypatch.setattr(pretrained, "embed", fake_embed)
+    settings = sorting_sim.SimulationSettings(trials=3, max_refs=40)
+    out = runner._with_embedding(
+        keep, x, list(y), list(who), "t", settings, 1, None, lambda _m: None, "clap"
+    )
+    assert set(out) == {"+clap:features", "+clap:embedding", "+clap:both"}
+    assert out["+clap:embedding"]["dimensions"] == 16
+    assert out["+clap:both"]["dimensions"] == FEATURE_DIM + 16
+    assert "tempo_only" not in out["+clap:embedding"]["methods"]
+    assert out["+clap:embedding"]["headline"]["sorter_top1"] > 0.95
+    # Paired: the same trials drew the same queries for every feature set.
+    assert (
+        out["+clap:features"]["methods"]["sorter"]["queries"]
+        == (out["+clap:embedding"]["methods"]["sorter"]["queries"])
+    )

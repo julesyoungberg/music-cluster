@@ -1375,6 +1375,12 @@ def eval_download(dataset, data_dir):
 @click.option("--out", default="eval-report.json", show_default=True, help="Report path (JSON)")
 @click.option("--baseline", default=None, help="Compare against this earlier report")
 @click.option("--tolerance", default=0.02, show_default=True, help="Allowed drop before failing")
+@click.option(
+    "--embedding",
+    default=None,
+    help="Also score a pretrained embedding on the sorting suites: clap or ast. "
+    "Needs torch and transformers; not used by the app.",
+)
 def eval_run(
     suites,
     run_all,
@@ -1388,12 +1394,14 @@ def eval_run(
     out,
     baseline,
     tolerance,
+    embedding,
 ):
     """Run evaluation suites and write a report."""
     from pathlib import Path
 
     from .eval import report as report_mod
     from .eval import runner
+    from .eval.pretrained import MissingDependency
 
     if Path(out).suffix.lower() == ".md":
         echo_error("--out is the JSON report; the Markdown summary is written beside it")
@@ -1410,11 +1418,19 @@ def eval_run(
             folders=folders,
             seed=seed,
             echo=click.echo,
+            embedding=embedding,
         )
-    except ValueError as exc:
+    except (ValueError, MissingDependency) as exc:
         echo_error(str(exc))
         sys.exit(2)
-    args = {"suites": chosen, "trials": trials, "limit": limit, "quick": quick, "seed": seed}
+    args = {
+        "suites": chosen,
+        "trials": trials,
+        "limit": limit,
+        "quick": quick,
+        "seed": seed,
+        "embedding": embedding,
+    }
     built = report_mod.build(results, args)
     path = report_mod.save(built, out)
     comparison = (
