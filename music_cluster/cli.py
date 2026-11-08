@@ -1,14 +1,14 @@
-"""Command-line interface for music-cluster.
+"""Command-line interface for music-cluster: the `cratewise` command.
 
 The workflow, in the order you would actually use it:
 
-    music-cluster init
-    music-cluster groups import-tree ~/Music/DJ      # your existing folders
-    music-cluster fit                                # learn what they contain
-    music-cluster check                              # are they distinguishable?
-    music-cluster sort ~/Downloads/New               # score the new stuff
-    music-cluster review <session>                   # you decide
-    music-cluster apply <session> --mode copy        # write it to disk
+    cratewise init
+    cratewise groups import-tree ~/Music/DJ      # your existing folders
+    cratewise fit                                # learn what they contain
+    cratewise check                              # are they distinguishable?
+    cratewise sort ~/Downloads/New               # score the new stuff
+    cratewise review <session>                   # you decide
+    cratewise apply <session> --mode copy        # write it to disk
 
 For an unsorted pile with no structure yet, start with `discover` instead.
 """
@@ -90,7 +90,7 @@ def format_confidence(value: Optional[float]) -> str:
 
 
 @click.group()
-@click.version_option(version=__version__)
+@click.version_option(version=__version__, prog_name="cratewise")
 def cli():
     """Sort new music into the folders you already keep."""
 
@@ -121,10 +121,10 @@ def init(db_path, profile):
     click.echo(f"Collection: {name} ({profiles.normalize(profile)})")
     if profiles.is_sample(profile):
         click.echo(
-            "\nNext: music-cluster groups import-tree ~/Samples/YourFolders --collection 'My Samples'"
+            "\nNext: cratewise groups import-tree ~/Samples/YourFolders --collection 'My Samples'"
         )
     else:
-        click.echo("\nNext: music-cluster groups import-tree ~/Music/YourDJFolders")
+        click.echo("\nNext: cratewise groups import-tree ~/Music/YourDJFolders")
 
 
 @cli.command()
@@ -138,7 +138,7 @@ def info():
 
     collections = db.list_collections()
     if not collections:
-        click.echo("\nNo collections yet. Run: music-cluster collection create <name>")
+        click.echo("\nNo collections yet. Run: cratewise collection create <name>")
         return
 
     click.echo("\nCollections:")
@@ -181,7 +181,7 @@ def analyze(paths, recursive, update, extensions, workers, profile):
         f"failed {result.failed}."
     )
     if result.tagged:
-        click.echo(f"Tagged {result.tagged}. See them with: music-cluster tags find")
+        click.echo(f"Tagged {result.tagged}. See them with: cratewise tags find")
     for error in result.errors[:5]:
         click.echo(f"  {os.path.basename(error['filepath'])}: {error['error']}")
 
@@ -301,7 +301,7 @@ def groups_import_tree(parent, collection_name, min_tracks, recursive, workers, 
         f"\nImported {len(reports)} group(s) into {target['name']!r} "
         f"({groups_mod.profile_of(target)})."
     )
-    click.echo("Next: music-cluster fit")
+    click.echo("Next: cratewise fit")
 
 
 @groups.command("add")
@@ -540,7 +540,7 @@ def fit(collection_name):
     click.echo(f"Self-check accuracy: {metrics['accuracy'] * 100:.1f}%")
     for problem in metrics.get("problems", []):
         click.echo(click.style(f"  warning: {problem['name']}: {problem['issue']}", fg="yellow"))
-    click.echo("\nRun `music-cluster check` for a per-group breakdown.")
+    click.echo("\nRun `cratewise check` for a per-group breakdown.")
 
 
 @cli.command()
@@ -556,7 +556,7 @@ def check(collection_name, refit):
 
     model = db.load_model(target["id"])
     if not model:
-        raise click.ClickException("Not fitted yet. Run `music-cluster fit` first.")
+        raise click.ClickException("Not fitted yet. Run `cratewise fit` first.")
     metrics = model["metrics"]
 
     click.echo(f"{target['name']} — self-check\n")
@@ -634,9 +634,9 @@ def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
     if review and summary.get("pending"):
         review_session(db, config, session["id"])
     elif summary.get("pending"):
-        click.echo(f"\nNext: music-cluster review {session['id']}")
+        click.echo(f"\nNext: cratewise review {session['id']}")
     else:
-        click.echo(f"\nNext: music-cluster apply {session['id']} --mode copy")
+        click.echo(f"\nNext: cratewise apply {session['id']} --mode copy")
 
 
 @cli.command()
@@ -685,7 +685,7 @@ def review_session(db: Database, config: Config, session_id: int) -> None:
         choice = click.prompt("  >", default="1", show_default=False).strip().lower()
 
         if choice == "q":
-            click.echo(f"\nStopped. Resume with: music-cluster review {session_id}")
+            click.echo(f"\nStopped. Resume with: cratewise review {session_id}")
             return
         if choice == "s":
             sorting.decide(db, item["id"], skip=True)
@@ -708,7 +708,7 @@ def review_session(db: Database, config: Config, session_id: int) -> None:
         f"\nReview complete: {summary.get('accepted', 0)} filed, "
         f"{summary.get('skipped', 0)} skipped."
     )
-    click.echo(f"Next: music-cluster apply {session_id} --mode copy")
+    click.echo(f"Next: cratewise apply {session_id} --mode copy")
 
 
 @cli.command(name="sessions")
@@ -809,12 +809,12 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
     )
     if outcome["learned"]:
         click.echo(f"Added {outcome['learned']} track(s) to their groups as new references.")
-        click.echo("Run `music-cluster fit` to fold them into the model.")
+        click.echo("Run `cratewise fit` to fold them into the model.")
     for failure in result["failures"][:5]:
         echo_error(f"{failure.get('source_path') or failure.get('path')}: {failure['error']}")
 
     if plan.mode == "move":
-        click.echo(f"\nTo undo: music-cluster undo {session_id}")
+        click.echo(f"\nTo undo: cratewise undo {session_id}")
 
 
 @cli.command()
@@ -897,7 +897,7 @@ def discover(paths, name, algorithm, target_groups, granularity, min_size, llm, 
             continue
         bpm = stats.get("tag_bpm_median") or stats.get("detected_bpm")
         click.echo(f"{line}  ~{bpm:.0f} BPM" if bpm else line)
-    click.echo(f"\nNext: music-cluster candidates {run['id']}")
+    click.echo(f"\nNext: cratewise candidates {run['id']}")
 
 
 @cli.command(name="candidates")
@@ -980,7 +980,7 @@ def candidates_cmd(run_id):
                 raise click.ClickException(str(exc)) from exc
             click.echo(f"  Created {group_name!r} with {outcome['added']} reference track(s).\n")
 
-    click.echo("\nDone. Next: music-cluster fit")
+    click.echo("\nDone. Next: cratewise fit")
 
 
 @cli.command(name="similar")
@@ -1236,7 +1236,7 @@ def tags_show(query, limit, why):
         click.echo(click.style(display_name(track), bold=True))
         tags = stored.get(track["id"])
         if not tags:
-            click.echo("  not tagged yet — run: music-cluster tags run\n")
+            click.echo("  not tagged yet — run: cratewise tags run\n")
             continue
         click.echo(f"  {_tag_line(tags)}")
         if tags.get("key"):
@@ -1289,7 +1289,7 @@ def tags_find(genre, beat, mood, min_energy, max_energy, min_danceability, camel
     tracks = db.list_tracks(limit=limit, tags=filters)
     total = db.count_matching_tracks(tags=filters)
     if not tracks:
-        click.echo("No tagged tracks match. Untagged tracks? Run: music-cluster tags run")
+        click.echo("No tagged tracks match. Untagged tracks? Run: cratewise tags run")
         return
     stored = db.get_tags_many([track["id"] for track in tracks])
     for track in tracks:

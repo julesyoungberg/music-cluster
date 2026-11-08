@@ -146,7 +146,7 @@ PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 # multi-profile method for key estimation in EDM" (AES Semantic Audio 2017). Dance music rarely uses the chromatic
 # degrees at all, which these profiles say with zeros.
 #
-# Measured with `music-cluster eval` on GiantSteps Key (EDM), same chroma and
+# Measured with `cratewise eval` on GiantSteps Key (EDM), same chroma and
 # rule, against the Krumhansl-Kessler profiles used before: MIREX weighted
 # score 0.589 vs 0.513 over all tracks, 0.685 vs 0.595 on tracks that get a key
 # at the old 0.15 gate (0.675 at today's 0.10), and better on both halves of

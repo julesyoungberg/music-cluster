@@ -98,7 +98,7 @@ def resolve_collection(db: Database, identifier: Optional[Any] = None) -> Dict:
     if collection is None:
         raise LookupError(
             f"No collection found for {identifier!r}. Create one with "
-            "`music-cluster collection create <name>`."
+            "`cratewise collection create <name>`."
         )
     return collection
 
@@ -457,7 +457,7 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
     if stale:
         if not autofit:
             raise LookupError(
-                "No up-to-date sorter for this collection. Run `music-cluster fit` first."
+                "No up-to-date sorter for this collection. Run `cratewise fit` first."
             )
         fit_collection(db, collection, config)
         model = db.load_model(collection["id"])

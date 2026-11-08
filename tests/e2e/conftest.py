@@ -69,6 +69,6 @@ def run_cli(runner, *args, input_text=None, expect_success=True):
     result = runner.invoke(cli, list(args), input=input_text, catch_exceptions=False)
     if expect_success and result.exit_code != 0:
         raise AssertionError(
-            f"`music-cluster {' '.join(args)}` exited {result.exit_code}:\n{result.output}"
+            f"`cratewise {' '.join(args)}` exited {result.exit_code}:\n{result.output}"
         )
     return result

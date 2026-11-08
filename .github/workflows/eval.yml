@@ -87,10 +87,10 @@ jobs:
         run: |
           for suite in $REQUESTED; do
             case "$suite" in
-              key-giantsteps) music-cluster eval download giantsteps-key ;;
-              tempo-giantsteps) music-cluster eval download giantsteps-tempo ;;
-              sorting-fma) music-cluster eval download fma-small ;;
-              sorting-fma-sub) music-cluster eval download fma-medium ;;
+              key-giantsteps) cratewise eval download giantsteps-key ;;
+              tempo-giantsteps) cratewise eval download giantsteps-tempo ;;
+              sorting-fma) cratewise eval download fma-small ;;
+              sorting-fma-sub) cratewise eval download fma-medium ;;
             esac
           done
 
@@ -104,7 +104,7 @@ jobs:
           if [ -f eval/baselines/synthetic.json ]; then
             args+=(--baseline eval/baselines/synthetic.json)
           fi
-          music-cluster eval run "${args[@]}" --trials "$TRIALS" --out eval-report.json
+          cratewise eval run "${args[@]}" --trials "$TRIALS" --out eval-report.json
 
       - name: Summary
         if: always()

@@ -55,10 +55,10 @@ By default, the tool scans for these extensions:
 
 ```bash
 # Only MP3 and FLAC
-music-cluster analyze ~/Music --recursive --extensions mp3,flac
+cratewise analyze ~/Music --recursive --extensions mp3,flac
 
 # Only lossless formats
-music-cluster analyze ~/Music -r --extensions flac,wav,aiff,ape
+cratewise analyze ~/Music -r --extensions flac,wav,aiff,ape
 ```
 
 ### Add Unusual Formats
@@ -67,7 +67,7 @@ If you have files with non-standard extensions:
 
 ```bash
 # Add custom extensions
-music-cluster analyze ~/Music -r --extensions mp3,flac,wav,custom_ext
+cratewise analyze ~/Music -r --extensions mp3,flac,wav,custom_ext
 ```
 
 ## Mixed Format Libraries
@@ -129,7 +129,7 @@ If a format isn't being picked up:
 
 3. **Add extension explicitly:**
    ```bash
-   music-cluster analyze ~/Music -r --extensions mp3,flac,xyz
+   cratewise analyze ~/Music -r --extensions mp3,flac,xyz
    ```
 
 ### Codec Not Supported

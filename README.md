@@ -46,13 +46,13 @@ subfolder becomes a group, with itself as the destination for new music. Then
 sort a folder of new buys against them.
 
 ```bash
-music-cluster init
-music-cluster groups import-tree ~/Music/DJ    # each subfolder becomes a group
-music-cluster fit                              # learn what each one contains
-music-cluster check                            # are they actually distinguishable?
+cratewise init
+cratewise groups import-tree ~/Music/DJ    # each subfolder becomes a group
+cratewise fit                              # learn what each one contains
+cratewise check                            # are they actually distinguishable?
 
-music-cluster sort ~/Downloads/NewMusic        # score, then review interactively
-music-cluster apply 1 --mode copy              # write it to disk
+cratewise sort ~/Downloads/NewMusic        # score, then review interactively
+cratewise apply 1 --mode copy              # write it to disk
 ```
 
 **I have one big unsorted pile.** Discovery breaks it into candidate piles, each
@@ -61,9 +61,9 @@ real, name them, and throw away the rest — then sort against them like any oth
 groups.
 
 ```bash
-music-cluster discover ~/Music/Unsorted        # propose candidate groups
-music-cluster candidates 1                     # audition, name, keep or discard
-music-cluster fit
+cratewise discover ~/Music/Unsorted        # propose candidate groups
+cratewise candidates 1                     # audition, name, keep or discard
+cratewise fit
 ```
 
 Nothing becomes a group until you say so.
@@ -78,11 +78,11 @@ way a track is analysed.
 So a collection declares what it holds, once, when you make it:
 
 ```bash
-music-cluster collection create "Drum library" --profile sample
-music-cluster groups import-tree ~/Samples/Drums --collection "Drum library"
-music-cluster fit --collection "Drum library"
+cratewise collection create "Drum library" --profile sample
+cratewise groups import-tree ~/Samples/Drums --collection "Drum library"
+cratewise fit --collection "Drum library"
 
-music-cluster sort ~/Downloads/NewPack --collection "Drum library"
+cratewise sort ~/Downloads/NewPack --collection "Drum library"
 ```
 
 From there it is the same tool: the same review screen, the same confidence
@@ -109,7 +109,7 @@ rather than a fabricated one.
 Discovery over samples names its candidates in the vocabulary you would use:
 
 ```bash
-music-cluster discover ~/Samples/Unsorted --profile sample
+cratewise discover ~/Samples/Unsorted --profile sample
 ```
 
 ```
@@ -133,9 +133,9 @@ better), and the audio, which carries the half of every pack named
 `Sample 04.wav`. To see what it makes of a folder without changing anything:
 
 ```bash
-music-cluster samples classify ~/Samples/Unsorted
-music-cluster samples classify ~/Samples/Unsorted --no-names   # audio only
-music-cluster samples categories
+cratewise samples classify ~/Samples/Unsorted
+cratewise samples classify ~/Samples/Unsorted --no-names   # audio only
+cratewise samples categories
 ```
 
 ### Both in one library
@@ -146,7 +146,7 @@ assume one kind of audio. Sorting both means two collections, which share one
 database and one library; a file analysed both ways keeps both vectors.
 
 ```bash
-music-cluster collection list
+cratewise collection list
    1  My Folders                   music     8 groups    3104 tracks
    2  Drum library                 sample   11 groups     842 tracks
 ```
@@ -157,7 +157,7 @@ Groups say which of *your* folders a track belongs in. Tags say what it *is*,
 in the words you would use to describe it to another DJ:
 
 ```
-music-cluster tags find --beat half_time --min-energy 7
+cratewise tags find --beat half_time --min-energy 7
 
   Artist A - Roller                     Drum & Bass · Half-time · Dark · E8 · dance 0.81 · 172 BPM · 8A
   Artist B - Weight                     Dubstep · Half-time · Hypnotic · E7 · dance 0.77 · 140 BPM · 5A
@@ -176,10 +176,10 @@ Music is tagged while it is analysed, from the same decoded audio, so there is
 no second pass. A library analysed before tagging existed is tagged with:
 
 ```bash
-music-cluster tags run                  # everything analysed that has no tags yet
-music-cluster tags show "roller" --why  # the scores and drum pattern behind the tags
-music-cluster tags summary              # the library by genre, beat and mood
-music-cluster tags vocabulary           # every tag, and what it means
+cratewise tags run                  # everything analysed that has no tags yet
+cratewise tags show "roller" --why  # the scores and drum pattern behind the tags
+cratewise tags summary              # the library by genre, beat and mood
+cratewise tags vocabulary           # every tag, and what it means
 ```
 
 The library screen in the desktop app filters by genre, beat, mood and energy,
@@ -252,7 +252,7 @@ this different from clustering a library and hoping the results mean something.
 
 ### Checking your own folders
 
-`music-cluster check` re-sorts every reference track with itself hidden from its
+`cratewise check` re-sorts every reference track with itself hidden from its
 own group and reports what came back where.
 
 ```
@@ -281,9 +281,9 @@ Four modes, all with a dry run first and an undo afterwards:
 | `symlink` | Links it into the folder, original stays put. |
 
 ```bash
-music-cluster apply 3 --mode move --dry-run   # show the plan and stop
-music-cluster apply 3 --mode move             # confirm, then do it
-music-cluster undo 3                          # put everything back
+cratewise apply 3 --mode move --dry-run   # show the plan and stop
+cratewise apply 3 --mode move             # confirm, then do it
+cratewise undo 3                          # put everything back
 ```
 
 Name collisions are skipped by default (`--on-conflict rename|overwrite`).
@@ -300,7 +300,7 @@ your music stays where it is. Run it again whenever your groups change.
 | `m3u8` / `m3u` | Serato, Engine DJ, VirtualDJ, others | Drag the playlists in, or the app's playlist import |
 
 ```bash
-music-cluster groups export --format rekordbox --output ~/Music/exports
+cratewise groups export --format rekordbox --output ~/Music/exports
 ```
 
 Rekordbox and Traktor exports carry BPM, key and genre. Tags already in your
@@ -397,8 +397,8 @@ and measured shape — is ever sent; never audio.
 ```bash
 pip install anthropic
 export ANTHROPIC_API_KEY=...
-music-cluster config --set labeling.llm_enabled=true
-music-cluster discover ~/Music/Unsorted --llm
+cratewise config --set labeling.llm_enabled=true
+cratewise discover ~/Music/Unsorted --llm
 ```
 
 Without it, names come from genre tags, tempo, and measured audio character.
@@ -454,15 +454,15 @@ Windows and Linux. See [INSTALL.md](INSTALL.md#continuous-integration).
 
 ### Evaluation
 
-Tests say the code does what it was written to do; `music-cluster eval` says
+Tests say the code does what it was written to do; `cratewise eval` says
 how well that works on music. It scores beat type, tempo and key on audio
 whose answers are known, sorting on simulated libraries built from public
 datasets (FMA, GiantSteps), and each against simple baselines, then diffs the
 numbers against a committed baseline:
 
 ```bash
-music-cluster eval run --baseline eval/baselines/synthetic.json
-music-cluster eval download giantsteps-key && music-cluster eval run --suite key-giantsteps
+cratewise eval run --baseline eval/baselines/synthetic.json
+cratewise eval download giantsteps-key && cratewise eval run --suite key-giantsteps
 ```
 
 See [EVALUATION.md](EVALUATION.md).

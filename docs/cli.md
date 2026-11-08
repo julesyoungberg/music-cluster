@@ -1,13 +1,13 @@
 # Command-line reference
 
-Everything the desktop app does, the `music-cluster` command does too. This
+Everything the desktop app does, the `cratewise` command does too. This
 page lists every command and every option, with an example of each. For a
 guided walk through a first sort, read the [tutorial](tutorial.md) instead.
 
 ```bash
-music-cluster --help              # list the commands
-music-cluster sort --help         # options for one command
-music-cluster --version
+cratewise --help              # list the commands
+cratewise sort --help         # options for one command
+cratewise --version
 ```
 
 **Contents**
@@ -61,9 +61,9 @@ are only touched by `apply` (after a preview and a confirmation) and by `undo`.
 Create the database, the config file and a first collection.
 
 ```bash
-music-cluster init
-music-cluster init --profile sample             # first collection holds samples
-music-cluster init --db-path ~/DJ/library.db    # keep the database somewhere else
+cratewise init
+cratewise init --profile sample             # first collection holds samples
+cratewise init --db-path ~/DJ/library.db    # keep the database somewhere else
 ```
 
 | Option | Meaning |
@@ -80,7 +80,7 @@ analysed as music or as samples), and each collection with its group count,
 reference track count and self-check accuracy.
 
 ```bash
-music-cluster info
+cratewise info
 ```
 
 ```
@@ -97,11 +97,11 @@ Collections:
 Print the configuration, or change one or more settings.
 
 ```bash
-music-cluster config                                   # print as YAML
-music-cluster config --json                            # print as JSON
-music-cluster config --set organize.mode=copy
-music-cluster config --set sorting.neighbors=8 --set sorting.min_margin=0.1
-music-cluster config --set labeling.llm_enabled=true
+cratewise config                                   # print as YAML
+cratewise config --json                            # print as JSON
+cratewise config --set organize.mode=copy
+cratewise config --set sorting.neighbors=8 --set sorting.min_margin=0.1
+cratewise config --set labeling.llm_enabled=true
 ```
 
 | Option | Meaning |
@@ -130,11 +130,11 @@ Extract audio features (and, for music, auto-tags) without sorting anything.
 own, so you only need this to prepare a large library ahead of time.
 
 ```bash
-music-cluster analyze ~/Music/DJ
-music-cluster analyze ~/Music/DJ ~/Music/Promos --workers 4
-music-cluster analyze ~/Samples --profile sample
-music-cluster analyze ~/Music/DJ --update                # re-analyse known files
-music-cluster analyze ~/Music/DJ --extensions mp3,flac   # only these formats
+cratewise analyze ~/Music/DJ
+cratewise analyze ~/Music/DJ ~/Music/Promos --workers 4
+cratewise analyze ~/Samples --profile sample
+cratewise analyze ~/Music/DJ --update                # re-analyse known files
+cratewise analyze ~/Music/DJ --extensions mp3,flac   # only these formats
 ```
 
 | Option | Meaning |
@@ -155,8 +155,8 @@ Find tracks by artist, title, album or genre, and see which groups each one
 belongs to.
 
 ```bash
-music-cluster search "burial"
-music-cluster search "deep house" --limit 50
+cratewise search "burial"
+cratewise search "deep house" --limit 50
 ```
 
 | Option | Meaning |
@@ -170,8 +170,8 @@ Find tracks that sound like one you name. The first library match for `QUERY`
 is the seed. Lower distances are closer.
 
 ```bash
-music-cluster similar "Archangel"
-music-cluster similar "BD_808_01" --profile sample --limit 40
+cratewise similar "Archangel"
+cratewise similar "BD_808_01" --profile sample --limit 40
 ```
 
 | Option | Meaning |
@@ -190,7 +190,7 @@ Remove library entries whose files no longer exist on disk (because you
 deleted or moved them outside the tool). It never deletes audio files.
 
 ```bash
-music-cluster prune
+cratewise prune
 ```
 
 ---
@@ -200,8 +200,8 @@ music-cluster prune
 ### `collection create`
 
 ```bash
-music-cluster collection create "DJ folders"
-music-cluster collection create "Drum library" --profile sample --description "One-shots"
+cratewise collection create "DJ folders"
+cratewise collection create "Drum library" --profile sample --description "One-shots"
 ```
 
 | Option | Meaning |
@@ -213,7 +213,7 @@ music-cluster collection create "Drum library" --profile sample --description "O
 ### `collection list`
 
 ```bash
-music-cluster collection list
+cratewise collection list
 ```
 
 ```
@@ -228,8 +228,8 @@ The first column is the ID, which any `--collection` option accepts.
 Delete a collection and all its groups. Tracks stay in the library and on disk.
 
 ```bash
-music-cluster collection delete "Old scheme"
-music-cluster collection delete "Old scheme" --yes    # no confirmation prompt
+cratewise collection delete "Old scheme"
+cratewise collection delete "Old scheme" --yes    # no confirmation prompt
 ```
 
 ---
@@ -247,9 +247,9 @@ group's destination. This is the fastest way in when your music is already
 organised into genre folders.
 
 ```bash
-music-cluster groups import-tree ~/Music/DJ
-music-cluster groups import-tree ~/Music/DJ --min-tracks 10
-music-cluster groups import-tree ~/Samples/Drums --collection "Drum library" --profile sample
+cratewise groups import-tree ~/Music/DJ
+cratewise groups import-tree ~/Music/DJ --min-tracks 10
+cratewise groups import-tree ~/Samples/Drums --collection "Drum library" --profile sample
 ```
 
 | Option | Meaning |
@@ -271,10 +271,10 @@ Create one group, from a folder, a playlist, or individual seed tracks, or
 create it empty.
 
 ```bash
-music-cluster groups add "Deep House" --folder ~/Music/DJ/Deep
-music-cluster groups add "Warm-up" --playlist ~/Playlists/warmup.m3u8 --destination ~/Music/DJ/Warmup
-music-cluster groups add "Rollers" --track a.flac --track b.mp3 --track c.wav --destination ~/Music/DJ/Rollers
-music-cluster groups add "Someday"                     # empty group
+cratewise groups add "Deep House" --folder ~/Music/DJ/Deep
+cratewise groups add "Warm-up" --playlist ~/Playlists/warmup.m3u8 --destination ~/Music/DJ/Warmup
+cratewise groups add "Rollers" --track a.flac --track b.mp3 --track c.wav --destination ~/Music/DJ/Rollers
+cratewise groups add "Someday"                     # empty group
 ```
 
 | Option | Meaning |
@@ -297,8 +297,8 @@ symlinked.
 ### `groups list`
 
 ```bash
-music-cluster groups list
-music-cluster groups list --collection "Drum library"
+cratewise groups list
+cratewise groups list --collection "Drum library"
 ```
 
 ```
@@ -317,8 +317,8 @@ Self-check is filled in after [`fit`](#fit).
 List a group's destination and reference tracks.
 
 ```bash
-music-cluster groups show "Deep House"
-music-cluster groups show "Deep House" --limit 100
+cratewise groups show "Deep House"
+cratewise groups show "Deep House" --limit 100
 ```
 
 | Option | Meaning |
@@ -330,8 +330,8 @@ music-cluster groups show "Deep House" --limit 100
 ### `groups rename`
 
 ```bash
-music-cluster groups rename "Deep" "Deep House"
-music-cluster groups rename "Deep" "Deep House" --collection "DJ folders"
+cratewise groups rename "Deep" "Deep House"
+cratewise groups rename "Deep" "Deep House" --collection "DJ folders"
 ```
 
 Like every group command, it takes `--collection NAME`.
@@ -342,8 +342,8 @@ Set the folder new music sorted into this group is filed into. The folder does
 not have to exist yet; it is created when something is filed there.
 
 ```bash
-music-cluster groups set-destination "Minimal" ~/Music/DJ/Minimal
-music-cluster groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum library"
+cratewise groups set-destination "Minimal" ~/Music/DJ/Minimal
+cratewise groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum library"
 ```
 
 ### `groups remove`
@@ -351,9 +351,9 @@ music-cluster groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum 
 Delete a group from the collection. Its tracks stay in the library and on disk.
 
 ```bash
-music-cluster groups remove "Minimal"
-music-cluster groups remove "Minimal" --yes    # no confirmation prompt
-music-cluster groups remove "Minimal" --collection "DJ folders"
+cratewise groups remove "Minimal"
+cratewise groups remove "Minimal" --yes    # no confirmation prompt
+cratewise groups remove "Minimal" --collection "DJ folders"
 ```
 
 ### `groups export`
@@ -362,8 +362,8 @@ Write one playlist per group, containing all of its reference tracks. Handy
 for loading your groups into DJ software.
 
 ```bash
-music-cluster groups export
-music-cluster groups export --output ~/Playlists --format m3u --relative-paths
+cratewise groups export
+cratewise groups export --output ~/Playlists --format m3u --relative-paths
 ```
 
 | Option | Meaning |
@@ -383,8 +383,8 @@ Learn what each group in a collection sounds like. Needs at least two groups
 with reference tracks. Takes seconds.
 
 ```bash
-music-cluster fit
-music-cluster fit --collection "Drum library"
+cratewise fit
+cratewise fit --collection "Drum library"
 ```
 
 ```
@@ -392,7 +392,7 @@ Fitting 'My Folders'...
 Fitted 8 groups / 3104 reference tracks (lda space, 21 dims)
 Self-check accuracy: 81.2%
 
-Run `music-cluster check` for a per-group breakdown.
+Run `cratewise check` for a per-group breakdown.
 ```
 
 Groups that had to be left out (no reference tracks, or tracks not analysed)
@@ -406,8 +406,8 @@ re-sorted with itself hidden from its own group; the report shows how many came
 back to where you filed them, and which pairs of groups get mixed up.
 
 ```bash
-music-cluster check
-music-cluster check --refit            # fit first, then report
+cratewise check
+cratewise check --refit            # fit first, then report
 ```
 
 | Option | Meaning |
@@ -439,9 +439,9 @@ groups, and save the suggestions as a numbered **session**. By default the
 interactive review starts straight away.
 
 ```bash
-music-cluster sort ~/Downloads/NewMusic
-music-cluster sort ~/Downloads/NewMusic --name "November buys" --auto-accept
-music-cluster sort ~/Downloads/Pack --collection "Drum library" --no-review
+cratewise sort ~/Downloads/NewMusic
+cratewise sort ~/Downloads/NewMusic --name "November buys" --auto-accept
+cratewise sort ~/Downloads/Pack --collection "Drum library" --no-review
 ```
 
 | Option | Meaning |
@@ -471,7 +471,7 @@ duration, BPM, key and genre tag, then up to five suggested groups with a
 confidence.
 
 ```bash
-music-cluster review 4
+cratewise review 4
 ```
 
 ```
@@ -502,8 +502,8 @@ Decisions are only recorded in the database. Nothing is written to disk until
 List sort sessions with their status and how many tracks are still pending.
 
 ```bash
-music-cluster sessions
-music-cluster sessions --collection "Drum library"
+cratewise sessions
+cratewise sessions --collection "Drum library"
 ```
 
 ```
@@ -524,11 +524,11 @@ Write a session's accepted decisions to disk. It always prints the plan first.
 With `--dry-run` it stops there; otherwise it asks for confirmation.
 
 ```bash
-music-cluster apply 4 --dry-run                 # show the plan, change nothing
-music-cluster apply 4 --mode playlist           # one playlist per group
-music-cluster apply 4 --mode copy
-music-cluster apply 4 --mode move --on-conflict rename
-music-cluster apply 4 --mode symlink --yes
+cratewise apply 4 --dry-run                 # show the plan, change nothing
+cratewise apply 4 --mode playlist           # one playlist per group
+cratewise apply 4 --mode copy
+cratewise apply 4 --mode move --on-conflict rename
+cratewise apply 4 --mode symlink --yes
 ```
 
 | Option | Meaning |
@@ -571,8 +571,8 @@ those with the group screen in the app, or re-import the group). The session's
 decisions stay applied, so `apply` will not run them a second time.
 
 ```bash
-music-cluster undo 4
-music-cluster undo 4 --remove-playlists --yes
+cratewise undo 4
+cratewise undo 4 --remove-playlists --yes
 ```
 
 | Option | Meaning |
@@ -600,12 +600,12 @@ For a pile of music that has no folders yet. Discovery clusters the pile into
 ### `discover`
 
 ```bash
-music-cluster discover ~/Music/Unsorted
-music-cluster discover ~/Music/Unsorted --algorithm kmeans --groups 12 --name "Big pile"
-music-cluster discover ~/Music/Unsorted --algorithm kmeans --granularity fine
-music-cluster discover ~/Music/Unsorted --min-size 5
-music-cluster discover ~/Samples/Unsorted --profile sample
-music-cluster discover ~/Music/Unsorted --llm
+cratewise discover ~/Music/Unsorted
+cratewise discover ~/Music/Unsorted --algorithm kmeans --groups 12 --name "Big pile"
+cratewise discover ~/Music/Unsorted --algorithm kmeans --granularity fine
+cratewise discover ~/Music/Unsorted --min-size 5
+cratewise discover ~/Samples/Unsorted --profile sample
+cratewise discover ~/Music/Unsorted --llm
 ```
 
 | Option | Meaning |
@@ -629,7 +629,7 @@ Run 3: 7 candidate group(s)
   [ 2] Dark Deep House 122 BPM               48 tracks  ~122 BPM
   ...
 
-Next: music-cluster candidates 3
+Next: cratewise candidates 3
 ```
 
 Nothing becomes a group until you promote it with `candidates`.
@@ -643,7 +643,7 @@ you can audition them. Promoted groups go into the most recently changed
 collection, which must have the same profile as the run.
 
 ```bash
-music-cluster candidates 3
+cratewise candidates 3
 ```
 
 | Key | Action |
@@ -668,9 +668,9 @@ from the audio by readable rules. Music is tagged while it is analysed. See
 Tag music that has no tags yet.
 
 ```bash
-music-cluster tags run                    # every analysed track without tags
-music-cluster tags run ~/Music/New        # analyse (and tag) new files, tag older ones
-music-cluster tags run --update           # re-tag everything
+cratewise tags run                    # every analysed track without tags
+cratewise tags run ~/Music/New        # analyse (and tag) new files, tag older ones
+cratewise tags run --update           # re-tag everything
 ```
 
 | Option | Meaning |
@@ -684,9 +684,9 @@ music-cluster tags run --update           # re-tag everything
 List tracks that match every filter you give.
 
 ```bash
-music-cluster tags find --beat half_time --min-energy 7
-music-cluster tags find --genre techno --mood hypnotic --camelot 8A
-music-cluster tags find --beat two_step --swung --min-danceability 0.7 --limit 100
+cratewise tags find --beat half_time --min-energy 7
+cratewise tags find --genre techno --mood hypnotic --camelot 8A
+cratewise tags find --beat two_step --swung --min-danceability 0.7 --limit 100
 ```
 
 ```
@@ -710,8 +710,8 @@ music-cluster tags find --beat two_step --swung --min-danceability 0.7 --limit 1
 Show the tags of tracks matching a search.
 
 ```bash
-music-cluster tags show "roller"
-music-cluster tags show "roller" --why
+cratewise tags show "roller"
+cratewise tags show "roller" --why
 ```
 
 | Option | Meaning |
@@ -726,7 +726,7 @@ How the library breaks down by genre, beat type and mood, and how many music
 tracks are still untagged.
 
 ```bash
-music-cluster tags summary
+cratewise tags summary
 ```
 
 ### `tags vocabulary`
@@ -734,7 +734,7 @@ music-cluster tags summary
 Every genre, beat type and mood the tagger can emit, with what each means.
 
 ```bash
-music-cluster tags vocabulary
+cratewise tags vocabulary
 ```
 
 ---
@@ -749,8 +749,8 @@ tally. Nothing is filed and no groups are created: it is a way to check the
 tool hears your samples the way you do before you build a collection.
 
 ```bash
-music-cluster samples classify ~/Samples/Unsorted
-music-cluster samples classify ~/Samples/Unsorted --no-names --limit 200
+cratewise samples classify ~/Samples/Unsorted
+cratewise samples classify ~/Samples/Unsorted --no-names --limit 200
 ```
 
 | Option | Meaning |
@@ -765,7 +765,7 @@ music-cluster samples classify ~/Samples/Unsorted --no-names --limit 200
 List the sample categories used to name discovered sample groups.
 
 ```bash
-music-cluster samples categories
+cratewise samples categories
 ```
 
 ---
@@ -778,10 +778,10 @@ For measuring how well the tool works, not for everyday use. See
 ### `eval run`
 
 ```bash
-music-cluster eval run                                          # synthetic suites
-music-cluster eval run --baseline eval/baselines/synthetic.json
-music-cluster eval run --suite key-giantsteps --suite tempo-giantsteps
-music-cluster eval run --all --folders ~/Music/DJ
+cratewise eval run                                          # synthetic suites
+cratewise eval run --baseline eval/baselines/synthetic.json
+cratewise eval run --suite key-giantsteps --suite tempo-giantsteps
+cratewise eval run --all --folders ~/Music/DJ
 ```
 
 | Option | Meaning |
@@ -804,7 +804,7 @@ music-cluster eval run --all --folders ~/Music/DJ
 Fetch a public dataset into the eval data folder (never your library).
 
 ```bash
-music-cluster eval download giantsteps-key
+cratewise eval download giantsteps-key
 ```
 
 Datasets: `fma-small`, `fma-medium`, `giantsteps-key`, `giantsteps-tempo`.
@@ -815,7 +815,7 @@ Datasets: `fma-small`, `fma-medium`, `giantsteps-key`, `giantsteps-tempo`.
 Diff the headline numbers of two reports; exits 1 on a regression.
 
 ```bash
-music-cluster eval compare eval-report.json eval/baselines/synthetic.json --tolerance 0.02
+cratewise eval compare eval-report.json eval/baselines/synthetic.json --tolerance 0.02
 ```
 
 ---

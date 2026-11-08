@@ -2,7 +2,7 @@ name: Python package
 
 # Builds the command line tool as a wheel and source archive, and checks that
 # the wheel installs and runs. Publishing a GitHub release also uploads both to
-# PyPI, which is what `pipx install music-cluster` installs from. Uploading
+# PyPI, which is what `pipx install cratewise` installs from. Uploading
 # uses PyPI trusted publishing (no token stored here); docs/publishing.md has
 # the one-time setup.
 
@@ -59,8 +59,8 @@ jobs:
         run: |
           python -m venv /tmp/try
           /tmp/try/bin/pip install dist/*.whl
-          test "$(/tmp/try/bin/music-cluster --version)" = "music-cluster, version $(ls dist/*.whl | cut -d- -f2)"
-          /tmp/try/bin/music-cluster --help
+          test "$(/tmp/try/bin/cratewise --version)" = "cratewise, version $(ls dist/*.whl | cut -d- -f2)"
+          /tmp/try/bin/cratewise --help
 
       - uses: actions/upload-artifact@v4
         with:

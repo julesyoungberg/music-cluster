@@ -1,19 +1,19 @@
 # Evaluation
 
-How well does music-cluster actually sort, tag and measure? `music-cluster eval`
+How well does music-cluster actually sort, tag and measure? `cratewise eval`
 answers with numbers instead of a listening session, so a change can be judged
 by what it moves.
 
 ```bash
-music-cluster eval run                         # synthetic suites, ~1 min, no downloads
-music-cluster eval run --baseline eval/baselines/synthetic.json   # and diff against the committed numbers
+cratewise eval run                         # synthetic suites, ~1 min, no downloads
+cratewise eval run --baseline eval/baselines/synthetic.json   # and diff against the committed numbers
 
-music-cluster eval download giantsteps-key     # ~600 Beatport previews, about 1 GB
-music-cluster eval download giantsteps-tempo   # ~660 previews
-music-cluster eval download fma-small          # 8,000 clips, 7.2 GB (+ the same again while unzipping)
-music-cluster eval run --all                   # every suite whose data is present
+cratewise eval download giantsteps-key     # ~600 Beatport previews, about 1 GB
+cratewise eval download giantsteps-tempo   # ~660 previews
+cratewise eval download fma-small          # 8,000 clips, 7.2 GB (+ the same again while unzipping)
+cratewise eval run --all                   # every suite whose data is present
 
-music-cluster eval run --folders ~/Music/DJ    # simulate sorting into your own folder tree
+cratewise eval run --folders ~/Music/DJ    # simulate sorting into your own folder tree
 ```
 
 Datasets live in `~/.music-cluster-eval/data` (or `$MUSIC_CLUSTER_EVAL_DATA`, or
@@ -90,7 +90,7 @@ Fifty trials by default. The report pools every query across trials:
   `synthetic.json` is deterministic. `datasets.json` was measured on a Mac with
   Essentia installed; at 50 trials the sorting numbers move about 0.02 between
   seeds, so compare dataset runs with `--tolerance 0.03`:
-  `music-cluster eval run --suite sorting-fma --baseline eval/baselines/datasets.json --tolerance 0.03`.
+  `cratewise eval run --suite sorting-fma --baseline eval/baselines/datasets.json --tolerance 0.03`.
   Its headline also carries the baselines' own scores (`logistic_top1`,
   `librosa_accuracy1`), so a library upgrade can move those without our code
   changing.

@@ -47,7 +47,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 pip install -e .
 
-music-cluster init
+cratewise init
 ```
 
 `init` creates `~/.music-cluster/library.db` and `~/.music-cluster/config.yaml`.
@@ -143,13 +143,13 @@ check; CI attaches it to every pull request as the `ui-snapshots` artifact. See
 
 ## Troubleshooting
 
-**`command not found: music-cluster`** — activate the virtualenv, or use
+**`command not found: cratewise`** — activate the virtualenv, or use
 `python -m music_cluster.cli` instead. Reinstall with `pip install -e .` if it
 persists.
 
 **Audio files fail to analyse** — almost always missing FFmpeg. Check
 `ffmpeg -version`. A handful of failures out of thousands usually means those
-specific files are corrupt; `music-cluster analyze` reports each one.
+specific files are corrupt; `cratewise analyze` reports each one.
 
 **Analysis is slow** — it is roughly a second per track and runs on every core.
 Lower `feature_extraction.excerpt_seconds` (default 90) to trade accuracy for
@@ -160,7 +160,7 @@ parallelism, or analyse in chunks. Fitting holds only the reference tracks in
 memory, not the whole library.
 
 **"Need at least two groups with reference tracks"** — a collection needs two
-non-empty groups before it can be fitted. `music-cluster groups list` shows
+non-empty groups before it can be fitted. `cratewise groups list` shows
 which are empty.
 
 **The UI says it cannot reach the API** — start it with `python start-dev.py`,
@@ -173,4 +173,4 @@ The clustering-era database is migrated automatically on first use: analysed
 features are converted and kept, and the old clustering tables are dropped. Your
 previous clusterings are not carried over — they were anonymous groupings, and
 the new workflow is built on groups you name. Import your folders with
-`music-cluster groups import-tree` and re-fit; no re-analysis is needed.
+`cratewise groups import-tree` and re-fit; no re-analysis is needed.

@@ -13,5 +13,5 @@ mutagen>=1.47.0
 fastapi>=0.104.0
 uvicorn>=0.24.0
 
-# Optional: LLM-assisted naming of discovered groups (music-cluster discover --llm)
+# Optional: LLM-assisted naming of discovered groups (cratewise discover --llm)
 # anthropic>=0.40.0
