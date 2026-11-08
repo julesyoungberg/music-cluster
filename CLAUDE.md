@@ -4,7 +4,8 @@ Sorts new music (and samples) into groups the user already keeps. The user
 defines the groups; the tool scores, the user confirms, then it files. It never
 invents a category or touches a file the user has not confirmed. README.md
 explains the product, INSTALL.md covers setup and troubleshooting, EVALUATION.md
-the eval harness, docs/cli.md every command.
+the eval harness, docs/cli.md every command, docs/publishing.md releasing to
+PyPI and the landing page in `site/`.
 
 Python package and CLI in `music_cluster/` (FastAPI + SQLite), SvelteKit +
 Tailwind UI in `ui/`, Tauri 1 desktop shell in `src-tauri/`. The desktop app

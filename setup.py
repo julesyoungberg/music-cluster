@@ -1,18 +1,53 @@
+import re
+
 from setuptools import find_packages, setup
 
 
+REPO = "https://github.com/julesyoungberg/music-cluster"
+
+# The version is set once, in music_cluster/__init__.py. It is read as text
+# because importing the package here would need its dependencies installed.
+with open("music_cluster/__init__.py", encoding="utf-8") as fh:
+    match = re.search(r'^__version__ = "([^"]+)"', fh.read(), re.MULTILINE)
+    if not match:
+        raise RuntimeError("music_cluster/__init__.py does not set __version__")
+    VERSION = match.group(1)
+
 with open("README.md", encoding="utf-8") as fh:
-    long_description = fh.read()
+    readme = fh.read()
+
+# PyPI shows the README without the repository around it, so links and images
+# relative to the repo would break there. Point them at this version's tag, so
+# an older release keeps the screenshots it was published with.
+long_description = re.sub(
+    r"(!?)\[([^\]]*)\]\((?!https?:|#|mailto:)([^)]+)\)",
+    lambda m: (
+        f"{m.group(1)}[{m.group(2)}]"
+        f"({REPO}/{'raw' if m.group(1) else 'blob'}/v{VERSION}/{m.group(3)})"
+    ),
+    readme,
+)
 
 setup(
     name="music-cluster",
-    version="2.0.0",
+    version=VERSION,
     description="Sort new music into the folders a DJ already keeps",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/julesyoungberg/music-cluster",
+    url=REPO,
+    project_urls={
+        "Documentation": f"{REPO}/blob/main/docs/tutorial.md",
+        "Source": REPO,
+        "Issues": f"{REPO}/issues",
+        "Release notes": f"{REPO}/releases",
+    },
+    keywords="dj music library sorting genre crates samples rekordbox traktor",
     packages=find_packages(exclude=["tests", "tests.*"]),
     classifiers=[
+        "Development Status :: 4 - Beta",
+        "Environment :: Console",
+        "Intended Audience :: End Users/Desktop",
+        "Topic :: Multimedia :: Sound/Audio :: Analysis",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
