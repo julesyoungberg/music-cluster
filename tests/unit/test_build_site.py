@@ -1,8 +1,9 @@
-"""The landing page build: every value filled in, every local file it links present."""
+"""The landing page build: every ${key} replaced and every local file it links written."""
 
 import importlib.util
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -65,3 +66,19 @@ def test_missing_screenshot_fails(tmp_path):
     images.mkdir()
     with pytest.raises(FileNotFoundError, match=r"nope\.png"):
         build_site.build(tmp_path / "out", site=site, images=images)
+
+
+def test_refuses_to_replace_a_folder_it_did_not_make(tmp_path):
+    site = _site(tmp_path, "<p>${name}</p>", {"name": "x"})
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "keep.txt").write_text("mine", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="not made by this script"):
+        build_site.build(out, site=site, images=tmp_path)
+    assert (out / "keep.txt").is_file()
+
+    shutil.rmtree(out)
+    build_site.build(out, site=site, images=tmp_path)
+    build_site.build(out, site=site, images=tmp_path)  # its own output is replaced
+    assert (out / "index.html").read_text(encoding="utf-8") == "<p>x</p>"

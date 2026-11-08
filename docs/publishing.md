@@ -32,8 +32,8 @@ PyPI trusted publishing lets the workflow upload without a stored token.
 
 ### Each release
 
-1. Set the new version in `setup.py`, `music_cluster/__init__.py` and the
-   `version_option` in `music_cluster/cli.py`.
+1. Set the new version in `music_cluster/__init__.py` (`__version__`).
+   `setup.py` and `music-cluster --version` read it from there.
 2. Tag it: `git tag v2.1.0 && git push origin v2.1.0`. `build.yml` builds the
    desktop installers and drafts a GitHub release with them.
 3. Review the draft release and publish it. Publishing runs
@@ -86,6 +86,7 @@ Fill these in `site/site.json`:
 | Key | What it needs |
 | --- | --- |
 | `name` | The product name shown on the page |
+| `license` | The license the code is released under. Add the matching `LICENSE` file and `setup.py` classifier at the same time |
 | `site_url` | The address the site is served from, for link previews |
 | `contact_form_action` | A form endpoint that emails you, e.g. [Formspree](https://formspree.io) or [Basin](https://usebasin.com). The form posts `name`, `email` and `message` |
 | `newsletter_form_action` | The signup endpoint from a mailing list service, e.g. [Buttondown](https://buttondown.com). The form posts `email` |
@@ -93,6 +94,10 @@ Fill these in `site/site.json`:
 
 `download_url`, `releases_url`, `docs_url` and `github_url` point at the GitHub
 repository, so they work once it is public.
+
+The page loads IBM Plex from Google Fonts, which tells Google each visitor's
+IP address. To avoid that (EU sites often must), download the font files and
+serve them next to `styles.css` instead.
 
 ### Hosting
 

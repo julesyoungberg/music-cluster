@@ -31,6 +31,10 @@ IMAGES = ROOT / "docs" / "images"
 # Files copied to the output as they are.
 STATIC_FILES = ["styles.css"]
 
+# Written into every output folder, so a rebuild only ever deletes a folder
+# this script made, never one passed to --out by mistake.
+MARKER = ".built-by-build_site"
+
 IMAGE_REF = re.compile(r"""\bsrc="images/([\w.-]+)\"""")
 
 
@@ -62,8 +66,13 @@ def build(out: Path, site: Path = SITE, images: Path = IMAGES) -> List[str]:
     page = render((site / "index.html").read_text(encoding="utf-8"), values)
 
     if out.exists():
+        if any(out.iterdir()) and not (out / MARKER).is_file():
+            raise ValueError(
+                f"{out} is not empty and was not made by this script; not replacing it"
+            )
         shutil.rmtree(out)
     (out / "images").mkdir(parents=True)
+    (out / MARKER).write_text("", encoding="utf-8")
     (out / "index.html").write_text(page, encoding="utf-8")
     for name in STATIC_FILES:
         shutil.copy2(site / name, out / name)

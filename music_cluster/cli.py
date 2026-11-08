@@ -21,8 +21,8 @@ from typing import Dict, Optional
 import click
 from tqdm import tqdm
 
+from . import __version__, djexport, organizer, profiles, samples, sorting, tagging
 from . import discovery as discovery_mod
-from . import djexport, organizer, profiles, samples, sorting, tagging
 from . import groups as groups_mod
 from .config import Config
 from .database import Database
@@ -90,7 +90,7 @@ def format_confidence(value: Optional[float]) -> str:
 
 
 @click.group()
-@click.version_option(version="2.0.0")
+@click.version_option(version=__version__)
 def cli():
     """Sort new music into the folders you already keep."""
 

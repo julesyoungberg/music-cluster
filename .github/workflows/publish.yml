@@ -42,19 +42,24 @@ jobs:
 
       - name: Version matches the release tag
         if: github.event_name == 'release'
+        # Compared as versions, so a tag v2.1.0-rc1 matches the wheel's 2.1.0rc1.
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          ls dist/music_cluster-"${version}"-*.whl || {
-            echo "The release is ${GITHUB_REF_NAME}, but the package version is not ${version}." >&2
-            echo "Set the same version in setup.py, music_cluster/__init__.py and cli.py." >&2
-            exit 1
-          }
+          wheel=$(ls dist/*.whl)
+          python - "${GITHUB_REF_NAME#v}" "$wheel" <<'PY'
+          import sys
+          from pathlib import Path
+          from packaging.version import Version
+          tag, wheel = sys.argv[1], Path(sys.argv[2]).name.split("-")[1]
+          if Version(tag) != Version(wheel):
+              sys.exit(f"The release tag says {tag}, but the package is {wheel}. "
+                       "Set __version__ in music_cluster/__init__.py.")
+          PY
 
       - name: Install the wheel and run it
         run: |
           python -m venv /tmp/try
           /tmp/try/bin/pip install dist/*.whl
-          /tmp/try/bin/music-cluster --version
+          test "$(/tmp/try/bin/music-cluster --version)" = "music-cluster, version $(ls dist/*.whl | cut -d- -f2)"
           /tmp/try/bin/music-cluster --help
 
       - uses: actions/upload-artifact@v4
