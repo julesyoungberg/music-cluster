@@ -86,6 +86,7 @@ Fill these in `site/site.json`:
 | Key | What it needs |
 | --- | --- |
 | `name` | The product name shown on the page |
+| `maker` | The company shown as the maker, under the hero buttons and in the footer |
 | `license` | The license the code is released under. Add the matching `LICENSE` file and `setup.py` classifier at the same time |
 | `site_url` | The address the site is served from, for link previews |
 | `contact_form_action` | A form endpoint that emails you, e.g. [Formspree](https://formspree.io) or [Basin](https://usebasin.com). The form posts `name`, `email` and `message` |
