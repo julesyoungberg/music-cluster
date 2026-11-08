@@ -34,6 +34,7 @@ setup(
     description="Sort new music into the folders a DJ already keeps",
     long_description=long_description,
     long_description_content_type="text/markdown",
+    author="Light Lands",
     url=REPO,
     project_urls={
         "Documentation": f"{REPO}/blob/main/docs/tutorial.md",
