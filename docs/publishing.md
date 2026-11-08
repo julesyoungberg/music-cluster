@@ -86,12 +86,13 @@ Fill these in `site/site.json`:
 | Key | What it needs |
 | --- | --- |
 | `name` | The product name shown on the page |
-| `maker` | The company shown as the maker, under the hero buttons and in the footer |
 | `license` | The license the code is released under. Add the matching `LICENSE` file and `setup.py` classifier at the same time |
 | `site_url` | The address the site is served from, for link previews |
 | `contact_form_action` | A form endpoint that emails you, e.g. [Formspree](https://formspree.io) or [Basin](https://usebasin.com). The form posts `name`, `email` and `message` |
 | `newsletter_form_action` | The signup endpoint from a mailing list service, e.g. [Buttondown](https://buttondown.com). The form posts `email` |
 | `donate_url` | A support link, e.g. GitHub Sponsors, Ko-fi or Buy Me a Coffee |
+
+`maker` is the company credited under the hero buttons and in the footer.
 
 `download_url`, `releases_url`, `docs_url` and `github_url` point at the GitHub
 repository, so they work once it is public.
