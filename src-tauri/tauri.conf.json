@@ -33,7 +33,7 @@
       "category": "Music",
       "shortDescription": "Sort new music into the folders you already keep",
       "longDescription": "music-cluster learns what your existing genre folders sound like and, for every new track, tells you where it thinks it belongs and how sure it is.",
-      "copyright": "MIT",
+      "copyright": "Copyright © 2026 Light Lands",
       "externalBin": ["binaries/music-cluster-api"],
       "resources": [],
       "icon": [
