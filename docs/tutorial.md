@@ -45,8 +45,7 @@ Two promises shape everything below:
 - **Nothing on disk changes until you say so.** Analysing, sorting and
   reviewing only write to the tool's own database. Your audio files are only
   touched when you commit a session, after a preview of exactly what will
-  happen, and the file operations of every commit can be undone (with one
-  exception: overwriting, see [step 8](#8-file-the-results-dry-run-commit-undo)).
+  happen, and the file operations of every commit can be undone.
 
 You will need:
 
@@ -344,10 +343,11 @@ has no destination folder, the file is already there, or a file with the same
 name is already in the destination (what happens then is set in Settings:
 skip, rename or overwrite).
 
-> **Overwrite cannot be undone.** If a filing replaces a file that was
-> already in the destination, the replaced file is not kept anywhere, and
-> undo cannot bring it back. Leave the conflict setting on *Skip* (the
-> default) or *Rename* unless you are sure.
+With **Overwrite**, the file that was already there is not deleted: it is
+moved to a backup folder next to the database
+(`~/.music-cluster/backups/`), and undo puts it back. The dry run marks those
+tracks *overwrites existing file, kept for undo*. Backups stay until you undo
+the session; once you are happy with a commit you can delete its folder there.
 
 Click **Commit** to do it. A notice confirms what was written:
 
@@ -368,6 +368,7 @@ place, so it reports *Reversed 0 operations*:
 | Move | Moves every file back to where it came from. |
 | Copy | Deletes the copies. The originals were never touched. |
 | Symlink | Deletes the links. |
+| Any of these, with Overwrite | Also puts back the file each one replaced. |
 | Playlists | Leaves the playlists in place. (`cratewise undo --remove-playlists` deletes them.) |
 
 Undo only reverses what happened on disk. Tracks that were added to their

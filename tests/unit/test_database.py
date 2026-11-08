@@ -175,6 +175,35 @@ def test_legacy_database_is_migrated(temp_dir):
     assert "collections" in tables
 
 
+def test_an_undo_log_from_before_backups_gains_the_column(temp_dir):
+    """Undo logs written before overwrite kept backups still undo; new rows record one."""
+    import sqlite3
+
+    path = str(temp_dir / "v4.db")
+    Database(path)
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        DROP TABLE file_actions;
+        CREATE TABLE file_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER,
+            track_id INTEGER, group_id INTEGER, action TEXT NOT NULL, source_path TEXT,
+            dest_path TEXT, performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            undone INTEGER DEFAULT 0);
+        INSERT INTO file_actions (session_id, action, source_path, dest_path)
+            VALUES (1, 'copy', '/a.mp3', '/b/a.mp3');
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    db = Database(path)
+    db.log_file_actions(
+        [{"session_id": 1, "action": "copy", "dest_path": "/b/c.mp3", "backup_path": "/k/c.mp3"}]
+    )
+
+    assert [row["backup_path"] for row in db.list_file_actions(1)] == ["/k/c.mp3", None]
+
+
 def test_the_database_directory_is_created_on_demand(temp_dir):
     """A fresh desktop install has no ~/.music-cluster; the first use makes it.
 

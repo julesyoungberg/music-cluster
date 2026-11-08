@@ -268,6 +268,37 @@ class TestSortAndApply:
 
         assert sorted(p.name for p in Path(new_music(music)).glob("*.flac")) == originals
 
+    def test_overwriting_shows_in_the_dry_run_and_undo_restores_the_replaced_file(
+        self, cli_runner, imported, music
+    ):
+        run_cli(
+            cli_runner,
+            "sort",
+            new_music(music),
+            "--collection",
+            "Crates",
+            "--auto-accept",
+            "--no-review",
+        )
+        # A file of the same name already in every crate, as if bought twice.
+        name = "New Techno 1.flac"
+        crates = [music / "DJ" / crate for crate in ("Deep House", "Techno", "Drum & Bass")]
+        for crate in crates:
+            (crate / name).write_bytes(b"the user's own file")
+
+        plan = run_cli(
+            cli_runner, "apply", "1", "--mode", "copy", "--on-conflict", "overwrite", "--dry-run"
+        )
+        assert "overwrites existing file, kept for undo" in plan.output
+        assert all((crate / name).read_bytes() == b"the user's own file" for crate in crates)
+
+        run_cli(cli_runner, "apply", "1", "--mode", "copy", "--on-conflict", "overwrite", "--yes")
+        assert any((crate / name).read_bytes() != b"the user's own file" for crate in crates)
+
+        run_cli(cli_runner, "undo", "1", "--yes")
+
+        assert all((crate / name).read_bytes() == b"the user's own file" for crate in crates)
+
     def test_committing_folds_the_tracks_back_into_their_groups(
         self, cli_runner, imported, music, workspace
     ):

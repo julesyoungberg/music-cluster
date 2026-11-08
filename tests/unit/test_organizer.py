@@ -176,3 +176,47 @@ def test_unknown_mode_is_rejected(scene):
     db, assignments, groups, _, _ = scene
     with pytest.raises(ValueError, match="Unknown mode"):
         organizer.plan_commit(db, assignments, groups, mode="teleport")
+
+
+@pytest.mark.parametrize("mode", ["copy", "move", "symlink"])
+def test_undo_puts_back_a_file_that_overwrite_replaced(scene, mode):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode=mode, on_conflict="overwrite")
+    result = organizer.execute_plan(db, plan, assignments, session_id=9)
+    assert not result.failures
+    assert (destination / "one.mp3").read_bytes() == b"audio"
+
+    outcome = organizer.undo_session(db, 9)
+
+    assert not outcome["failures"]
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+    assert not (destination / "one.mp3").is_symlink()
+    assert (source / "one.mp3").read_bytes() == b"audio"
+    assert not (destination / "two.mp3").exists()
+
+
+def test_overwrite_keeps_the_replaced_file_outside_the_destination(scene):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+    organizer.execute_plan(db, plan, assignments, session_id=10)
+
+    backups = [action["backup_path"] for action in db.list_file_actions(10)]
+    kept = [path for path in backups if path]
+    assert len(kept) == 1
+    assert Path(kept[0]).read_bytes() == b"the user's own file"
+    assert Path(kept[0]).parent != destination
+    assert sorted(os.listdir(destination)) == ["one.mp3", "two.mp3"]
+
+
+def test_overwrite_says_the_replaced_file_is_kept_for_undo(scene):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+
+    notes = [action.note for action in plan.actions if action.note]
+    assert notes == ["overwrites existing file, kept for undo"]

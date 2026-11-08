@@ -186,6 +186,7 @@ class Database:
                     action TEXT NOT NULL,
                     source_path TEXT,
                     dest_path TEXT,
+                    backup_path TEXT,
                     performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     undone INTEGER DEFAULT 0
                 );
@@ -263,6 +264,13 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_track_tags_beat ON track_tags(beat);
                 """
             )
+
+            # Undo logs from before overwrite kept a backup of the file it replaced.
+            columns = {
+                row[1] for row in cursor.execute("PRAGMA table_info(file_actions)").fetchall()
+            }
+            if "backup_path" not in columns:
+                cursor.execute("ALTER TABLE file_actions ADD COLUMN backup_path TEXT")
 
             cursor.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
@@ -1290,8 +1298,8 @@ class Database:
             conn.executemany(
                 """
                 INSERT INTO file_actions
-                    (session_id, track_id, group_id, action, source_path, dest_path)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (session_id, track_id, group_id, action, source_path, dest_path, backup_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -1301,6 +1309,7 @@ class Database:
                         action["action"],
                         action.get("source_path"),
                         action.get("dest_path"),
+                        action.get("backup_path"),
                     )
                     for action in actions
                 ],
