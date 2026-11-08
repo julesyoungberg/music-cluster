@@ -29,7 +29,7 @@
       "active": true,
       "targets": ["deb", "appimage", "msi", "app", "dmg", "updater"],
       "identifier": "com.musiccluster.app",
-      "publisher": "Music Cluster",
+      "publisher": "Light Lands",
       "category": "Music",
       "shortDescription": "Sort new music into the folders you already keep",
       "longDescription": "music-cluster learns what your existing genre folders sound like and, for every new track, tells you where it thinks it belongs and how sure it is.",
