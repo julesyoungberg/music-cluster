@@ -18,6 +18,10 @@ on:
         description: 'Simulated libraries per sorting suite'
         default: '50'
         required: true
+      embedding:
+        description: 'Also score a pretrained embedding on the sorting suites: none, clap or ast'
+        default: 'none'
+        required: true
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -30,7 +34,8 @@ jobs:
   evaluate:
     name: Evaluate against the baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # Embedding thousands of tracks on CPU takes hours.
+    timeout-minutes: ${{ (github.event.inputs.embedding || 'none') != 'none' && 330 || 120 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +65,9 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
           TRIALS: ${{ github.event.inputs.trials || '50' }}
+          EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
+          case "$EMBEDDING" in none|clap|ast) ;; *) echo "Unknown embedding: $EMBEDDING" >&2; exit 1 ;; esac
           allowed=" beats-synthetic keys-synthetic sorting-fma sorting-fma-sub key-giantsteps tempo-giantsteps "
           for suite in $REQUESTED; do
             case "$allowed" in *" $suite "*) ;; *) echo "Unknown suite: $suite" >&2; exit 1 ;; esac
@@ -68,6 +75,12 @@ jobs:
           if ! [[ "$TRIALS" =~ ^[0-9]+$ ]]; then echo "trials must be a whole number" >&2; exit 1; fi
           key=$(echo $REQUESTED | tr ' ' '-')
           echo "key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Install embedding models' dependencies
+        if: (github.event.inputs.embedding || 'none') != 'none'
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers
 
       # Datasets and the analysis cache are kept between runs. The analysis
       # cache is keyed on the measuring code itself, so a restored cache from
@@ -98,9 +111,11 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
           TRIALS: ${{ github.event.inputs.trials || '50' }}
+          EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
           args=()
           for suite in $REQUESTED; do args+=(--suite "$suite"); done
+          if [ "$EMBEDDING" != "none" ]; then args+=(--embedding "$EMBEDDING"); fi
           if [ -f eval/baselines/synthetic.json ]; then
             args+=(--baseline eval/baselines/synthetic.json)
           fi
