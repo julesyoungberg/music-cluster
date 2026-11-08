@@ -104,10 +104,10 @@ to Jules.
   docs and the UI.
 - Write for a reader with no context from past sessions: give the path, link,
   issue or doc they need to act.
-- Describe how things are now. No "previously", "as of last week" or "now
-  uses X instead of Y"; history lives in git.
-- Comments say why, not what. A number or threshold says where it came from
-  (an eval run, a measurement), not when it changed.
+- Code, comments and docs describe how things are now. No "previously", "as
+  of last week" or "now uses X instead of Y"; what changed goes in the commit
+  message or PR description.
+- Comments say why, not what.
 
 ## Where code goes
 
