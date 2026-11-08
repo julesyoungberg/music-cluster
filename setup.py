@@ -1,8 +1,22 @@
+import re
+
 from setuptools import find_packages, setup
 
 
+REPO = "https://github.com/julesyoungberg/music-cluster"
+
 with open("README.md", encoding="utf-8") as fh:
-    long_description = fh.read()
+    readme = fh.read()
+
+# PyPI shows the README without the repository around it, so links and images
+# relative to the repo would break there: point them at GitHub instead.
+long_description = re.sub(
+    r"(!?)\[([^\]]*)\]\((?!https?:|#)([^)]+)\)",
+    lambda m: (
+        f"{m.group(1)}[{m.group(2)}]({REPO}/{'raw' if m.group(1) else 'blob'}/main/{m.group(3)})"
+    ),
+    readme,
+)
 
 setup(
     name="music-cluster",
@@ -10,14 +24,25 @@ setup(
     description="Sort new music into the folders a DJ already keeps",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/julesyoungberg/music-cluster",
+    url=REPO,
+    project_urls={
+        "Documentation": f"{REPO}/blob/main/docs/tutorial.md",
+        "Source": REPO,
+        "Issues": f"{REPO}/issues",
+        "Release notes": f"{REPO}/releases",
+    },
+    license="MIT",
+    keywords="dj music library sorting genre crates samples rekordbox traktor",
     packages=find_packages(exclude=["tests", "tests.*"]),
     classifiers=[
+        "Development Status :: 4 - Beta",
+        "Environment :: Console",
+        "Intended Audience :: End Users/Desktop",
+        "Topic :: Multimedia :: Sound/Audio :: Analysis",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.10",

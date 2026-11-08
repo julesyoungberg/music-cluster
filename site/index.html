@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${name}: ${tagline}</title>
+    <meta
+      name="description"
+      content="${name} learns what your genre folders sound like and suggests where each new track belongs. You decide, it files, and every move can be undone. Free desktop app and command line tool for DJs."
+    />
+    <meta property="og:title" content="${name}" />
+    <meta property="og:description" content="${tagline}" />
+    <meta property="og:image" content="${site_url}/images/sort-review.png" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#top">${name}</a>
+        <nav aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#learn">Tutorials</a>
+          <a href="#faq">FAQ</a>
+          <a href="${github_url}">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero wrap">
+        <p class="label">For DJs and producers</p>
+        <h1>${tagline}</h1>
+        <p class="lede">
+          You buy fifteen tracks, and now you have to decide which crate each one goes in.
+          ${name} learns what your genre folders sound like, then tells you where each new
+          track probably belongs and how sure it is. You listen, you decide, and it files them.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="${download_url}">Download the desktop app</a>
+          <a class="button" href="#install">Install the command line tool</a>
+        </div>
+        <p class="small">Free and open source. macOS, Windows and Linux. Runs on your computer.</p>
+        <figure class="shot hero-shot">
+          <img
+            src="images/sort-review.png"
+            width="1280"
+            height="820"
+            alt="Reviewing a new track: the suggested groups with their scores, the waveform and the queue"
+          />
+        </figure>
+      </section>
+
+      <section class="band" aria-labelledby="how">
+        <div class="wrap">
+          <h2 id="how">How it works</h2>
+          <ol class="steps">
+            <li>
+              <span class="step-no">01</span>
+              <h3>Point it at your folders</h3>
+              <p>
+                Each genre folder you already keep becomes a group. No folders yet? It can break
+                an unsorted pile into candidate groups for you to audition, name and keep.
+              </p>
+            </li>
+            <li>
+              <span class="step-no">02</span>
+              <h3>Sort new music</h3>
+              <p>
+                Every new track gets its likely groups, each with a score. Listen to it on its
+                waveform and press <kbd>1</kbd>–<kbd>5</kbd> to pick, or <kbd>s</kbd> to skip.
+              </p>
+            </li>
+            <li>
+              <span class="step-no">03</span>
+              <h3>File it, or undo it</h3>
+              <p>
+                See exactly what will be written before anything is. Then copy, move, link or
+                just make playlists. Changed your mind? Undo puts everything back.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="wrap" id="features" aria-labelledby="features-title">
+        <h2 id="features-title">What it does</h2>
+        <div class="features">
+          <article>
+            <h3>Learns your folders, not a generic genre list</h3>
+            <p>
+              Your folders are the training examples. The groups are yours, and it never invents
+              a category on its own.
+            </p>
+          </article>
+          <article>
+            <h3>Tells you how sure it is</h3>
+            <p>
+              Every suggestion has a confidence score. A track that sounds like nothing you own is
+              reported as a new sound, not forced into the closest folder.
+            </p>
+          </article>
+          <article>
+            <h3>Checks your folders</h3>
+            <p>
+              See how well your groups can be told apart, and which two folders overlap most. That
+              tells you something about your library, too.
+            </p>
+          </article>
+          <article>
+            <h3>Auto-tags every track</h3>
+            <p>
+              Genre, beat type (four to the floor, half-time, 2-step, breaks), mood, energy,
+              danceability and key with its Camelot code. Each tag is a readable rule, so you can
+              see why a track got it.
+            </p>
+          </article>
+          <article>
+            <h3>Sorts samples too</h3>
+            <p>
+              Kicks, snares, claps, hats, basses and chords. One-shots are measured as single
+              sounds, by attack, decay and where their energy sits.
+            </p>
+          </article>
+          <article>
+            <h3>Exports to your DJ app</h3>
+            <p>
+              Every group as a playlist for Rekordbox, Traktor, Serato, Engine DJ or VirtualDJ,
+              with BPM, key and genre.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="wrap" aria-labelledby="screens">
+        <h2 id="screens">Screenshots</h2>
+        <div class="gallery">
+          <figure class="shot">
+            <img
+              src="images/groups.png"
+              width="1280"
+              height="800"
+              loading="lazy"
+              alt="The groups in a collection, each with its own colour"
+            />
+            <figcaption>Your groups, each with its own crate colour.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="images/sort-commit-preview-move.png"
+              width="1280"
+              height="800"
+              loading="lazy"
+              alt="The commit preview listing every file that will be moved and where"
+            />
+            <figcaption>A preview of every file operation before anything happens.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="images/library-tag-filter.png"
+              width="1280"
+              height="992"
+              loading="lazy"
+              alt="The library filtered by genre, beat type and mood tags"
+            />
+            <figcaption>Browse the library by genre, beat, mood and energy.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="images/dark-group-detail.png"
+              width="1280"
+              height="830"
+              loading="lazy"
+              alt="A group's colour, notes, destination and reference tracks, in the dark theme"
+            />
+            <figcaption>Light and dark themes, following your system.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="safe">
+        <div class="wrap two-col">
+          <div>
+            <h2 id="safe">Your files stay where they are until you say so</h2>
+            <p>
+              Analysing, sorting and reviewing only write to ${name}'s own database. Your music is
+              touched only when you commit a session, after a preview of exactly what will happen.
+            </p>
+          </div>
+          <ul class="checks">
+            <li><strong>Dry run first.</strong> Every filing mode shows its plan before it runs.</li>
+            <li><strong>Undo afterwards.</strong> One command or click puts every file back.</li>
+            <li>
+              <strong>Four filing modes.</strong> Playlists only, copy, move, or link. Playlist
+              mode never moves a file.
+            </li>
+            <li><strong>Your audio never leaves your computer.</strong> No account and no tracking.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="wrap" id="install" aria-labelledby="install-title">
+        <h2 id="install-title">Get ${name}</h2>
+        <div class="install">
+          <article class="panel">
+            <h3>Desktop app</h3>
+            <p>The full workflow with audio previews and waveforms.</p>
+            <a class="button primary" href="${download_url}">Download the latest release</a>
+            <ul class="specs">
+              <li>macOS (Apple silicon or Intel): <code>.dmg</code></li>
+              <li>Windows: <code>.msi</code></li>
+              <li>Linux: <code>.AppImage</code> or <code>.deb</code></li>
+            </ul>
+            <p class="small">
+              The app needs FFmpeg to read audio. On a Mac: <code>brew install ffmpeg</code>.
+            </p>
+          </article>
+          <article class="panel">
+            <h3>Command line</h3>
+            <p>Everything the app does, scriptable. Needs Python 3.10 to 3.12 and FFmpeg.</p>
+            <pre><code>pipx install ${pypi_package}
+${cli_command} init
+${cli_command} groups import-tree ~/Music/DJ
+${cli_command} fit
+${cli_command} sort ~/Downloads/NewMusic</code></pre>
+            <p class="small">
+              <code>pip install ${pypi_package}</code> works too. See the
+              <a href="${docs_url}/INSTALL.md">install guide</a> for FFmpeg and running from
+              source.
+            </p>
+          </article>
+        </div>
+        <h3 class="sub">Works with</h3>
+        <ul class="tags">
+          <li>Rekordbox</li>
+          <li>Traktor</li>
+          <li>Serato</li>
+          <li>Engine DJ</li>
+          <li>VirtualDJ</li>
+          <li>MP3, FLAC, WAV, AIFF, M4A/ALAC, OGG, Opus and anything else FFmpeg reads</li>
+        </ul>
+      </section>
+
+      <section class="band" id="learn" aria-labelledby="learn-title">
+        <div class="wrap">
+          <h2 id="learn-title">Tutorials</h2>
+          <div class="learn">
+            <a class="panel link-card" href="${docs_url}/docs/tutorial.md">
+              <h3>Sort your first batch</h3>
+              <p>
+                From install to filed tracks, screen by screen, with the matching command for each
+                step.
+              </p>
+            </a>
+            <a
+              class="panel link-card"
+              href="${docs_url}/docs/tutorial.md#9-no-folders-yet-break-down-a-pile"
+            >
+              <h3>No folders yet? Break down a pile</h3>
+              <p>Turn one unsorted folder into groups you audition, name and keep.</p>
+            </a>
+            <a class="panel link-card" href="${docs_url}/docs/tutorial.md#11-samples">
+              <h3>Sort a sample library</h3>
+              <p>Kicks, snares, hats and the rest, from packs with or without useful names.</p>
+            </a>
+            <a class="panel link-card" href="${docs_url}/docs/cli.md">
+              <h3>Command line reference</h3>
+              <p>Every command and option, with examples.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">Questions</h2>
+        <div class="faq">
+          <details>
+            <summary>Will it move or rename my files?</summary>
+            <p>
+              Not unless you commit a session, and not before it has shown you every file it will
+              write. Every commit can be undone. Playlist mode and DJ app exports only write new
+              playlist files; your music stays put.
+            </p>
+          </details>
+          <details>
+            <summary>Does it upload my music anywhere?</summary>
+            <p>
+              No. Analysis runs on your computer and the library is a file in your home folder.
+              There is one optional extra, off by default: an AI model can suggest names for
+              discovered groups. If you turn it on, only track metadata (artist, title, genre,
+              tempo) is sent, never audio.
+            </p>
+          </details>
+          <details>
+            <summary>How many folders and tracks do I need?</summary>
+            <p>
+              Two folders is the minimum. A dozen or more tracks in each gives the best results,
+              and it keeps learning from every track you file.
+            </p>
+          </details>
+          <details>
+            <summary>I use Rekordbox. Will this break my library?</summary>
+            <p>
+              Exports write a Rekordbox XML file you import, so your collection stays as it is. If
+              your DJ app already manages a track, use playlist or copy filing: moving a file
+              breaks the app's link to it and loses its cue points.
+            </p>
+          </details>
+          <details>
+            <summary>How is it different from tagging by genre?</summary>
+            <p>
+              Genre tags are someone else's opinion. ${name} sorts into your folders, by how the
+              tracks in them actually sound, so a folder called "Sunday" works as well as one
+              called "Deep House".
+            </p>
+          </details>
+          <details>
+            <summary>macOS says the app is from an unidentified developer</summary>
+            <p>
+              The builds are not signed yet. Right-click the app and choose Open the first time; on
+              Windows, choose "More info", then "Run anyway".
+            </p>
+          </details>
+          <details>
+            <summary>Is it free?</summary>
+            <p>
+              Yes. It is open source under the MIT license, and the code is on
+              <a href="${github_url}">GitHub</a>. If it saves you time, you can
+              <a href="#support">support its development</a>.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="band" id="support" aria-labelledby="support-title">
+        <div class="wrap two-col">
+          <div>
+            <h2 id="support-title">Support ${name}</h2>
+            <p>
+              ${name} is free. Donations pay for code signing and the time
+              to keep improving it.
+            </p>
+            <a class="button primary" href="${donate_url}">Support the project</a>
+          </div>
+          <form class="panel" action="${newsletter_form_action}" method="post">
+            <h3>Hear about new releases</h3>
+            <p class="small">
+              An email when there is a new version, nothing else. Or follow the
+              <a href="${releases_url}">release notes</a>.
+            </p>
+            <label for="signup-email">Email</label>
+            <div class="inline">
+              <input id="signup-email" name="email" type="email" autocomplete="email" required />
+              <button class="button" type="submit">Sign up</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="wrap" id="contact" aria-labelledby="contact-title">
+        <h2 id="contact-title">Get in touch</h2>
+        <p>
+          Questions, ideas or a track it got wrong? Send a message. Bugs are best reported as a
+          <a href="${github_url}/issues">GitHub issue</a>.
+        </p>
+        <form class="contact panel" action="${contact_form_action}" method="post">
+          <label for="contact-name">Name</label>
+          <input id="contact-name" name="name" type="text" autocomplete="name" />
+          <label for="contact-email">Email</label>
+          <input id="contact-email" name="email" type="email" autocomplete="email" required />
+          <label for="contact-message">Message</label>
+          <textarea id="contact-message" name="message" rows="5" required></textarea>
+          <button class="button primary" type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <span>${name}. MIT license.</span>
+        <nav aria-label="Links">
+          <a href="${github_url}">GitHub</a>
+          <a href="${releases_url}">Release notes</a>
+          <a href="${docs_url}/docs/tutorial.md">Tutorial</a>
+          <a href="#contact">Contact</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

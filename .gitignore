@@ -86,3 +86,6 @@ ui/ui-snapshots/
 # Evaluation reports from local runs (baselines live in eval/baselines/)
 eval-report.json
 eval-report.md
+
+# Landing page build output (scripts/build_site.py)
+site/dist/

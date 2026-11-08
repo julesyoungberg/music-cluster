@@ -1,0 +1,79 @@
+name: Python package
+
+# Builds the command line tool as a wheel and source archive, and checks that
+# the wheel installs and runs. Publishing a GitHub release also uploads both to
+# PyPI, which is what `pipx install music-cluster` installs from. Uploading
+# uses PyPI trusted publishing (no token stored here); docs/publishing.md has
+# the one-time setup.
+
+on:
+  pull_request:
+    paths:
+      - 'setup.py'
+      - 'pyproject.toml'
+      - 'README.md'
+      - 'LICENSE'
+      - 'music_cluster/__init__.py'
+      - '.github/workflows/publish.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check --strict dist/*
+
+      - name: Version matches the release tag
+        if: github.event_name == 'release'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ls dist/music_cluster-"${version}"-*.whl || {
+            echo "The release is ${GITHUB_REF_NAME}, but the package version is not ${version}." >&2
+            echo "Set the same version in setup.py, music_cluster/__init__.py and cli.py." >&2
+            exit 1
+          }
+
+      - name: Install the wheel and run it
+        run: |
+          python -m venv /tmp/try
+          /tmp/try/bin/pip install dist/*.whl
+          /tmp/try/bin/music-cluster --version
+          /tmp/try/bin/music-cluster --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
+
+  pypi:
+    name: Upload to PyPI
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

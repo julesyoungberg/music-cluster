@@ -1,0 +1,485 @@
+/*
+ * The app's two themes, so the site looks like the product (values from
+ * ui/src/app.css). Light, "Sleeve": warm paper, ink and signal red.
+ * Dark, "Booth": graphite and amber. The site follows the system setting.
+ */
+:root {
+  --background: 40 25% 95%;
+  --foreground: 20 10% 9%;
+  --card: 40 30% 98%;
+  --primary: 6 78% 43%;
+  --primary-foreground: 40 30% 98%;
+  --secondary: 38 18% 89%;
+  --muted-foreground: 25 6% 38%;
+  --border: 30 12% 80%;
+  --input: 30 12% 74%;
+  --radius: 4px;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --display: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 30 6% 7%;
+    --foreground: 40 12% 90%;
+    --card: 30 5% 10%;
+    --primary: 32 95% 55%;
+    --primary-foreground: 30 30% 8%;
+    --secondary: 30 5% 15%;
+    --muted-foreground: 35 6% 60%;
+    --border: 30 5% 17%;
+    --input: 30 5% 21%;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: hsl(var(--primary));
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  margin: 0 0 0.6em;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  max-width: 18ch;
+}
+
+h2 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+kbd {
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius);
+  padding: 0 0.35em;
+}
+
+pre {
+  background: hsl(var(--secondary));
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+section {
+  padding: 72px 0;
+}
+
+section.wrap {
+  padding-top: 72px;
+  padding-bottom: 72px;
+}
+
+.band {
+  background: hsl(var(--card));
+  border-top: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Small uppercase labels and step numbers read like markings on gear. */
+.label,
+.step-no {
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+  color: hsl(var(--primary));
+}
+
+.step-no {
+  font-family: var(--mono);
+}
+
+.small {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.lede {
+  font-size: 1.2rem;
+  max-width: 60ch;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Header */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: hsl(var(--background) / 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 56px;
+}
+
+.brand {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: hsl(var(--foreground));
+  text-decoration: none;
+}
+
+.topbar nav,
+.footer nav {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.topbar nav a,
+.footer nav a {
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.topbar nav a:hover,
+.footer nav a:hover {
+  color: hsl(var(--foreground));
+}
+
+/* Buttons */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.button {
+  display: inline-block;
+  font: 500 1rem var(--sans);
+  padding: 0.65rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: hsl(var(--foreground) / 0.5);
+}
+
+.button.primary {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.button.primary:hover {
+  filter: brightness(1.08);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Screenshots */
+.shot {
+  margin: 0;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.12);
+}
+
+.shot figcaption {
+  font-size: 0.9rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.6rem;
+}
+
+.hero {
+  padding-top: 64px;
+}
+
+.hero-shot {
+  margin-top: 48px;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+}
+
+/* Grids of cards */
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 32px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.learn {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.features article {
+  border-top: 2px solid hsl(var(--primary));
+  padding-top: 1rem;
+}
+
+.features p,
+.steps p,
+.learn p {
+  color: hsl(var(--muted-foreground));
+}
+
+.panel {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.band .panel {
+  background: hsl(var(--background));
+}
+
+.link-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.link-card:hover {
+  border-color: hsl(var(--primary));
+}
+
+.link-card p {
+  margin: 0;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 48px;
+  align-items: start;
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checks li {
+  padding: 0.75rem 0 0.75rem 1.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  position: relative;
+}
+
+.checks li::before {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 1.25rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+}
+
+/* Install */
+.install {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.specs {
+  padding-left: 1.2rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.sub {
+  margin-top: 40px;
+}
+
+.tags {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tags li {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+/* FAQ */
+.faq {
+  max-width: 760px;
+}
+
+.faq details {
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0.9rem 0;
+}
+
+.faq summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.faq details p {
+  margin: 0.75rem 0 0;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Forms */
+label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 1rem 0 0.35rem;
+}
+
+input,
+textarea {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+}
+
+.inline {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inline .button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.contact {
+  max-width: 560px;
+}
+
+.contact button {
+  margin-top: 1.25rem;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid hsl(var(--border));
+  padding: 28px 0;
+  font-size: 0.9rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .topbar nav a:not(:last-child) {
+    display: none;
+  }
+
+  section,
+  section.wrap {
+    padding-top: 48px;
+    padding-bottom: 48px;
+  }
+
+  .inline {
+    flex-direction: column;
+  }
+
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+}
