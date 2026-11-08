@@ -139,7 +139,7 @@ def run(
             else:
                 raise ValueError(f"Unknown suite {suite!r}; choose from {', '.join(ALL_SUITES)}")
         except FileNotFoundError as exc:
-            echo(f"  skipped: data not found ({exc}). Run `music-cluster eval download` first.")
+            echo(f"  skipped: data not found ({exc}). Run `cratewise eval download` first.")
             results[suite] = {"skipped": f"data not found: {exc}"}
         except sorting_sim.NotEnoughData as exc:
             # Only "the data can't support this" is a skip. Any other error is

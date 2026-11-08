@@ -29,7 +29,7 @@ long_description = re.sub(
 )
 
 setup(
-    name="music-cluster",
+    name="cratewise",
     version=VERSION,
     description="Sort new music into the folders a DJ already keeps",
     long_description=long_description,
@@ -71,5 +71,11 @@ setup(
         "llm": ["anthropic>=0.40.0"],
         "dev": ["pytest>=7.4.0", "pytest-cov>=4.1.0", "httpx>=0.27.0"],
     },
-    entry_points={"console_scripts": ["music-cluster=music_cluster.cli:main"]},
+    entry_points={
+        "console_scripts": [
+            "cratewise=music_cluster.cli:main",
+            # A second name for the same command, for scripts written against it.
+            "music-cluster=music_cluster.cli:main",
+        ]
+    },
 )

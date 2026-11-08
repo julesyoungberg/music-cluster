@@ -9,7 +9,7 @@ Layers, cheapest first:
 * a simulated library for the sorter, with baselines and auto-file thresholds
   (:mod:`.sorting_sim`).
 
-``music-cluster eval`` drives it all; :mod:`.report` writes the results and
+``cratewise eval`` drives it all; :mod:`.report` writes the results and
 diffs them against a committed baseline. Nothing here reads or writes the
 user's library database, and nothing moves a file.
 """

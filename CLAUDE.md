@@ -45,7 +45,7 @@ python start-dev.py --tauri      # desktop shell
 ruff format . && ruff check --fix . && mypy
 pytest tests/unit                # fast
 pytest tests/e2e tests/integration
-music-cluster eval run --baseline eval/baselines/synthetic.json   # how well, not just whether
+cratewise eval run --baseline eval/baselines/synthetic.json   # how well, not just whether
 
 # UI checks (from ui/)
 npm run format:check && npm run lint && npm run check

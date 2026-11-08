@@ -357,7 +357,7 @@ class TestFitting:
         collection_id, _, _ = populated
         collection = db.get_collection(collection_id=collection_id)
 
-        with pytest.raises(LookupError, match="music-cluster fit"):
+        with pytest.raises(LookupError, match="cratewise fit"):
             groups_mod.load_sorter(db, collection, config, autofit=False)
 
     def test_a_changed_collection_makes_the_model_stale(self, db, config, populated, rng):

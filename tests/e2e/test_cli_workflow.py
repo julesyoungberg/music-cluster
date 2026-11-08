@@ -28,12 +28,19 @@ def imported(cli_runner, music, workspace):
 
 
 class TestInit:
+    def test_version_names_the_command(self, cli_runner):
+        from music_cluster import __version__
+
+        result = run_cli(cli_runner, "--version")
+
+        assert result.output.strip() == f"cratewise, version {__version__}"
+
     def test_creates_the_database_and_config(self, cli_runner, workspace):
         result = run_cli(cli_runner, "init")
 
         assert (workspace / "library.db").is_file()
         assert (workspace / "config.yaml").is_file()
-        assert "music-cluster" in result.output
+        assert "cratewise groups import-tree" in result.output
 
     def test_info_reports_an_empty_library(self, cli_runner, workspace):
         run_cli(cli_runner, "init")
@@ -120,7 +127,7 @@ class TestSortAndApply:
         )
 
         assert "to review" in result.output
-        assert "music-cluster review" in result.output
+        assert "cratewise review" in result.output
 
     def test_reviewing_files_each_track_into_its_top_suggestion(self, cli_runner, imported, music):
         run_cli(cli_runner, "sort", new_music(music), "--collection", "Crates", "--no-review")
@@ -367,7 +374,7 @@ class TestOneBigUnsortedPile:
 
     def test_discovery_proposes_candidate_piles(self, discovered):
         assert "3 candidate group(s)" in discovered.output
-        assert "music-cluster candidates" in discovered.output
+        assert "cratewise candidates" in discovered.output
 
     def test_candidates_are_named_from_the_genre_tags(self, discovered):
         # The synthetic library is tagged, so the suggestions should use the

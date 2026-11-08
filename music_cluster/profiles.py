@@ -100,7 +100,7 @@ PROFILES: Dict[str, Profile] = {
             # 808s, acoustic kicks and layered kicks — so lean further on
             # nearest neighbours than on the centroid. Unlike the music
             # defaults this has not been measured yet (no labelled sample
-            # benchmark in `music-cluster eval`), so treat it as a guess.
+            # benchmark in `cratewise eval`), so treat it as a guess.
             "neighbors": 7,
             "knn_weight": 0.8,
         },

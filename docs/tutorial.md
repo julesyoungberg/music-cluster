@@ -77,7 +77,7 @@ python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\ac
 pip install -r requirements.txt
 pip install -e .
 
-music-cluster init
+cratewise init
 ```
 
 `init` creates the database (`~/.music-cluster/library.db`), the settings file
@@ -112,7 +112,7 @@ everything else works with.
 ![The overview screen](images/overview.png)
 
 On a brand-new install the overview says *No collections yet* (unless you ran
-`music-cluster init`, which made one), and offers **Set up your groups**.
+`cratewise init`, which made one), and offers **Set up your groups**.
 
 ## 3. Create a collection
 
@@ -131,10 +131,10 @@ samples are measured differently.
 From the command line:
 
 ```bash
-music-cluster collection create "DJ folders"
+cratewise collection create "DJ folders"
 ```
 
-If you ran `music-cluster init`, you already have one called `My Folders` and
+If you ran `cratewise init`, you already have one called `My Folders` and
 can skip this step.
 
 ## 4. Import your folders as groups
@@ -181,9 +181,9 @@ Other ways to build a group:
   playlist, or individual seed tracks.
 
 ```bash
-music-cluster groups import-tree ~/Music/DJ --collection "DJ folders"
-music-cluster groups add "Warm-up" --playlist ~/Playlists/warmup.m3u8 --destination ~/Music/DJ/Warm-up
-music-cluster groups list
+cratewise groups import-tree ~/Music/DJ --collection "DJ folders"
+cratewise groups add "Warm-up" --playlist ~/Playlists/warmup.m3u8 --destination ~/Music/DJ/Warm-up
+cratewise groups list
 ```
 
 A group with no destination folder can still collect tracks into a playlist,
@@ -198,7 +198,7 @@ groups from each other. It takes seconds. Click **Fit** on the Groups screen
 (or **Fit now** on the overview), or run:
 
 ```bash
-music-cluster fit
+cratewise fit
 ```
 
 Fitting also runs a **self-check**: every reference track is sorted again with
@@ -228,7 +228,7 @@ tracks between them, or add more examples, then fit again. The same report on
 the command line:
 
 ```bash
-music-cluster check
+cratewise check
 ```
 
 Fit again whenever you change a group's tracks or a sorting setting.
@@ -254,7 +254,7 @@ The command-line version scores the folder and then drops you straight into
 the review:
 
 ```bash
-music-cluster sort ~/Downloads/NewMusic --name "November buys"
+cratewise sort ~/Downloads/NewMusic --name "November buys"
 ```
 
 ## 7. Review the suggestions
@@ -299,7 +299,7 @@ When the queue is empty, the session says how many tracks are ready to file:
 
 On the command line the review is a prompt: type `1`–`5` (or press Enter for
 the top suggestion), `s` to skip, `l` to list every group and pick one by ID,
-or `q` to stop and resume later with `music-cluster review <session>`.
+or `q` to stop and resume later with `cratewise review <session>`.
 
 ```
 ────────────────────────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ are ready). The dialog that opens is a **dry run**: it lists exactly what
 would happen, and nothing happens until you click **Commit** inside it.
 
 Choose how to file at the top. The dialog opens on **Copy files**; the
-**Default mode** in Settings applies to `music-cluster apply` on the command
+**Default mode** in Settings applies to `cratewise apply` on the command
 line.
 
 | Mode | What it does |
@@ -368,7 +368,7 @@ place, so it reports *Reversed 0 operations*:
 | Move | Moves every file back to where it came from. |
 | Copy | Deletes the copies. The originals were never touched. |
 | Symlink | Deletes the links. |
-| Playlists | Leaves the playlists in place. (`music-cluster undo --remove-playlists` deletes them.) |
+| Playlists | Leaves the playlists in place. (`cratewise undo --remove-playlists` deletes them.) |
 
 Undo only reverses what happened on disk. Tracks that were added to their
 groups as references (by *Learn from every commit*) stay in those groups;
@@ -379,9 +379,9 @@ The same on the command line, where `apply` always prints the plan first and
 asks before doing anything:
 
 ```bash
-music-cluster apply 1 --mode move --dry-run    # show the plan and stop
-music-cluster apply 1 --mode move              # show the plan, confirm, then do it
-music-cluster undo 1                           # reverse the file operations
+cratewise apply 1 --mode move --dry-run    # show the plan and stop
+cratewise apply 1 --mode move              # show the plan, confirm, then do it
+cratewise undo 1                           # reverse the file operations
 ```
 
 ```
@@ -431,9 +431,9 @@ want, [fit](#5-fit-and-check-your-groups) and sort new music against them as
 usual.
 
 ```bash
-music-cluster discover ~/Music/Unsorted
-music-cluster candidates 1       # y keep, s keep representatives only, n discard, q quit
-music-cluster fit
+cratewise discover ~/Music/Unsorted
+cratewise candidates 1       # y keep, s keep representatives only, n discard, q quit
+cratewise fit
 ```
 
 ## 10. Browse the library and its auto-tags
@@ -478,11 +478,11 @@ useful for preparing a big library ahead of time:
 The command line has more ways to slice the tags:
 
 ```bash
-music-cluster tags find --beat half_time --min-energy 7
-music-cluster tags find --genre techno --mood hypnotic --camelot 8A
-music-cluster tags show "roller" --why       # the scores and drum pattern behind the tags
-music-cluster tags summary                   # the library by genre, beat and mood
-music-cluster similar "Archangel"
+cratewise tags find --beat half_time --min-energy 7
+cratewise tags find --genre techno --mood hypnotic --camelot 8A
+cratewise tags show "roller" --why       # the scores and drum pattern behind the tags
+cratewise tags summary                   # the library by genre, beat and mood
+cratewise similar "Archangel"
 ```
 
 ## 11. Samples
@@ -502,12 +502,12 @@ command-line equivalent, plus a way to see how the tool reads a folder of
 samples without changing anything:
 
 ```bash
-music-cluster collection create "Drum library" --profile sample
-music-cluster groups import-tree ~/Samples/Drums --collection "Drum library"
-music-cluster fit --collection "Drum library"
-music-cluster sort ~/Downloads/NewPack --collection "Drum library"
+cratewise collection create "Drum library" --profile sample
+cratewise groups import-tree ~/Samples/Drums --collection "Drum library"
+cratewise fit --collection "Drum library"
+cratewise sort ~/Downloads/NewPack --collection "Drum library"
 
-music-cluster samples classify ~/Samples/Unsorted     # what does each file look like?
+cratewise samples classify ~/Samples/Unsorted     # what does each file look like?
 ```
 
 For a pack with no structure, run Discover with **What is in it: Samples**;
@@ -557,11 +557,11 @@ metadata (artist, title, genre tag, tempo) is ever sent, never audio. To use
 it, install the `anthropic` package where the API runs and set
 `ANTHROPIC_API_KEY`. In the app, tick **Suggest names with an LLM** when
 starting a discovery run. The **Use an LLM to suggest names** setting turns it
-on by default for `music-cluster discover`; the app's per-run checkbox decides
+on by default for `cratewise discover`; the app's per-run checkbox decides
 on its own.
 
 After changing a sorting setting, fit the collection again. After changing the
-analysis length, re-analyse (`music-cluster analyze --update <folder>`) so all
+analysis length, re-analyse (`cratewise analyze --update <folder>`) so all
 tracks are measured the same way.
 
 ## Where to go next

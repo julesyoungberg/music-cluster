@@ -5,12 +5,12 @@ page. Nothing here runs until someone with the accounts does it.
 
 ## Command line tool on PyPI
 
-The package is `music-cluster` on [PyPI](https://pypi.org). Once it is there,
+The package is `cratewise` on [PyPI](https://pypi.org). Once it is there,
 anyone with Python 3.10 to 3.12 and FFmpeg can install it:
 
 ```bash
-pipx install music-cluster     # its own environment, `music-cluster` on the PATH
-pip install music-cluster      # into the current environment
+pipx install cratewise     # its own environment, `cratewise` on the PATH
+pip install cratewise      # into the current environment
 ```
 
 [pipx](https://pipx.pypa.io) is the recommended route: it keeps the tool's
@@ -22,7 +22,7 @@ PyPI trusted publishing lets the workflow upload without a stored token.
 
 1. Create a PyPI account and turn on two-factor authentication.
 2. On PyPI, go to Your projects › Publishing › Add a new pending publisher:
-   - PyPI project name: `music-cluster`
+   - PyPI project name: `cratewise`
    - Owner: `julesyoungberg`, repository: `music-cluster`
    - Workflow name: `publish.yml`
    - Environment name: `pypi`
@@ -33,7 +33,7 @@ PyPI trusted publishing lets the workflow upload without a stored token.
 ### Each release
 
 1. Set the new version in `music_cluster/__init__.py` (`__version__`).
-   `setup.py` and `music-cluster --version` read it from there.
+   `setup.py` and `cratewise --version` read it from there.
 2. Tag it: `git tag v2.1.0 && git push origin v2.1.0`. `build.yml` builds the
    desktop installers and drafts a GitHub release with them.
 3. Review the draft release and publish it. Publishing runs
@@ -62,7 +62,7 @@ python -m build && twine check --strict dist/*
 - **Command line tool:** a formula is harder. Homebrew builds every Python
   dependency from source, and numba and llvmlite need a matching LLVM. Until
   that is worth the upkeep, `brew install pipx ffmpeg && pipx install
-  music-cluster` gives Mac users the same result.
+  cratewise` gives Mac users the same result.
 
 ## Landing page
 
