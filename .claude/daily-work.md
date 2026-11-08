@@ -15,6 +15,7 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   - sorting-fma on main: https://github.com/julesyoungberg/music-cluster/actions/runs/42524306085
   - key-giantsteps + tempo-giantsteps on this branch (same code as main): https://github.com/julesyoungberg/music-cluster/actions/runs/42524493788
   - Both were past install and downloading data when this run ended.
+  - Update 22:25 UTC: the GiantSteps run passed in 67 min (37 download, 30 analysis) and matched the Mac baseline exactly: key weighted 0.589, tempo acc1 0.678 / acc2 0.885, beat_genre_accuracy 0.568. Its data cache saved (1.8 GB), so the next GiantSteps dispatch skips the download unless the measuring files change. Key, tempo and beat-type changes can now be checked from the cloud.
 - Next: read both runs. If they passed, compare with eval/baselines/datasets.json (tolerance 0.03; Linux vs Mac and no Essentia may shift numbers) and note whether the dataset cache saved (FMA small is 7.2 GB zipped plus the extracted copy; the Actions cache limit is 10 GB). If downloads failed, record why and fall back to Remote Control on the Mac. Then take one of: novelty check, techno four-on-the-floor in rhythm.py.
 - Notes for later runs:
   - Don't dispatch a second eval on the same ref while one runs: eval.yml cancels the older run (concurrency group per ref).
