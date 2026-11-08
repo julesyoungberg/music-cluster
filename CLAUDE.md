@@ -90,6 +90,25 @@ Build what the task needs now, in a shape that is cheap to change later.
 - Done means verified: name the test, command or eval number that proves it,
   and run it before you finish.
 
+## Writing
+
+Applies to code comments, docs, commit messages, PR descriptions and messages
+to Jules.
+
+- Plain, natural language. No filler, clichés or AI-sounding phrases, and no
+  em-dashes. Say it once.
+- Point form over long paragraphs; short headings when a doc covers more than
+  one topic.
+- Avoid jargon. A needed technical term is defined the first time it appears
+  and then used consistently. One name for one thing across code, comments,
+  docs and the UI.
+- Write for a reader with no context from past sessions: give the path, link,
+  issue or doc they need to act.
+- Describe how things are now. No "previously", "as of last week" or "now
+  uses X instead of Y"; history lives in git.
+- Comments say why, not what. A number or threshold says where it came from
+  (an eval run, a measurement), not when it changed.
+
 ## Where code goes
 
 - `api.py` and `cli.py` stay thin: parse the request, call a module, shape the
