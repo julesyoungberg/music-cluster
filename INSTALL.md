@@ -144,8 +144,12 @@ check; CI attaches it to every pull request as the `ui-snapshots` artifact. See
 ## Troubleshooting
 
 **`command not found: cratewise`** — activate the virtualenv, or use
-`python -m music_cluster.cli` instead. Reinstall with `pip install -e .` if it
-persists.
+`python -m music_cluster.cli` instead. If it persists, reinstall. A checkout
+installed under the package name `music-cluster` needs that removed first:
+
+```bash
+pip uninstall music-cluster && pip install -e .   # in a uv virtualenv: uv pip ...
+```
 
 **Audio files fail to analyse** — almost always missing FFmpeg. Check
 `ffmpeg -version`. A handful of failures out of thousands usually means those

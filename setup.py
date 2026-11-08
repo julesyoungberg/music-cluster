@@ -74,7 +74,7 @@ setup(
     entry_points={
         "console_scripts": [
             "cratewise=music_cluster.cli:main",
-            # The command's old name, kept so existing checkouts and scripts still work.
+            # A second name for the same command, for scripts written against it.
             "music-cluster=music_cluster.cli:main",
         ]
     },
