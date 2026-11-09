@@ -520,6 +520,21 @@ class TestLibraryCommands:
         [written] = list(output.glob("*.nml"))
         assert written.read_text().count('TYPE="PLAYLIST"') == 3
 
+    def test_groups_serato_writes_crates_and_remove_undoes_it(
+        self, cli_runner, imported, workspace
+    ):
+        serato_dir = workspace / "_Serato_"
+        common = ("--collection", "Crates", "--serato-dir", str(serato_dir))
+
+        preview = run_cli(cli_runner, "groups", "serato", "--dry-run", *common)
+        assert "Dry run" in preview.output and not serato_dir.exists()
+
+        run_cli(cli_runner, "groups", "serato", "--yes", *common)
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 4
+
+        run_cli(cli_runner, "groups", "serato", "--remove", "--yes", *common)
+        assert list((serato_dir / "Subcrates").iterdir()) == []
+
     def test_groups_file_previews_then_copies_a_group_into_its_folder(
         self, cli_runner, imported, workspace
     ):

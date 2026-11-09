@@ -34,11 +34,22 @@
   let importFolderOpen = $state(false);
   let newCollectionOpen = $state(false);
   let exportOpen = $state(false);
-  let exportFormat = $state<ExportFormat>('rekordbox');
+  let exportFormat = $state<ExportFormat | 'serato'>('rekordbox');
+  /** Serato writes into the app's own folder, so it previews first: what would be written or removed. */
+  let seratoPlan = $state<{ action: 'write' | 'remove'; files: string[]; leftOut: number } | null>(
+    null
+  );
   let exportPath = $state('');
   let exporting = $state(false);
 
-  const EXPORT_FORMATS: { value: ExportFormat; label: string; hint: string }[] = [
+  // A preview only holds for the format and folder it was made for.
+  $effect(() => {
+    void exportFormat;
+    void exportPath;
+    seratoPlan = null;
+  });
+
+  const EXPORT_FORMATS: { value: ExportFormat | 'serato'; label: string; hint: string }[] = [
     {
       value: 'rekordbox',
       label: 'Rekordbox',
@@ -50,8 +61,13 @@
       hint: 'One .nml file. In Traktor: right-click Playlists → Import Playlist.'
     },
     {
+      value: 'serato',
+      label: 'Serato',
+      hint: 'Writes one crate per group into your _Serato_ folder (usually Music/_Serato_), under a Cratewise crate. Never replaces your own crates, and can be removed again.'
+    },
+    {
       value: 'm3u8',
-      label: 'Serato, Engine DJ, others',
+      label: 'Engine DJ, others',
       hint: 'One M3U playlist per group. Drag them into your DJ app or import them.'
     }
   ];
@@ -134,11 +150,50 @@
     fitting = false;
   }
 
-  async function exportGroups() {
+  async function serato(action: 'write' | 'remove') {
     if (!collection || !exportPath) return;
     exporting = true;
     try {
-      const result = await api.exportGroups(collection.id, exportPath, exportFormat);
+      const confirmed = seratoPlan?.action === action;
+      if (action === 'write') {
+        const result = await api.writeSeratoCrates(collection.id, exportPath, !confirmed);
+        if (!confirmed) {
+          seratoPlan = { action, files: result.files, leftOut: result.left_out };
+          if (result.files.length === 0)
+            notifyError('Nothing to export', 'None of the groups has any tracks yet.');
+          return;
+        }
+        notifySuccess(
+          'Crates written',
+          `${pluralize(result.files.length, 'crate')} in ${exportPath}`
+        );
+      } else {
+        const result = await api.removeSeratoCrates(exportPath, !confirmed);
+        if (!confirmed) {
+          seratoPlan = { action, files: result.files, leftOut: 0 };
+          return;
+        }
+        notifySuccess('Crates removed', pluralize(result.files.length, 'crate'));
+      }
+      seratoPlan = null;
+      exportOpen = false;
+    } catch (err) {
+      notifyError('Serato export failed', err instanceof ApiError ? err.message : String(err));
+    } finally {
+      exporting = false;
+    }
+  }
+
+  async function exportGroups() {
+    if (!collection || !exportPath) return;
+    if (exportFormat === 'serato') return serato('write');
+    exporting = true;
+    try {
+      const result = await api.exportGroups(
+        collection.id,
+        exportPath,
+        exportFormat as ExportFormat
+      );
       if (result.files.length === 0) {
         notifyError('Nothing to export', 'None of the groups has any tracks yet.');
         return;
@@ -431,9 +486,38 @@
         </label>
       {/each}
     </div>
-    <FolderPicker bind:value={exportPath} label="Save to folder" />
+    <FolderPicker
+      bind:value={exportPath}
+      label={exportFormat === 'serato' ? 'Your _Serato_ folder' : 'Save to folder'}
+    />
+    {#if exportFormat === 'serato' && seratoPlan}
+      <div class="rounded-md border border-border p-3 text-sm">
+        <p class="font-medium">
+          {seratoPlan.action === 'write' ? 'Will write' : 'Will remove'}
+          {pluralize(seratoPlan.files.length, 'crate')}
+        </p>
+        <ul class="mt-1 max-h-32 overflow-y-auto font-mono text-xs text-muted-foreground">
+          {#each seratoPlan.files as file (file)}<li class="truncate">{file}</li>{/each}
+        </ul>
+        {#if seratoPlan.leftOut > 0}
+          <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            {pluralize(seratoPlan.leftOut, 'track')} on another drive are left out: they belong in that
+            drive's own _Serato_ folder.
+          </p>
+        {/if}
+      </div>
+    {/if}
   </div>
   {#snippet footer()}
+    {#if exportFormat === 'serato'}
+      <button
+        class="mr-auto rounded-md border border-input px-3 py-1.5 text-sm disabled:opacity-50"
+        onclick={() => serato('remove')}
+        disabled={!exportPath || exporting}
+      >
+        {seratoPlan?.action === 'remove' ? 'Confirm removal' : 'Remove Cratewise crates'}
+      </button>
+    {/if}
     <button
       class="rounded-md border border-input px-3 py-1.5 text-sm"
       onclick={() => (exportOpen = false)}>Cancel</button
@@ -441,9 +525,17 @@
     <button
       class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
       onclick={exportGroups}
-      disabled={!exportPath || exporting}
+      disabled={!exportPath ||
+        exporting ||
+        (seratoPlan?.action === 'write' && seratoPlan.files.length === 0)}
     >
-      {exporting ? 'Exporting...' : 'Export'}
+      {exporting
+        ? 'Working...'
+        : exportFormat !== 'serato'
+          ? 'Export'
+          : seratoPlan?.action === 'write'
+            ? `Write ${pluralize(seratoPlan.files.length, 'crate')}`
+            : 'Preview crates'}
     </button>
   {/snippet}
 </Modal>

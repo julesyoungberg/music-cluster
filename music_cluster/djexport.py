@@ -2,8 +2,8 @@
 
 Each group becomes a playlist in a file the DJ app imports:
 
-``m3u8`` / ``m3u``  one playlist file per group (Serato, Engine DJ, VirtualDJ, and
-                    anything else that reads M3U)
+``m3u8`` / ``m3u``  one playlist file per group (Engine DJ, VirtualDJ, and anything
+                    else that reads M3U). Serato gets real crates from serato.py.
 ``rekordbox``       one ``rekordbox.xml`` holding every group as a playlist, with
                     BPM, key and genre (Rekordbox: Preferences > Advanced >
                     rekordbox xml)

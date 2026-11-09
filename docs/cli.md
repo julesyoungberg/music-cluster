@@ -16,7 +16,7 @@ cratewise --version
 - [Setting up](#setting-up): [`init`](#init), [`info`](#info), [`config`](#config)
 - [The library](#the-library): [`analyze`](#analyze), [`search`](#search), [`similar`](#similar), [`prune`](#prune)
 - [Collections](#collections): [`collection create`](#collection-create), [`collection list`](#collection-list), [`collection delete`](#collection-delete)
-- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups file`](#groups-file), [`groups remove`](#groups-remove), [`groups export`](#groups-export)
+- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups file`](#groups-file), [`groups remove`](#groups-remove), [`groups export`](#groups-export), [`groups serato`](#groups-serato)
 - [Learning the groups](#learning-the-groups): [`fit`](#fit), [`check`](#check)
 - [Sorting](#sorting): [`sort`](#sort), [`review`](#review), [`sessions`](#sessions)
 - [Filing](#filing): [`apply`](#apply), [`undo`](#undo)
@@ -390,7 +390,34 @@ cratewise groups export --output ~/Playlists --format m3u --relative-paths
 ```
 
 | Option | Meaning |
+| ### `groups serato`
+
+Write every group as a Serato crate, nested under a parent crate called
+"Cratewise". The crates go into Serato's own library folder, so this shows
+what it will write and asks first. It never replaces a crate cratewise did not
+write, and `--remove` deletes exactly the crates it wrote (the list is kept in
+`_Serato_/cratewise-crates.json`).
+
+```bash
+cratewise groups serato --dry-run                         # show the crates and stop
+cratewise groups serato                                   # confirm, then write them
+cratewise groups serato --serato-dir /Volumes/USB/_Serato_
+cratewise groups serato --remove                          # undo: delete them again
+```
+
+Serato keeps one `_Serato_` folder per drive. Tracks on a different drive from
+the folder are left out and counted, because they belong in that drive's own
+`_Serato_` folder.
+
+| Option | Meaning |
 | --- | --- |
+| `--serato-dir DIR` | Serato's library folder. Default `~/Music/_Serato_`. |
+| `--dry-run` | Show what would be written (or removed) and stop. |
+| `--remove` | Delete the crates cratewise wrote instead of writing them. |
+| `--yes` | Skip the confirmation prompt. |
+| `--collection NAME` | Collection to export. |
+
+--- | --- |
 | `--collection NAME` | Collection to export. |
 | `--output DIR` | Where to write the files. Default `./playlists`. |
 | `--format m3u8\|m3u\|rekordbox\|traktor` | One M3U per group, one Rekordbox XML, or one Traktor NML. Default `m3u8`. |

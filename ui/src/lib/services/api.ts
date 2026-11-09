@@ -134,6 +134,18 @@ export const api = {
     get<{ metrics: CheckMetrics; fitted_at: string; params: Record<string, unknown> }>(
       `/api/collections/${id}/check`
     ),
+  /** Preview (dry_run) or write every group as a Serato crate into a _Serato_ folder. */
+  writeSeratoCrates: (id: number, seratoDir: string, dryRun = false) =>
+    post<{ dry_run: boolean; files: string[]; left_out: number }>(`/api/collections/${id}/serato`, {
+      serato_dir: seratoDir,
+      dry_run: dryRun
+    }),
+  /** Preview (dry_run) or delete the crates cratewise wrote: the undo of writeSeratoCrates. */
+  removeSeratoCrates: (seratoDir: string, dryRun = false) =>
+    post<{ dry_run: boolean; files: string[] }>('/api/serato/remove', {
+      serato_dir: seratoDir,
+      dry_run: dryRun
+    }),
   exportGroups: (id: number, output: string, format: ExportFormat = 'm3u8') =>
     post<{ format: ExportFormat; files: string[] }>(
       `/api/collections/${id}/export?output=${encodeURIComponent(output)}&format=${format}`
