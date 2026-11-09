@@ -358,11 +358,12 @@ cratewise groups remove "Minimal" --collection "DJ folders"
 
 ### `groups export`
 
-Write one playlist per group, containing all of its reference tracks. Handy
-for loading your groups into DJ software.
+Export every group as a playlist for DJ software. Only writes new files; it
+refuses to replace a file of the same name that cratewise did not write.
 
 ```bash
 cratewise groups export
+cratewise groups export --output ~/Playlists --format rekordbox
 cratewise groups export --output ~/Playlists --format m3u --relative-paths
 ```
 
