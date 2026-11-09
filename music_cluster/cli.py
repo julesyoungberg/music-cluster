@@ -16,7 +16,7 @@ For an unsorted pile with no structure yet, start with `discover` instead.
 import json
 import os
 import sys
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 from tqdm import tqdm
@@ -79,6 +79,28 @@ def resolve_collection_or_exit(db: Database, name: Optional[str]):
 
 def echo_error(message: str) -> None:
     click.echo(click.style(f"Error: {message}", fg="red"), err=True)
+
+
+def echo_plan(planned: Dict[str, Any]) -> None:
+    """Print a commit plan (``CommitPlan.to_dict()``): what moves where, and what is skipped."""
+    actions = planned["actions"]
+    click.echo(f"Mode: {planned['mode']}\n")
+    for entry in planned["playlists"]:
+        click.echo(f"  playlist  {entry['track_count']:>4} tracks -> {entry['path']}")
+    for action in actions[:20]:
+        click.echo(
+            f"  {action['action']:<8} {os.path.basename(action['source_path'])}"
+            f" -> {action['dest_path']}" + (f"  ({action['note']})" if action["note"] else "")
+        )
+    if len(actions) > 20:
+        click.echo(f"  ... and {len(actions) - 20} more")
+
+    for problem in planned["problems"]:
+        subject = problem.get("group_name") or problem.get("filepath") or problem.get("track_id")
+        count = f", {problem['track_count']} track(s)" if problem.get("track_count") else ""
+        click.echo(
+            click.style(f"  skipped: {problem.get('issue')} ({subject}{count})", fg="yellow")
+        )
 
 
 def format_confidence(value: Optional[float]) -> str:
@@ -758,25 +780,7 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
         click.echo("Nothing to apply — no accepted decisions are waiting.")
         return
 
-    click.echo(f"Mode: {plan.mode}\n")
-    for entry in plan.playlists:
-        click.echo(f"  playlist  {entry['track_count']:>4} tracks -> {entry['path']}")
-    for action in plan.actions[:20]:
-        click.echo(
-            f"  {action.action:<8} {os.path.basename(action.source_path)} -> {action.dest_path}"
-            + (f"  ({action.note})" if action.note else "")
-        )
-    if len(plan.actions) > 20:
-        click.echo(f"  ... and {len(plan.actions) - 20} more")
-
-    for problem in plan.problems:
-        click.echo(
-            click.style(
-                f"  skipped: {problem.get('issue')}"
-                f" ({problem.get('group_name') or problem.get('filepath') or problem.get('track_id')})",
-                fg="yellow",
-            )
-        )
+    echo_plan(plan.to_dict())
 
     if dry_run:
         click.echo("\nDry run — nothing was changed.")
