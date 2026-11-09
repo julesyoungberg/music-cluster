@@ -18,6 +18,10 @@ on:
         description: 'Simulated libraries per sorting suite'
         default: '50'
         required: true
+      limit:
+        description: 'Use at most this many files per dataset (0 for all)'
+        default: '0'
+        required: true
       embedding:
         description: 'Pretrained embeddings to score on the sorting suites, space separated (clap ast), or none'
         default: 'none'
@@ -65,6 +69,7 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
           TRIALS: ${{ github.event.inputs.trials || '50' }}
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
           EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
           for model in $EMBEDDING; do
@@ -75,6 +80,7 @@ jobs:
             case "$allowed" in *" $suite "*) ;; *) echo "Unknown suite: $suite" >&2; exit 1 ;; esac
           done
           if ! [[ "$TRIALS" =~ ^[0-9]+$ ]]; then echo "trials must be a whole number" >&2; exit 1; fi
+          if ! [[ "$LIMIT" =~ ^[0-9]+$ ]]; then echo "limit must be a whole number" >&2; exit 1; fi
           key=$(echo $REQUESTED | tr ' ' '-')
           echo "key=$key" >> "$GITHUB_OUTPUT"
 
@@ -113,9 +119,11 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
           TRIALS: ${{ github.event.inputs.trials || '50' }}
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
           EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
           args=()
+          if [ "$LIMIT" != "0" ]; then args+=(--limit "$LIMIT"); fi
           for suite in $REQUESTED; do args+=(--suite "$suite"); done
           for model in $EMBEDDING; do
             if [ "$model" != "none" ]; then args+=(--embedding "$model"); fi
