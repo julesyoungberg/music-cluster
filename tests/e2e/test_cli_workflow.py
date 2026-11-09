@@ -530,7 +530,11 @@ class TestLibraryCommands:
         assert "Dry run" in preview.output and not serato_dir.exists()
 
         run_cli(cli_runner, "groups", "serato", "--yes", *common)
-        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 4
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        preview = run_cli(cli_runner, "groups", "serato", "--remove", "--dry-run", *common)
+        assert preview.output.count("remove  ") == 5
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
 
         run_cli(cli_runner, "groups", "serato", "--remove", "--yes", *common)
         assert list((serato_dir / "Subcrates").iterdir()) == []

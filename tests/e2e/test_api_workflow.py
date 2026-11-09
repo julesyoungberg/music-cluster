@@ -215,12 +215,17 @@ class TestImportAndFit:
         url = f"/api/collections/{fitted['id']}/serato"
 
         preview = client.post(url, json={"serato_dir": str(serato_dir), "dry_run": True}).json()
-        assert len(preview["files"]) == 4  # the parent crate and one per group
+        assert len(preview["files"]) == 5  # the parent, the collection and one per group
         assert not serato_dir.exists()
 
         written = client.post(url, json={"serato_dir": str(serato_dir)}).json()
         assert sorted(written["files"]) == sorted(preview["files"])
-        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 4
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        remove = {"serato_dir": str(serato_dir), "dry_run": True}
+        preview_removal = client.post("/api/serato/remove", json=remove).json()
+        assert sorted(preview_removal["files"]) == sorted(preview["files"])
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
 
         removed = client.post("/api/serato/remove", json={"serato_dir": str(serato_dir)}).json()
         assert sorted(removed["files"]) == sorted(preview["files"])

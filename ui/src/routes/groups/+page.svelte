@@ -36,14 +36,19 @@
   let exportOpen = $state(false);
   let exportFormat = $state<ExportFormat | 'serato'>('rekordbox');
   /** Serato writes into the app's own folder, so it previews first: what would be written or removed. */
-  let seratoPlan = $state<{ action: 'write' | 'remove'; files: string[]; leftOut: number } | null>(
-    null
-  );
+  let seratoPlan = $state<{
+    action: 'write' | 'remove';
+    files: string[];
+    /** On write: earlier crates of groups since renamed or deleted. On remove: crates kept. */
+    other: string[];
+    leftOut: number;
+  } | null>(null);
   let exportPath = $state('');
   let exporting = $state(false);
 
-  // A preview only holds for the format and folder it was made for.
+  // A preview only holds for the format and folder it was made for, while the dialog stays open.
   $effect(() => {
+    void exportOpen;
     void exportFormat;
     void exportPath;
     seratoPlan = null;
@@ -158,7 +163,12 @@
       if (action === 'write') {
         const result = await api.writeSeratoCrates(collection.id, exportPath, !confirmed);
         if (!confirmed) {
-          seratoPlan = { action, files: result.files, leftOut: result.left_out };
+          seratoPlan = {
+            action,
+            files: result.files,
+            other: result.removed,
+            leftOut: result.left_out
+          };
           if (result.files.length === 0)
             notifyError('Nothing to export', 'None of the groups has any tracks yet.');
           return;
@@ -170,7 +180,7 @@
       } else {
         const result = await api.removeSeratoCrates(exportPath, !confirmed);
         if (!confirmed) {
-          seratoPlan = { action, files: result.files, leftOut: 0 };
+          seratoPlan = { action, files: result.files, other: result.kept, leftOut: 0 };
           return;
         }
         notifySuccess('Crates removed', pluralize(result.files.length, 'crate'));
@@ -499,6 +509,16 @@
         <ul class="mt-1 max-h-32 overflow-y-auto font-mono text-xs text-muted-foreground">
           {#each seratoPlan.files as file (file)}<li class="truncate">{file}</li>{/each}
         </ul>
+        {#if seratoPlan.other.length > 0}
+          <p class="mt-2 font-medium">
+            {seratoPlan.action === 'write'
+              ? `Will remove ${pluralize(seratoPlan.other.length, 'old crate')} (group renamed or deleted)`
+              : `Keeps ${pluralize(seratoPlan.other.length, 'crate')} whose tracks you changed in Serato`}
+          </p>
+          <ul class="mt-1 max-h-24 overflow-y-auto font-mono text-xs text-muted-foreground">
+            {#each seratoPlan.other as file (file)}<li class="truncate">{file}</li>{/each}
+          </ul>
+        {/if}
         {#if seratoPlan.leftOut > 0}
           <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
             {pluralize(seratoPlan.leftOut, 'track')} on another drive are left out: they belong in that

@@ -136,13 +136,16 @@ export const api = {
     ),
   /** Preview (dry_run) or write every group as a Serato crate into a _Serato_ folder. */
   writeSeratoCrates: (id: number, seratoDir: string, dryRun = false) =>
-    post<{ dry_run: boolean; files: string[]; left_out: number }>(`/api/collections/${id}/serato`, {
-      serato_dir: seratoDir,
-      dry_run: dryRun
-    }),
-  /** Preview (dry_run) or delete the crates cratewise wrote: the undo of writeSeratoCrates. */
+    post<{ dry_run: boolean; files: string[]; removed: string[]; left_out: number }>(
+      `/api/collections/${id}/serato`,
+      { serato_dir: seratoDir, dry_run: dryRun }
+    ),
+  /**
+   * Preview (dry_run) or delete the crates cratewise wrote: the undo of writeSeratoCrates.
+   * `kept` are crates whose tracks were changed in Serato, which are never deleted.
+   */
   removeSeratoCrates: (seratoDir: string, dryRun = false) =>
-    post<{ dry_run: boolean; files: string[] }>('/api/serato/remove', {
+    post<{ dry_run: boolean; files: string[]; kept: string[] }>('/api/serato/remove', {
       serato_dir: seratoDir,
       dry_run: dryRun
     }),

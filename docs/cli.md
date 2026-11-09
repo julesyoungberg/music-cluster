@@ -390,13 +390,26 @@ cratewise groups export --output ~/Playlists --format m3u --relative-paths
 ```
 
 | Option | Meaning |
-| ### `groups serato`
+| --- | --- |
+| `--collection NAME` | Collection to export. |
+| `--output DIR` | Where to write the files. Default `./playlists`. |
+| `--format m3u8\|m3u\|rekordbox\|traktor` | One M3U per group, one Rekordbox XML, or one Traktor NML. Default `m3u8`. |
+| `--relative-paths` | Write paths relative to the playlist instead of absolute paths. |
 
-Write every group as a Serato crate, nested under a parent crate called
-"Cratewise". The crates go into Serato's own library folder, so this shows
-what it will write and asks first. It never replaces a crate cratewise did not
-write, and `--remove` deletes exactly the crates it wrote (the list is kept in
+### `groups serato`
+
+Write every group as a Serato crate. In Serato they appear under a parent
+crate called "Cratewise", then one crate per collection, then one per group.
+The crates go into Serato's own library folder, so this shows what it will
+write and asks first. It never replaces a crate cratewise did not write, and
+`--remove` deletes exactly the crates it wrote (the list is kept in
 `_Serato_/cratewise-crates.json`).
+
+- Running it again refreshes the crates, and deletes the crates of groups that
+  were renamed or deleted since.
+- A crate whose tracks you changed inside Serato is yours from then on: it is
+  never replaced or deleted. Writing stops until you rename or delete it in
+  Serato, and `--remove` keeps it.
 
 ```bash
 cratewise groups serato --dry-run                         # show the crates and stop
@@ -411,17 +424,11 @@ the folder are left out and counted, because they belong in that drive's own
 
 | Option | Meaning |
 | --- | --- |
-| `--serato-dir DIR` | Serato's library folder. Default `~/Music/_Serato_`. |
+| `--serato-dir DIR` | Serato's library folder, which must be named `_Serato_`. Default `~/Music/_Serato_`. |
 | `--dry-run` | Show what would be written (or removed) and stop. |
 | `--remove` | Delete the crates cratewise wrote instead of writing them. |
 | `--yes` | Skip the confirmation prompt. |
 | `--collection NAME` | Collection to export. |
-
---- | --- |
-| `--collection NAME` | Collection to export. |
-| `--output DIR` | Where to write the files. Default `./playlists`. |
-| `--format m3u8\|m3u\|rekordbox\|traktor` | One M3U per group, one Rekordbox XML, or one Traktor NML. Default `m3u8`. |
-| `--relative-paths` | Write paths relative to the playlist instead of absolute paths. |
 
 ---
 

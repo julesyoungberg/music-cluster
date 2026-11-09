@@ -969,6 +969,8 @@ async def write_serato_crates(collection_id: int, request: SeratoRequest):
         outcome = serato.write_crates(db, collection, request.serato_dir, dry_run=request.dry_run)
     except djexport.ExportConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(
             status_code=400, detail=f"Could not write to {request.serato_dir}: {exc}"
@@ -981,9 +983,9 @@ async def remove_serato_crates(request: SeratoRequest):
     """Preview or delete the crates cratewise wrote (the undo of writing them)."""
     try:
         removed = serato.remove_crates(request.serato_dir, dry_run=request.dry_run)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"dry_run": request.dry_run, "files": removed}
+    return {"dry_run": request.dry_run, **removed}
 
 
 # ----------------------------------------------------------------------

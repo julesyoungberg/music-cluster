@@ -40,12 +40,12 @@ test('writes Serato crates after a preview, then removes them', async ({ page })
   await dialog.getByPlaceholder('/path/to/folder').fill(seratoDir);
 
   await dialog.getByRole('button', { name: 'Preview crates' }).click();
-  await expect(dialog.getByText('Will write 4 crates')).toBeVisible();
+  await expect(dialog.getByText('Will write 5 crates')).toBeVisible();
   expect(crates()).toEqual([]);
 
-  await dialog.getByRole('button', { name: 'Write 4 crates' }).click();
+  await dialog.getByRole('button', { name: 'Write 5 crates' }).click();
   await expect(page.getByText('Crates written', { exact: true })).toBeVisible();
-  expect(crates()).toHaveLength(4);
+  expect(crates()).toHaveLength(5);
 
   await page.getByRole('button', { name: 'Export to DJ app' }).click();
   await dialog.getByRole('radio', { name: /^Serato/ }).check();

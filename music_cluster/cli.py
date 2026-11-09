@@ -613,20 +613,27 @@ def groups_serato(collection_name, serato_dir, dry_run, remove, yes):
     the crates it wrote, which undoes it.
     """
     _, db = get_context()
+    try:
+        serato_dir = serato.check_serato_dir(serato_dir)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     if remove:
-        doomed = serato.remove_crates(serato_dir, dry_run=True)
-        for path in doomed:
+        planned = serato.remove_crates(serato_dir, dry_run=True)
+        for path in planned["files"]:
             click.echo(f"  remove  {path}")
-        if not doomed:
+        for path in planned["kept"]:
+            click.echo(f"  keep    {path}  (its tracks were changed in Serato)")
+        if not planned["files"]:
             click.echo("No cratewise crates to remove.")
             return
         if dry_run:
             click.echo("\nDry run — nothing was changed.")
             return
-        if not yes and not click.confirm(f"\nDelete {len(doomed)} crate file(s)?"):
+        if not yes and not click.confirm(f"\nDelete {len(planned['files'])} crate file(s)?"):
             click.echo("Cancelled.")
             return
-        click.echo(f"Removed {len(serato.remove_crates(serato_dir))} crate file(s).")
+        removed = serato.remove_crates(serato_dir)
+        click.echo(f"Removed {len(removed['files'])} crate file(s).")
         return
 
     target = resolve_collection_or_exit(db, collection_name)
@@ -638,6 +645,8 @@ def groups_serato(collection_name, serato_dir, dry_run, remove, yes):
         raise click.ClickException("Nothing to export: none of the groups has any tracks yet.")
     for path in planned["files"]:
         click.echo(f"  write   {path}")
+    for path in planned["removed"]:
+        click.echo(f"  remove  {path}  (its group is gone or renamed)")
     if planned["left_out"]:
         click.echo(
             click.style(
