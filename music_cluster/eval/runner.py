@@ -151,8 +151,7 @@ def run(
         return [items[i] for i in picked]
 
     if embedding:
-        pretrained.spec(embedding)
-        pretrained.require()
+        pretrained.check(embedding)
     wanted = list(suites)
     if folders and "sorting-folders" not in wanted:
         wanted.append("sorting-folders")

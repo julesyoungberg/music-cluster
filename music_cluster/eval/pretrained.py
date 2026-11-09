@@ -19,6 +19,7 @@ middle rather than an intro. Results are cached per file like the analysis
 cache, keyed by the model, so a second run is instant.
 """
 
+import functools
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -107,6 +108,21 @@ def _device() -> str:
     return "cpu"
 
 
+def check(name: str) -> None:
+    """Load the model and embed a second of silence, so a broken setup fails
+    before the hour of feature analysis that runs first."""
+    model = spec(name)
+    require()
+    rows = np.asarray(_loaded(name)([np.zeros(model.sample_rate, dtype=np.float32)]))
+    if rows.ndim != 2 or rows.shape[0] != 1:
+        raise MissingDependency(f"{model.repo} returned shape {rows.shape} for one clip")
+
+
+@functools.cache
+def _loaded(name: str) -> Embedder:
+    return load_model(spec(name))
+
+
 def load_model(model: ModelSpec) -> Embedder:
     """A callable that embeds a batch of clips at the model's sample rate."""
     require()
@@ -131,6 +147,8 @@ def load_model(model: ModelSpec) -> Embedder:
             inputs = {k: v.to(device) for k, v in inputs.items()}
             with torch.no_grad():
                 out = net.get_audio_features(**inputs)
+            # transformers 5 wraps the projected embedding in an output object.
+            out = getattr(out, "pooler_output", out)
             return out.float().cpu().numpy()
 
         return embed_clap
@@ -227,7 +245,7 @@ def embed(
             todo.append(item)
 
     if todo:
-        run = embedder or load_model(model)
+        run = embedder or _loaded(model.name)
         total = len(todo)
         done = 0
         with (
