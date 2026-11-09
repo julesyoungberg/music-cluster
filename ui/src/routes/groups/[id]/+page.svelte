@@ -16,9 +16,9 @@
   import Modal from '$lib/components/Modal.svelte';
   import TrackRow from '$lib/components/TrackRow.svelte';
   import FolderPicker from '$lib/components/FolderPicker.svelte';
-  import type { Group, GroupQuality, Track } from '$lib/types';
+  import type { CommitPlan, Group, GroupQuality, OrganizeMode, Track } from '$lib/types';
   import { formatPercent, pluralize } from '$lib/utils';
-  import { ArrowLeft, Save, Trash2, X } from 'lucide-svelte';
+  import { ArrowLeft, FolderInput, Save, Trash2, Undo2, X } from 'lucide-svelte';
 
   const groupId = $derived(Number($page.params.id));
 
@@ -35,6 +35,18 @@
   let saving = $state(false);
   let destinationOpen = $state(false);
   let deleteOpen = $state(false);
+
+  type FilingMode = Exclude<OrganizeMode, 'playlist'>;
+  const FILING_MODES: [FilingMode, string][] = [
+    ['copy', 'Copy'],
+    ['move', 'Move'],
+    ['symlink', 'Symlink']
+  ];
+  let fileOpen = $state(false);
+  let fileMode = $state<FilingMode>('copy');
+  let filePlan = $state<CommitPlan | null>(null);
+  let filing = $state(false);
+  let filedSessionId = $state<number | null>(null);
 
   async function load() {
     loading = true;
@@ -74,6 +86,56 @@
       notifyError('Could not save', err instanceof ApiError ? err.message : String(err));
     } finally {
       saving = false;
+    }
+  }
+
+  async function previewFiling(mode: FilingMode) {
+    if (!group) return;
+    fileMode = mode;
+    filePlan = null;
+    try {
+      const { plan } = await api.fileGroup(group.id, { mode, dry_run: true });
+      // A slower answer for a mode the user has since switched away from is stale.
+      if (mode === fileMode) filePlan = plan;
+    } catch (err) {
+      fileOpen = false;
+      notifyError('Could not plan filing', err instanceof ApiError ? err.message : String(err));
+    }
+  }
+
+  async function fileTracks() {
+    if (!group) return;
+    filing = true;
+    try {
+      const outcome = await api.fileGroup(group.id, { mode: fileMode });
+      fileOpen = false;
+      filedSessionId = outcome.session_id;
+      const done = outcome.result?.performed_count ?? 0;
+      const failed = outcome.result?.failures.length ?? 0;
+      const verb = fileMode === 'move' ? 'moved' : fileMode === 'copy' ? 'copied' : 'linked';
+      const summary = `${pluralize(done, 'file')} ${verb} into ${group.destination_path}`;
+      if (failed > 0) {
+        notifyError(`${pluralize(failed, 'file')} could not be filed`, summary);
+      } else {
+        notifySuccess('Filed', summary);
+      }
+      await load();
+    } catch (err) {
+      notifyError('Filing failed', err instanceof ApiError ? err.message : String(err));
+    } finally {
+      filing = false;
+    }
+  }
+
+  async function undoFiling() {
+    if (filedSessionId === null) return;
+    try {
+      const outcome = await api.undo(filedSessionId);
+      filedSessionId = null;
+      notifySuccess(`Reversed ${pluralize(outcome.undone, 'operation')}`);
+      await load();
+    } catch (err) {
+      notifyError('Undo failed', err instanceof ApiError ? err.message : String(err));
     }
   }
 
@@ -192,6 +254,25 @@
           >
             Choose folder
           </button>
+          {#if group.destination_path && destination === group.destination_path}
+            <button
+              class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+              onclick={() => {
+                fileOpen = true;
+                void previewFiling(fileMode);
+              }}
+            >
+              <FolderInput class="h-4 w-4" /> File tracks into this folder
+            </button>
+          {/if}
+          {#if filedSessionId !== null}
+            <button
+              class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-secondary"
+              onclick={undoFiling}
+            >
+              <Undo2 class="h-4 w-4" /> Undo filing
+            </button>
+          {/if}
         </div>
 
         <button
@@ -281,6 +362,82 @@
       class="rounded-md border border-input px-3 py-1.5 text-sm"
       onclick={() => (destinationOpen = false)}>Done</button
     >
+  {/snippet}
+</Modal>
+
+<Modal
+  bind:open={fileOpen}
+  title="File tracks into this folder"
+  description="Nothing has been written yet. This is what would happen."
+  size="lg"
+>
+  <div class="space-y-4">
+    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="How to file">
+      {#each FILING_MODES as [value, label] (value)}
+        <button
+          class="rounded-md border px-3 py-1.5 text-sm transition-colors {fileMode === value
+            ? 'border-primary bg-primary/10'
+            : 'border-input hover:bg-secondary'}"
+          role="radio"
+          aria-checked={fileMode === value}
+          onclick={() => previewFiling(value)}
+        >
+          {label}
+        </button>
+      {/each}
+    </div>
+
+    {#if fileMode === 'move'}
+      <p class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+        Moving relocates the original files, and a DJ app that already knows them will lose track of
+        them. Every move is recorded, so <span class="font-medium">Undo</span> can put them back.
+      </p>
+    {/if}
+
+    {#if filePlan}
+      <div class="max-h-72 overflow-y-auto rounded-md border border-border">
+        {#each filePlan.actions.slice(0, 100) as action (action.track_id)}
+          <div class="border-b border-border px-3 py-2 text-sm last:border-0">
+            <p class="truncate font-mono text-xs text-muted-foreground" title={action.source_path}>
+              {action.source_path}
+            </p>
+            <span class="font-mono text-xs">→ {action.dest_path}</span>
+            {#if action.note}<span class="ml-2 text-xs text-amber-600 dark:text-amber-400"
+                >{action.note}</span
+              >{/if}
+          </div>
+        {:else}
+          <p class="px-3 py-6 text-center text-sm text-muted-foreground">Nothing to file.</p>
+        {/each}
+      </div>
+      {#if filePlan.actions.length > 100}
+        <p class="text-xs text-muted-foreground">
+          …and {filePlan.actions.length - 100} more.
+        </p>
+      {/if}
+      {#each filePlan.problems as problem, index (index)}
+        <p class="text-xs text-muted-foreground">
+          Skipped{problem.track_count ? ` ${problem.track_count}` : ''}: {problem.issue}
+        </p>
+      {/each}
+    {:else}
+      <LoadingState message="Planning..." />
+    {/if}
+  </div>
+  {#snippet footer()}
+    <button
+      class="rounded-md border border-input px-3 py-1.5 text-sm"
+      onclick={() => (fileOpen = false)}>Cancel</button
+    >
+    <button
+      class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+      onclick={fileTracks}
+      disabled={filing || !filePlan || filePlan.actions.length === 0}
+    >
+      {filing
+        ? 'Filing...'
+        : `${FILING_MODES.find(([value]) => value === fileMode)?.[1]} ${pluralize(filePlan?.actions.length ?? 0, 'file')}`}
+    </button>
   {/snippet}
 </Modal>
 

@@ -288,6 +288,11 @@ cratewise undo 3                          # put everything back
 
 Name collisions are skipped by default (`--on-conflict rename|overwrite`).
 
+A group whose tracks live somewhere else (one made by discovery, or from a
+playlist) can be gathered into its folder the same way, from the group's page
+or with `cratewise groups file "Minimal" --mode copy`. Tracks already in the
+folder are left alone, and `undo` reverses it.
+
 ## Exporting to DJ software
 
 Export every group as a playlist for your DJ app. This only writes a new file;

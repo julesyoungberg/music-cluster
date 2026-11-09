@@ -489,6 +489,41 @@ class TestLibraryCommands:
         [written] = list(output.glob("*.nml"))
         assert written.read_text().count('TYPE="PLAYLIST"') == 3
 
+    def test_groups_file_previews_then_copies_a_group_into_its_folder(
+        self, cli_runner, imported, workspace
+    ):
+        crate = workspace / "crate"
+        run_cli(
+            cli_runner, "groups", "set-destination", "Techno", str(crate), "--collection", "Crates"
+        )
+
+        preview = run_cli(
+            cli_runner,
+            "groups",
+            "file",
+            "Techno",
+            "--mode",
+            "copy",
+            "--dry-run",
+            "--collection",
+            "Crates",
+        )
+        assert "Dry run" in preview.output and not crate.exists()
+
+        done = run_cli(
+            cli_runner,
+            "groups",
+            "file",
+            "Techno",
+            "--mode",
+            "copy",
+            "--yes",
+            "--collection",
+            "Crates",
+        )
+        assert len(list(crate.iterdir())) == 8
+        assert "cratewise undo" in done.output
+
     def test_a_group_can_be_renamed_and_pointed_somewhere_else(
         self, cli_runner, imported, workspace
     ):

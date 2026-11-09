@@ -282,6 +282,17 @@ export const api = {
       `/api/sessions/${sessionId}/commit`,
       body
     ),
+  /** Preview (dry_run) or gather a group's existing tracks into its destination folder. */
+  fileGroup: (
+    groupId: number,
+    body: { mode: Exclude<OrganizeMode, 'playlist'>; on_conflict?: string; dry_run?: boolean }
+  ) =>
+    post<{
+      dry_run: boolean;
+      session_id: number | null;
+      plan: CommitPlan;
+      result: { performed_count: number; failures: unknown[] } | null;
+    }>(`/api/groups/${groupId}/file`, body),
   undo: (sessionId: number, removePlaylists = false) =>
     post<{ undone: number; failures: unknown[] }>(
       `/api/sessions/${sessionId}/undo?remove_playlists=${removePlaylists}`

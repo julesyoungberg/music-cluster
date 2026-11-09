@@ -5,6 +5,7 @@ buys, decide, commit. Background tasks are polled the way the UI polls them.
 """
 
 import time
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import pytest
@@ -227,6 +228,37 @@ class TestImportAndFit:
         )
 
         assert response.status_code == 422
+
+
+class TestFileGroup:
+    """Gathering a group's existing tracks into a new destination folder."""
+
+    def test_dry_run_then_move_then_undo(self, client, fitted, workspace):
+        group = client.get(f"/api/collections/{fitted['id']}/groups").json()["groups"][0]
+        originals = sorted(Path(group["destination_path"]).iterdir())
+        crate = workspace / "crate"
+        client.put(f"/api/groups/{group['id']}", json={"destination_path": str(crate)})
+        url = f"/api/groups/{group['id']}/file"
+
+        preview = client.post(url, json={"mode": "move", "dry_run": True}).json()
+        assert len(preview["plan"]["actions"]) == len(originals)
+        assert not crate.exists()
+
+        done = client.post(url, json={"mode": "move"}).json()
+        assert done["result"]["performed_count"] == len(originals)
+        assert sorted(p.name for p in crate.iterdir()) == [p.name for p in originals]
+        assert not any(p.exists() for p in originals)
+
+        client.post(f"/api/sessions/{done['session_id']}/undo")
+        assert all(p.exists() for p in originals)
+        assert list(crate.iterdir()) == []
+
+    def test_playlist_mode_is_a_bad_request(self, client, fitted):
+        group = client.get(f"/api/collections/{fitted['id']}/groups").json()["groups"][0]
+
+        response = client.post(f"/api/groups/{group['id']}/file", json={"mode": "playlist"})
+
+        assert response.status_code == 400
 
 
 class TestTracks:
