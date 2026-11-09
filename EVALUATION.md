@@ -82,7 +82,7 @@ Fifty trials by default. The report pools every query across trials:
 
 ### Pretrained embeddings
 
-`--embedding clap` (or `ast`) checks whether a network trained on lots of
+`--embedding clap` (or `ast`, repeatable) checks whether a network trained on lots of
 audio describes music better than the 96 hand features do. On each sorting
 suite it embeds every track and adds three results, all on the same tracks
 with the same trials, so the comparison is paired:
@@ -90,6 +90,10 @@ with the same trials, so the comparison is paired:
 - `SUITE+clap:features`: the hand features, the reference.
 - `SUITE+clap:embedding`: the embedding alone.
 - `SUITE+clap:both`: the embedding appended to the hand features.
+
+Each also reports `probe_top1`: logistic regression on every track, in five
+folds split by artist. It shows how much the features say about the label
+when references are plentiful, apart from how the sorter uses them.
 
 A track's embedding is the mean of three windows from the middle of the file.
 The models need `pip install torch transformers`, and they download their

@@ -19,7 +19,7 @@ on:
         default: '50'
         required: true
       embedding:
-        description: 'Also score a pretrained embedding on the sorting suites: none, clap or ast'
+        description: 'Pretrained embeddings to score on the sorting suites, space separated (clap ast), or none'
         default: 'none'
         required: true
 
@@ -67,7 +67,9 @@ jobs:
           TRIALS: ${{ github.event.inputs.trials || '50' }}
           EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
-          case "$EMBEDDING" in none|clap|ast) ;; *) echo "Unknown embedding: $EMBEDDING" >&2; exit 1 ;; esac
+          for model in $EMBEDDING; do
+            case "$model" in none|clap|ast) ;; *) echo "Unknown embedding: $model" >&2; exit 1 ;; esac
+          done
           allowed=" beats-synthetic keys-synthetic sorting-fma sorting-fma-sub key-giantsteps tempo-giantsteps "
           for suite in $REQUESTED; do
             case "$allowed" in *" $suite "*) ;; *) echo "Unknown suite: $suite" >&2; exit 1 ;; esac
@@ -115,7 +117,9 @@ jobs:
         run: |
           args=()
           for suite in $REQUESTED; do args+=(--suite "$suite"); done
-          if [ "$EMBEDDING" != "none" ]; then args+=(--embedding "$EMBEDDING"); fi
+          for model in $EMBEDDING; do
+            if [ "$model" != "none" ]; then args+=(--embedding "$model"); fi
+          done
           if [ -f eval/baselines/synthetic.json ]; then
             args+=(--baseline eval/baselines/synthetic.json)
           fi

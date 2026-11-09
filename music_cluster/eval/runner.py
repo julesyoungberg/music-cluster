@@ -26,9 +26,9 @@ def _sorting(
     workers: int,
     root: Optional[str],
     echo: Echo,
-    embedding: Optional[str] = None,
+    embeddings: Sequence[str] = (),
 ) -> Dict[str, Dict[str, Any]]:
-    """The suite's result, plus one result per feature set when an embedding is asked for."""
+    """The suite's result, plus one result per feature set for each embedding asked for."""
     echo(f"  analysing {len(items)} files (cached after the first run)")
     records = analysis.analyze(
         items, cache_name, tags=False, workers=workers, root=root, progress=_progress(echo)
@@ -48,10 +48,10 @@ def _sorting(
     result["tracks"] = len(keep)
     result["labels"] = sorted(set(labels))
     out = {"": result}
-    if embedding:
+    for model in embeddings:
         out.update(
             _with_embedding(
-                keep, x, labels, artists, cache_name, settings, workers, root, echo, embedding
+                keep, x, labels, artists, cache_name, settings, workers, root, echo, model
             )
         )
     return out
@@ -101,11 +101,28 @@ def _with_embedding(
         result = sorting_sim.simulate(
             matrix, sub_labels, sub_artists, settings, tempo_column=column, infer_tempo=False
         )
+        # A plain classifier on every track, five folds split by artist: how much
+        # the features say about the label when references are plentiful,
+        # apart from how the sorter uses them.
+        result["headline"]["probe_top1"] = _probe(matrix, sub_labels, sub_artists)
         result["tracks"] = len(rows)
         result["dimensions"] = int(matrix.shape[1])
         result["model"] = {"repo": about.repo, "licence": about.licence, "about": about.about}
         out[suffix] = result
     return out
+
+
+def _probe(x: np.ndarray, labels: List[str], artists: List[Optional[str]]) -> float:
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import GroupKFold, cross_val_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    groups = [artist or f"__track{i}" for i, artist in enumerate(artists)]
+    pipeline = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, C=0.5))
+    folds = min(5, len(set(groups)))
+    scores = cross_val_score(pipeline, x, labels, groups=groups, cv=GroupKFold(folds))
+    return float(np.mean(scores))
 
 
 def _store(
@@ -133,7 +150,7 @@ def run(
     folders: Optional[str] = None,
     seed: int = 0,
     echo: Echo = print,
-    embedding: Optional[str] = None,
+    embeddings: Sequence[str] = (),
 ) -> Dict[str, Dict[str, Any]]:
     """Run each suite; a suite whose data is missing is reported, not fatal.
 
@@ -150,8 +167,8 @@ def run(
         picked = sorted(rng.choice(len(items), size=limit, replace=False))
         return [items[i] for i in picked]
 
-    if embedding:
-        pretrained.check(embedding)
+    for model in embeddings:
+        pretrained.check(model)
     wanted = list(suites)
     if folders and "sorting-folders" not in wanted:
         wanted.append("sorting-folders")
@@ -171,7 +188,7 @@ def run(
                 _store(
                     results,
                     suite,
-                    _sorting(items, "fma-small", settings, workers, root, echo, embedding),
+                    _sorting(items, "fma-small", settings, workers, root, echo, embeddings),
                 )
             elif suite == "sorting-fma-sub":
                 # Sub-genres need the bigger subset to have enough tracks each.
@@ -183,7 +200,7 @@ def run(
                 _store(
                     results,
                     suite,
-                    _sorting(items, "fma-medium", settings, workers, root, echo, embedding),
+                    _sorting(items, "fma-medium", settings, workers, root, echo, embeddings),
                 )
             elif suite == "sorting-folders":
                 if not folders:
@@ -192,7 +209,7 @@ def run(
                 _store(
                     results,
                     suite,
-                    _sorting(items, "folders", settings, workers, root, echo, embedding),
+                    _sorting(items, "folders", settings, workers, root, echo, embeddings),
                 )
             elif suite == "key-giantsteps":
                 items = trim(datasets.giantsteps_key(root))

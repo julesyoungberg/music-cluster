@@ -419,6 +419,7 @@ def test_an_embedding_is_scored_alone_and_with_the_features(rng, monkeypatch):
     assert out["+clap:both"]["dimensions"] == FEATURE_DIM + 16
     assert "tempo_only" not in out["+clap:embedding"]["methods"]
     assert out["+clap:embedding"]["headline"]["sorter_top1"] > 0.95
+    assert out["+clap:embedding"]["headline"]["probe_top1"] > 0.95
     # Paired: the same trials drew the same queries for every feature set.
     assert (
         out["+clap:features"]["methods"]["sorter"]["queries"]

@@ -1377,8 +1377,9 @@ def eval_download(dataset, data_dir):
 @click.option("--tolerance", default=0.02, show_default=True, help="Allowed drop before failing")
 @click.option(
     "--embedding",
-    default=None,
-    help="Also score a pretrained embedding on the sorting suites: clap or ast. "
+    "embeddings",
+    multiple=True,
+    help="Also score a pretrained embedding on the sorting suites (repeatable): clap or ast. "
     "Needs torch and transformers; not used by the app.",
 )
 def eval_run(
@@ -1394,7 +1395,7 @@ def eval_run(
     out,
     baseline,
     tolerance,
-    embedding,
+    embeddings,
 ):
     """Run evaluation suites and write a report."""
     from pathlib import Path
@@ -1418,7 +1419,7 @@ def eval_run(
             folders=folders,
             seed=seed,
             echo=click.echo,
-            embedding=embedding,
+            embeddings=embeddings,
         )
     except (ValueError, MissingDependency) as exc:
         echo_error(str(exc))
@@ -1429,7 +1430,7 @@ def eval_run(
         "limit": limit,
         "quick": quick,
         "seed": seed,
-        "embedding": embedding,
+        "embeddings": list(embeddings),
     }
     built = report_mod.build(results, args)
     path = report_mod.save(built, out)
