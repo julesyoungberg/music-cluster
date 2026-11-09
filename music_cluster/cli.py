@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional
 import click
 from tqdm import tqdm
 
-from . import __version__, djexport, organizer, profiles, samples, sorting, tagging
+from . import __version__, djexport, organizer, profiles, samples, serato, sorting, tagging
 from . import discovery as discovery_mod
 from . import groups as groups_mod
 from .config import Config
@@ -592,6 +592,77 @@ def groups_export(collection_name, output, export_format, relative_paths):
     for path in written:
         click.echo(path)
     click.echo(f"Wrote {len(written)} file(s) to {os.path.abspath(output)}")
+
+
+@groups.command("serato")
+@click.option("--collection", "collection_name", default=None)
+@click.option(
+    "--serato-dir",
+    type=click.Path(file_okay=False),
+    default="~/Music/_Serato_",
+    show_default=True,
+    help="Serato's library folder (the drive your tracks are on)",
+)
+@click.option("--dry-run", is_flag=True, help="Show what would be written and stop")
+@click.option("--remove", is_flag=True, help="Delete the crates cratewise wrote instead")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+def groups_serato(collection_name, serato_dir, dry_run, remove, yes):
+    """Write every group as a Serato crate, under a "Cratewise" crate.
+
+    Never replaces a crate cratewise did not write. --remove deletes exactly
+    the crates it wrote, which undoes it.
+    """
+    _, db = get_context()
+    try:
+        serato_dir = serato.check_serato_dir(serato_dir)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if remove:
+        planned = serato.remove_crates(serato_dir, dry_run=True)
+        for path in planned["files"]:
+            click.echo(f"  remove  {path}")
+        for path in planned["kept"]:
+            click.echo(f"  keep    {path}  (its tracks were changed in Serato)")
+        if not planned["files"]:
+            click.echo("No cratewise crates to remove.")
+            return
+        if dry_run:
+            click.echo("\nDry run — nothing was changed.")
+            return
+        if not yes and not click.confirm(f"\nDelete {len(planned['files'])} crate file(s)?"):
+            click.echo("Cancelled.")
+            return
+        removed = serato.remove_crates(serato_dir)
+        click.echo(f"Removed {len(removed['files'])} crate file(s).")
+        return
+
+    target = resolve_collection_or_exit(db, collection_name)
+    try:
+        planned = serato.write_crates(db, target, serato_dir, dry_run=True)
+    except djexport.ExportConflict as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not planned["files"]:
+        raise click.ClickException("Nothing to export: none of the groups has any tracks yet.")
+    for path in planned["files"]:
+        click.echo(f"  write   {path}")
+    for path in planned["removed"]:
+        click.echo(f"  remove  {path}  (its group is gone or renamed)")
+    if planned["left_out"]:
+        click.echo(
+            click.style(
+                f"  {planned['left_out']} track(s) on another drive are left out: they belong "
+                "in that drive's own _Serato_ folder.",
+                fg="yellow",
+            )
+        )
+    if dry_run:
+        click.echo("\nDry run — nothing was changed.")
+        return
+    if not yes and not click.confirm(f"\nWrite {len(planned['files'])} crate file(s)?"):
+        click.echo("Cancelled.")
+        return
+    written = serato.write_crates(db, target, serato_dir)
+    click.echo(f"Wrote {len(written['files'])} crate file(s). Undo with --remove.")
 
 
 # ----------------------------------------------------------------------

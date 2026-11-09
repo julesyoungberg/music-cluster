@@ -302,11 +302,16 @@ your music stays where it is. Run it again whenever your groups change.
 | --- | --- | --- |
 | `rekordbox` | Rekordbox | Preferences → Advanced → rekordbox xml, then the "rekordbox xml" tree in the sidebar |
 | `traktor` | Traktor | Right-click Playlists → Import Playlist |
-| `m3u8` / `m3u` | Serato, Engine DJ, VirtualDJ, others | Drag the playlists in, or the app's playlist import |
+| `cratewise groups serato` | Serato | Writes crates straight into your `_Serato_` folder, under a "Cratewise" crate |
+| `m3u8` / `m3u` | Engine DJ, VirtualDJ, others | Drag the playlists in, or the app's playlist import |
 
 ```bash
 cratewise groups export --format rekordbox --output ~/Music/exports
 ```
+
+Serato crates are written into Serato's own folder, so they work like filing:
+`--dry-run` shows the crates first, a crate you made yourself is never
+replaced, and `--remove` deletes exactly the crates cratewise wrote.
 
 Rekordbox and Traktor exports carry BPM, key and genre. Tags already in your
 files win; music-cluster's own measurements only fill the gaps. The app has the

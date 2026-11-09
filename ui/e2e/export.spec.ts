@@ -26,3 +26,32 @@ test('exports every group to a Rekordbox XML file', async ({ page }) => {
     expect(xml).toContain(`Name="${group}" Type="1"`);
   }
 });
+
+test('writes Serato crates after a preview, then removes them', async ({ page }) => {
+  const seratoDir = path.join(workspace, '_Serato_');
+  const subcrates = path.join(seratoDir, 'Subcrates');
+  rmSync(seratoDir, { recursive: true, force: true });
+  const crates = () => (existsSync(subcrates) ? readdirSync(subcrates) : []);
+
+  await page.goto('/groups');
+  await page.getByRole('button', { name: 'Export to DJ app' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('radio', { name: /^Serato/ }).check();
+  await dialog.getByPlaceholder('/path/to/folder').fill(seratoDir);
+
+  await dialog.getByRole('button', { name: 'Preview crates' }).click();
+  await expect(dialog.getByText('Will write 5 crates')).toBeVisible();
+  expect(crates()).toEqual([]);
+
+  await dialog.getByRole('button', { name: 'Write 5 crates' }).click();
+  await expect(page.getByText('Crates written', { exact: true })).toBeVisible();
+  expect(crates()).toHaveLength(5);
+
+  await page.getByRole('button', { name: 'Export to DJ app' }).click();
+  await dialog.getByRole('radio', { name: /^Serato/ }).check();
+  await dialog.getByPlaceholder('/path/to/folder').fill(seratoDir);
+  await dialog.getByRole('button', { name: 'Remove Cratewise crates' }).click();
+  await dialog.getByRole('button', { name: 'Confirm removal' }).click();
+  await expect(page.getByText('Crates removed', { exact: true })).toBeVisible();
+  expect(crates()).toEqual([]);
+});
