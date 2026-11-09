@@ -92,6 +92,11 @@ Fill these in `site/site.json`:
 | `newsletter_form_action` | The signup endpoint from a mailing list service, e.g. [Buttondown](https://buttondown.com). The form posts `email` |
 | `donate_url` | A support link, e.g. GitHub Sponsors, Ko-fi or Buy Me a Coffee |
 
+`maker` is the company credited under the hero buttons and in the footer.
+The same name is set in `setup.py` (`author`), `src-tauri/Cargo.toml`
+(`authors`) and `src-tauri/tauri.conf.json` (`publisher`, `copyright`); change
+all four together.
+
 `download_url`, `releases_url`, `docs_url` and `github_url` point at the GitHub
 repository, so they work once it is public.
 

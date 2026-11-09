@@ -134,6 +134,21 @@ export const api = {
     get<{ metrics: CheckMetrics; fitted_at: string; params: Record<string, unknown> }>(
       `/api/collections/${id}/check`
     ),
+  /** Preview (dry_run) or write every group as a Serato crate into a _Serato_ folder. */
+  writeSeratoCrates: (id: number, seratoDir: string, dryRun = false) =>
+    post<{ dry_run: boolean; files: string[]; removed: string[]; left_out: number }>(
+      `/api/collections/${id}/serato`,
+      { serato_dir: seratoDir, dry_run: dryRun }
+    ),
+  /**
+   * Preview (dry_run) or delete the crates cratewise wrote: the undo of writeSeratoCrates.
+   * `kept` are crates whose tracks were changed in Serato, which are never deleted.
+   */
+  removeSeratoCrates: (seratoDir: string, dryRun = false) =>
+    post<{ dry_run: boolean; files: string[]; kept: string[] }>('/api/serato/remove', {
+      serato_dir: seratoDir,
+      dry_run: dryRun
+    }),
   exportGroups: (id: number, output: string, format: ExportFormat = 'm3u8') =>
     post<{ format: ExportFormat; files: string[] }>(
       `/api/collections/${id}/export?output=${encodeURIComponent(output)}&format=${format}`
@@ -282,6 +297,17 @@ export const api = {
       `/api/sessions/${sessionId}/commit`,
       body
     ),
+  /** Preview (dry_run) or gather a group's existing tracks into its destination folder. */
+  fileGroup: (
+    groupId: number,
+    body: { mode: Exclude<OrganizeMode, 'playlist'>; on_conflict?: string; dry_run?: boolean }
+  ) =>
+    post<{
+      dry_run: boolean;
+      session_id: number | null;
+      plan: CommitPlan;
+      result: { performed_count: number; failures: unknown[] } | null;
+    }>(`/api/groups/${groupId}/file`, body),
   undo: (sessionId: number, removePlaylists = false) =>
     post<{ undone: number; failures: unknown[] }>(
       `/api/sessions/${sessionId}/undo?remove_playlists=${removePlaylists}`

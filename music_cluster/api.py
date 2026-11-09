@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from pydantic import BaseModel, Field
 
 from . import discovery as discovery_mod
-from . import djexport, organizer, profiles, samples, sorting, tagging
+from . import djexport, organizer, profiles, samples, serato, sorting, tagging
 from . import groups as groups_mod
 from .config import Config
 from .database import Database
@@ -228,6 +228,17 @@ class CommitRequest(BaseModel):
     playlist_dir: Optional[str] = None
     on_conflict: Optional[str] = None
     learn: Optional[bool] = None
+    dry_run: bool = False
+
+
+class SeratoRequest(BaseModel):
+    serato_dir: str
+    dry_run: bool = False
+
+
+class FileGroupRequest(BaseModel):
+    mode: str
+    on_conflict: Optional[str] = None
     dry_run: bool = False
 
 
@@ -949,6 +960,34 @@ async def export_groups(
     return {"format": format, "files": written}
 
 
+@app.post("/api/collections/{collection_id}/serato")
+async def write_serato_crates(collection_id: int, request: SeratoRequest):
+    """Preview or write every group as a Serato crate."""
+    db = get_db()
+    collection = _require_collection(db, collection_id)
+    try:
+        outcome = serato.write_crates(db, collection, request.serato_dir, dry_run=request.dry_run)
+    except djexport.ExportConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Could not write to {request.serato_dir}: {exc}"
+        ) from exc
+    return {"dry_run": request.dry_run, **outcome}
+
+
+@app.post("/api/serato/remove")
+async def remove_serato_crates(request: SeratoRequest):
+    """Preview or delete the crates cratewise wrote (the undo of writing them)."""
+    try:
+        removed = serato.remove_crates(request.serato_dir, dry_run=request.dry_run)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"dry_run": request.dry_run, **removed}
+
+
 # ----------------------------------------------------------------------
 # Sort sessions
 # ----------------------------------------------------------------------
@@ -1111,6 +1150,30 @@ async def undo_session(session_id: int, remove_playlists: bool = False):
     if not db.get_sort_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     return organizer.undo_session(db, session_id, remove_playlists=remove_playlists)
+
+
+@app.post("/api/groups/{group_id}/file")
+async def file_group(group_id: int, request: FileGroupRequest):
+    """Preview or gather a group's existing tracks into its destination folder."""
+    config, db = get_context()
+    if request.on_conflict is not None and request.on_conflict not in organizer.CONFLICT_POLICIES:
+        raise HTTPException(
+            status_code=422, detail=f"Unknown conflict policy {request.on_conflict!r}"
+        )
+    try:
+        outcome = sorting.file_group(
+            db,
+            config,
+            group_id,
+            request.mode,
+            on_conflict=request.on_conflict,
+            dry_run=request.dry_run,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"dry_run": request.dry_run, **outcome}
 
 
 # ----------------------------------------------------------------------

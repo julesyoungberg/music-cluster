@@ -324,3 +324,107 @@ def _now() -> str:
     from .database import utc_now
 
     return utc_now()
+
+
+# ----------------------------------------------------------------------
+# Filing a group's own tracks
+# ----------------------------------------------------------------------
+
+GROUP_FILING_MODES = ("copy", "move", "symlink")
+# Overwriting is left out on purpose: the file it replaces may be another
+# library track, and undo cannot bring a replaced file back.
+GROUP_FILING_CONFLICTS = ("skip", "rename")
+
+
+def file_group(
+    db: Database,
+    config: Config,
+    group_id: int,
+    mode: str,
+    on_conflict: Optional[str] = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Gather a group's existing tracks into its destination folder.
+
+    Tracks that came in by discovery or a playlist import live wherever they
+    were. This files them into the group's folder with the same planner, file
+    operations and undo log as committing a sort session: a real run is
+    recorded as a committed session named "Filing <group>", so ``undo``
+    reverses it.
+
+    Tracks already anywhere inside the destination folder are left alone.
+    Returns ``{"session_id", "plan", "result"}``. A dry run, or a plan with
+    nothing to do, creates no session and touches nothing; otherwise exactly
+    the previewed plan is carried out.
+    """
+    if mode not in GROUP_FILING_MODES:
+        raise ValueError(f"Filing a group needs one of {GROUP_FILING_MODES}, not {mode!r}")
+    on_conflict = on_conflict or config.get("organize", "on_conflict", default="skip")
+    if on_conflict not in GROUP_FILING_CONFLICTS:
+        raise ValueError(
+            f"Filing a group can only skip or rename on a name clash, not {on_conflict!r}"
+        )
+    group = db.get_group(group_id=group_id)
+    if not group:
+        raise LookupError(f"No group with ID {group_id}")
+    destination = group.get("destination_path")
+    if not destination:
+        raise ValueError(f"{group['name']!r} has no destination folder to file into")
+
+    members = db.get_group_members(group_id, limit=10**6)
+    outside = [track for track in members if not _is_inside(track["filepath"], destination)]
+    assignments = [
+        {
+            "track_id": track["id"],
+            "group_id": group_id,
+            "filepath": track["filepath"],
+            "filename": track["filename"],
+        }
+        for track in outside
+    ]
+    plan = plan_commit(db, assignments, {group_id: group}, mode=mode, on_conflict=on_conflict)
+    planned = plan.to_dict()
+    inside = len(members) - len(outside)
+    if inside:
+        planned["problems"].append(
+            {
+                "group_id": group_id,
+                "group_name": group["name"],
+                "issue": "already in destination folder",
+                "track_count": inside,
+            }
+        )
+    if dry_run or not plan.actions:
+        return {"session_id": None, "plan": planned, "result": None}
+
+    session_id = db.create_sort_session(
+        group["collection_id"], f"Filing {group['name']}", destination
+    )
+    result = execute_plan(db, plan, assignments, session_id=session_id)
+    # One accepted, applied item per filed track, so the session reads like any
+    # other in the Sort list. No final group: `apply` has nothing to redo.
+    filed = [action["track_id"] for action in result.performed]
+    db.upsert_sort_items(
+        session_id,
+        [
+            {"track_id": track_id, "suggested_group_id": group_id, "status": STATUS_ACCEPTED}
+            for track_id in filed
+        ],
+    )
+    items = db.list_sort_items(session_id, limit=10**6)
+    db.mark_items_applied([item["id"] for item in items])
+    db.update_sort_session(session_id, status="committed", committed_at=_now())
+    return {"session_id": session_id, "plan": planned, "result": result.to_dict()}
+
+
+def _is_inside(path: str, folder: str) -> bool:
+    """Whether ``path`` is ``folder`` or anywhere under it, however each is spelled."""
+
+    def canonical(value: str) -> str:
+        return os.path.normcase(os.path.realpath(os.path.expanduser(value)))
+
+    folder = canonical(folder)
+    try:
+        return os.path.commonpath([canonical(path), folder]) == folder
+    except ValueError:  # different drives on Windows
+        return False

@@ -8,11 +8,13 @@ Four modes, from safest to most committal:
 ``move``      move the file into the group's folder, and follow it in the library
 
 Every mode plans first and can be run as a dry run, and every file operation is
-recorded so a commit can be undone.
+recorded so a commit can be undone. A file that an overwrite replaces is moved
+into a backup folder next to the database first, and undo puts it back.
 """
 
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -189,9 +191,24 @@ def plan_commit(
                 )
                 continue
 
-            taken = os.path.exists(target) or target in planned_destinations
+            if os.path.isdir(target):
+                plan.problems.append(
+                    {
+                        "track_id": assignment["track_id"],
+                        "group_id": group_id,
+                        "issue": "a folder has this name",
+                        "dest_path": target,
+                    }
+                )
+                continue
+
+            # A dangling symlink still takes the name, so lexists, not exists.
+            taken = os.path.lexists(target) or target in planned_destinations
             if taken:
-                if on_conflict == "skip":
+                if on_conflict == "skip" or (
+                    on_conflict == "overwrite" and target in planned_destinations
+                ):
+                    # Overwriting a file this same commit just filed would discard a track.
                     plan.problems.append(
                         {
                             "track_id": assignment["track_id"],
@@ -205,7 +222,7 @@ def plan_commit(
                     target = _unique_path(target, planned_destinations)
                     note = "renamed to avoid collision"
                 else:
-                    note = "overwrites existing file"
+                    note = "overwrites existing file, kept for undo"
 
             planned_destinations[target] = assignment["track_id"]
             plan.actions.append(
@@ -234,6 +251,7 @@ def execute_plan(
     result = CommitResult(mode=plan.mode)
     log: List[Dict[str, Any]] = []
     by_track = {assignment["track_id"]: assignment for assignment in assignments}
+    backups: Optional[str] = None  # created on the first overwrite
 
     for entry in plan.playlists:
         items = [
@@ -265,24 +283,30 @@ def execute_plan(
         except Exception as exc:
             result.failures.append({"path": entry["path"], "error": str(exc)})
 
-    for action in plan.actions:
+    for index, action in enumerate(plan.actions):
+        backup_path: Optional[str] = None
         try:
             if not action.dest_path:
                 raise ValueError(f"Action {action.action!r} has no destination path")
-            ensure_directory(os.path.dirname(action.dest_path))
-            if action.action == "copy":
-                shutil.copy2(action.source_path, action.dest_path)
-            elif action.action == "move":
-                shutil.move(action.source_path, action.dest_path)
-                db.update_track_path(
-                    action.track_id, action.dest_path, os.path.basename(action.dest_path)
-                )
-            elif action.action == "symlink":
-                if os.path.lexists(action.dest_path):
-                    os.remove(action.dest_path)
-                os.symlink(action.source_path, action.dest_path)
-            else:
+            if action.action not in ("copy", "move", "symlink"):
                 raise ValueError(f"Cannot execute action {action.action!r}")
+            ensure_directory(os.path.dirname(action.dest_path))
+            if os.path.lexists(action.dest_path):
+                # An overwrite, or a file that appeared since planning: keep it for undo.
+                if backups is None:
+                    backups = _backup_folder(db, session_id)
+                backup_path = _back_up(
+                    action.dest_path,
+                    os.path.join(backups, f"{index}-{os.path.basename(action.dest_path)}"),
+                )
+            try:
+                _perform(db, action)
+            except Exception:
+                _take_back(action)
+                if backup_path:
+                    shutil.move(backup_path, action.dest_path)
+                    backup_path = None
+                raise
 
             result.performed.append(action.to_dict())
             log.append(
@@ -293,23 +317,74 @@ def execute_plan(
                     "action": action.action,
                     "source_path": action.source_path,
                     "dest_path": action.dest_path,
+                    "backup_path": backup_path,
                 }
             )
             assignment = by_track.get(action.track_id)
             if assignment and assignment.get("item_id"):
                 result.applied_item_ids.append(assignment["item_id"])
         except Exception as exc:
-            result.failures.append(
-                {
-                    "track_id": action.track_id,
-                    "source_path": action.source_path,
-                    "dest_path": action.dest_path,
-                    "error": str(exc),
-                }
-            )
+            failure = {
+                "track_id": action.track_id,
+                "source_path": action.source_path,
+                "dest_path": action.dest_path,
+                "error": str(exc),
+            }
+            if backup_path:
+                failure["backup_path"] = backup_path  # the replaced file is still here
+            result.failures.append(failure)
 
     db.log_file_actions(log)
     return result
+
+
+def _perform(db: Database, action: PlannedAction) -> None:
+    """Copy, move or link one file to a destination that is now free."""
+    assert action.dest_path
+    if action.action == "copy":
+        shutil.copy2(action.source_path, action.dest_path)
+    elif action.action == "move":
+        shutil.move(action.source_path, action.dest_path)
+        db.update_track_path(action.track_id, action.dest_path, os.path.basename(action.dest_path))
+    else:
+        os.symlink(action.source_path, action.dest_path)
+
+
+def _take_back(action: PlannedAction) -> None:
+    """Undo whatever part of a failed _perform reached the disk.
+
+    The destination was free before _perform, so anything there now is ours.
+    """
+    assert action.dest_path
+    if not os.path.lexists(action.dest_path):
+        return
+    if action.action == "move" and not os.path.lexists(action.source_path):
+        shutil.move(action.dest_path, action.source_path)
+    else:
+        os.remove(action.dest_path)
+
+
+def _back_up(path: str, backup_path: str) -> str:
+    """Move a file aside, or leave it where it was if that fails."""
+    try:
+        shutil.move(path, backup_path)
+    except Exception:
+        # A move to another drive copies first; drop a half-written copy.
+        if os.path.lexists(path) and os.path.lexists(backup_path):
+            if os.path.isdir(backup_path) and not os.path.islink(backup_path):
+                shutil.rmtree(backup_path)
+            else:
+                os.remove(backup_path)
+        raise
+    return backup_path
+
+
+def _backup_folder(db: Database, session_id: Optional[int]) -> str:
+    """A new folder, beside the database, for files one commit overwrites."""
+    root = os.path.join(os.path.dirname(os.path.abspath(db.db_path)), "backups")
+    ensure_directory(root)
+    prefix = f"session-{session_id}-" if session_id is not None else "commit-"
+    return tempfile.mkdtemp(prefix=prefix, dir=root)
 
 
 def undo_session(db: Database, session_id: int, remove_playlists: bool = False) -> Dict[str, Any]:
@@ -321,6 +396,11 @@ def undo_session(db: Database, session_id: int, remove_playlists: bool = False) 
     for action in actions:
         kind = action["action"]
         try:
+            later = db.later_file_action_session(action["id"], action["dest_path"])
+            if later is not None and later != session_id:
+                raise RuntimeError(
+                    f"session {later} filed to {action['dest_path']} afterwards: undo it first"
+                )
             if kind == "move":
                 if os.path.exists(action["dest_path"]):
                     ensure_directory(os.path.dirname(action["source_path"]))
@@ -339,12 +419,28 @@ def undo_session(db: Database, session_id: int, remove_playlists: bool = False) 
                     os.remove(action["dest_path"])
                 else:
                     continue
+            if action.get("backup_path"):
+                _restore_backup(action["backup_path"], action["dest_path"])
             undone.append(action["id"])
         except Exception as exc:
             failures.append({"action_id": action["id"], "error": str(exc)})
 
     db.mark_actions_undone(undone)
     return {"undone": len(undone), "failures": failures}
+
+
+def _restore_backup(backup_path: str, dest_path: str) -> None:
+    """Put back the file an overwrite replaced, now that its spot is free again."""
+    if not os.path.lexists(backup_path):
+        raise FileNotFoundError(f"Backup of {dest_path} is missing: {backup_path}")
+    if os.path.lexists(dest_path):
+        raise FileExistsError(f"Cannot restore {dest_path}: a file is already there")
+    ensure_directory(os.path.dirname(dest_path))
+    shutil.move(backup_path, dest_path)
+    try:
+        os.rmdir(os.path.dirname(backup_path))  # once a session's last backup is back
+    except OSError:
+        pass
 
 
 def write_playlist(

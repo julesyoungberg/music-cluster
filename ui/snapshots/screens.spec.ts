@@ -29,6 +29,20 @@ test.describe('browsing', () => {
     await page.getByRole('button', { name: 'Export to DJ app' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await shot('groups-export-dialog', { note: 'Choosing a DJ app to export the groups to' });
+    await page
+      .getByRole('dialog')
+      .getByRole('radio', { name: /^Serato/ })
+      .check();
+    await page
+      .getByRole('dialog')
+      .getByPlaceholder('/path/to/folder')
+      .fill(path.join(music, '..', '_Serato_'));
+    await page.getByRole('dialog').getByRole('button', { name: 'Preview crates' }).click();
+    await expect(page.getByRole('dialog').getByText(/Will write\s+\d+ crates/)).toBeVisible();
+    await shot('groups-export-serato-preview', {
+      note: 'Serato: the crates that would be written, before anything is',
+      viewportOnly: true
+    });
     await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: /Import my folders/ }).click();
@@ -56,6 +70,19 @@ test.describe('browsing', () => {
       .click();
     await expect(page.getByText('Techno Artist').first()).toBeVisible();
     await shot('group-detail', { note: 'One group and its reference tracks' });
+
+    await page.getByRole('button', { name: /File tracks into this folder/ }).click();
+    await expect(
+      page
+        .getByRole('dialog')
+        .getByText(/Nothing to file|Skipped/)
+        .first()
+    ).toBeVisible();
+    await shot('group-file-dialog', {
+      note: 'Filing a group into its folder: here every track is already there',
+      viewportOnly: true
+    });
+    await page.keyboard.press('Escape');
 
     await page.goto('/groups/check');
     await expect(page.getByText(/Deep House/).first()).toBeVisible();

@@ -268,6 +268,37 @@ class TestSortAndApply:
 
         assert sorted(p.name for p in Path(new_music(music)).glob("*.flac")) == originals
 
+    def test_overwriting_shows_in_the_dry_run_and_undo_restores_the_replaced_file(
+        self, cli_runner, imported, music
+    ):
+        run_cli(
+            cli_runner,
+            "sort",
+            new_music(music),
+            "--collection",
+            "Crates",
+            "--auto-accept",
+            "--no-review",
+        )
+        # A file of the same name already in every crate, as if bought twice.
+        name = "New Techno 1.flac"
+        crates = [music / "DJ" / crate for crate in ("Deep House", "Techno", "Drum & Bass")]
+        for crate in crates:
+            (crate / name).write_bytes(b"the user's own file")
+
+        plan = run_cli(
+            cli_runner, "apply", "1", "--mode", "copy", "--on-conflict", "overwrite", "--dry-run"
+        )
+        assert "overwrites existing file, kept for undo" in plan.output
+        assert all((crate / name).read_bytes() == b"the user's own file" for crate in crates)
+
+        run_cli(cli_runner, "apply", "1", "--mode", "copy", "--on-conflict", "overwrite", "--yes")
+        assert any((crate / name).read_bytes() != b"the user's own file" for crate in crates)
+
+        run_cli(cli_runner, "undo", "1", "--yes")
+
+        assert all((crate / name).read_bytes() == b"the user's own file" for crate in crates)
+
     def test_committing_folds_the_tracks_back_into_their_groups(
         self, cli_runner, imported, music, workspace
     ):
@@ -488,6 +519,60 @@ class TestLibraryCommands:
 
         [written] = list(output.glob("*.nml"))
         assert written.read_text().count('TYPE="PLAYLIST"') == 3
+
+    def test_groups_serato_writes_crates_and_remove_undoes_it(
+        self, cli_runner, imported, workspace
+    ):
+        serato_dir = workspace / "_Serato_"
+        common = ("--collection", "Crates", "--serato-dir", str(serato_dir))
+
+        preview = run_cli(cli_runner, "groups", "serato", "--dry-run", *common)
+        assert "Dry run" in preview.output and not serato_dir.exists()
+
+        run_cli(cli_runner, "groups", "serato", "--yes", *common)
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        preview = run_cli(cli_runner, "groups", "serato", "--remove", "--dry-run", *common)
+        assert preview.output.count("remove  ") == 5
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        run_cli(cli_runner, "groups", "serato", "--remove", "--yes", *common)
+        assert list((serato_dir / "Subcrates").iterdir()) == []
+
+    def test_groups_file_previews_then_copies_a_group_into_its_folder(
+        self, cli_runner, imported, workspace
+    ):
+        crate = workspace / "crate"
+        run_cli(
+            cli_runner, "groups", "set-destination", "Techno", str(crate), "--collection", "Crates"
+        )
+
+        preview = run_cli(
+            cli_runner,
+            "groups",
+            "file",
+            "Techno",
+            "--mode",
+            "copy",
+            "--dry-run",
+            "--collection",
+            "Crates",
+        )
+        assert "Dry run" in preview.output and not crate.exists()
+
+        done = run_cli(
+            cli_runner,
+            "groups",
+            "file",
+            "Techno",
+            "--mode",
+            "copy",
+            "--yes",
+            "--collection",
+            "Crates",
+        )
+        assert len(list(crate.iterdir())) == 8
+        assert "cratewise undo" in done.output
 
     def test_a_group_can_be_renamed_and_pointed_somewhere_else(
         self, cli_runner, imported, workspace

@@ -5,6 +5,7 @@ buys, decide, commit. Background tasks are polled the way the UI polls them.
 """
 
 import time
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import pytest
@@ -209,6 +210,27 @@ class TestImportAndFit:
         root = ET.parse(written).getroot()
         assert len(root.find("PLAYLISTS/NODE/NODE")) == 3
 
+    def test_serato_crates_preview_write_and_remove(self, client, fitted, workspace):
+        serato_dir = workspace / "_Serato_"
+        url = f"/api/collections/{fitted['id']}/serato"
+
+        preview = client.post(url, json={"serato_dir": str(serato_dir), "dry_run": True}).json()
+        assert len(preview["files"]) == 5  # the parent, the collection and one per group
+        assert not serato_dir.exists()
+
+        written = client.post(url, json={"serato_dir": str(serato_dir)}).json()
+        assert sorted(written["files"]) == sorted(preview["files"])
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        remove = {"serato_dir": str(serato_dir), "dry_run": True}
+        preview_removal = client.post("/api/serato/remove", json=remove).json()
+        assert sorted(preview_removal["files"]) == sorted(preview["files"])
+        assert len(list((serato_dir / "Subcrates").glob("*.crate"))) == 5
+
+        removed = client.post("/api/serato/remove", json={"serato_dir": str(serato_dir)}).json()
+        assert sorted(removed["files"]) == sorted(preview["files"])
+        assert list((serato_dir / "Subcrates").iterdir()) == []
+
     def test_an_unknown_export_format_is_refused(self, client, fitted, workspace):
         response = client.post(
             f"/api/collections/{fitted['id']}/export",
@@ -227,6 +249,37 @@ class TestImportAndFit:
         )
 
         assert response.status_code == 422
+
+
+class TestFileGroup:
+    """Gathering a group's existing tracks into a new destination folder."""
+
+    def test_dry_run_then_move_then_undo(self, client, fitted, workspace):
+        group = client.get(f"/api/collections/{fitted['id']}/groups").json()["groups"][0]
+        originals = sorted(Path(group["destination_path"]).iterdir())
+        crate = workspace / "crate"
+        client.put(f"/api/groups/{group['id']}", json={"destination_path": str(crate)})
+        url = f"/api/groups/{group['id']}/file"
+
+        preview = client.post(url, json={"mode": "move", "dry_run": True}).json()
+        assert len(preview["plan"]["actions"]) == len(originals)
+        assert not crate.exists()
+
+        done = client.post(url, json={"mode": "move"}).json()
+        assert done["result"]["performed_count"] == len(originals)
+        assert sorted(p.name for p in crate.iterdir()) == [p.name for p in originals]
+        assert not any(p.exists() for p in originals)
+
+        client.post(f"/api/sessions/{done['session_id']}/undo")
+        assert all(p.exists() for p in originals)
+        assert list(crate.iterdir()) == []
+
+    def test_playlist_mode_is_a_bad_request(self, client, fitted):
+        group = client.get(f"/api/collections/{fitted['id']}/groups").json()["groups"][0]
+
+        response = client.post(f"/api/groups/{group['id']}/file", json={"mode": "playlist"})
+
+        assert response.status_code == 400
 
 
 class TestTracks:

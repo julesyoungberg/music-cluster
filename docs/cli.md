@@ -16,7 +16,7 @@ cratewise --version
 - [Setting up](#setting-up): [`init`](#init), [`info`](#info), [`config`](#config)
 - [The library](#the-library): [`analyze`](#analyze), [`search`](#search), [`similar`](#similar), [`prune`](#prune)
 - [Collections](#collections): [`collection create`](#collection-create), [`collection list`](#collection-list), [`collection delete`](#collection-delete)
-- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups remove`](#groups-remove), [`groups export`](#groups-export)
+- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups file`](#groups-file), [`groups remove`](#groups-remove), [`groups export`](#groups-export), [`groups serato`](#groups-serato)
 - [Learning the groups](#learning-the-groups): [`fit`](#fit), [`check`](#check)
 - [Sorting](#sorting): [`sort`](#sort), [`review`](#review), [`sessions`](#sessions)
 - [Filing](#filing): [`apply`](#apply), [`undo`](#undo)
@@ -346,6 +346,28 @@ cratewise groups set-destination "Minimal" ~/Music/DJ/Minimal
 cratewise groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum library"
 ```
 
+### `groups file`
+
+Gather a group's existing tracks into its destination folder. Use it for groups
+whose tracks live elsewhere, such as ones made by `discover` or imported from a
+playlist. Tracks already anywhere inside the folder are left alone. It shows
+the plan first and asks before touching anything; the run is recorded as a
+session named "Filing <group>", so `undo` puts everything back.
+
+```bash
+cratewise groups file "Minimal" --mode copy --dry-run   # show the plan and stop
+cratewise groups file "Minimal" --mode move             # confirm, then do it
+cratewise undo 12                                       # the session ID it printed
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--mode copy\|move\|symlink` | Required. `copy` and `symlink` leave the originals where they are; `move` relocates them and the library follows. |
+| `--on-conflict skip\|rename` | What to do when the folder already has a file with that name. Default from config (`skip`). Overwriting is not offered: undo could not bring the replaced file back. |
+| `--dry-run` | Show the plan and stop. |
+| `--yes` | Skip the confirmation prompt. |
+| `--collection NAME` | Collection the group is in. |
+
 ### `groups remove`
 
 Delete a group from the collection. Its tracks stay in the library and on disk.
@@ -358,20 +380,55 @@ cratewise groups remove "Minimal" --collection "DJ folders"
 
 ### `groups export`
 
-Write one playlist per group, containing all of its reference tracks. Handy
-for loading your groups into DJ software.
+Export every group as a playlist for DJ software. Only writes new files; it
+refuses to replace a file of the same name that cratewise did not write.
 
 ```bash
 cratewise groups export
+cratewise groups export --output ~/Playlists --format rekordbox
 cratewise groups export --output ~/Playlists --format m3u --relative-paths
 ```
 
 | Option | Meaning |
 | --- | --- |
 | `--collection NAME` | Collection to export. |
-| `--output DIR` | Where to write the playlists. Default `./playlists`. |
-| `--format m3u\|m3u8` | Playlist format. Default `m3u8`. |
+| `--output DIR` | Where to write the files. Default `./playlists`. |
+| `--format m3u8\|m3u\|rekordbox\|traktor` | One M3U per group, one Rekordbox XML, or one Traktor NML. Default `m3u8`. |
 | `--relative-paths` | Write paths relative to the playlist instead of absolute paths. |
+
+### `groups serato`
+
+Write every group as a Serato crate. In Serato they appear under a parent
+crate called "Cratewise", then one crate per collection, then one per group.
+The crates go into Serato's own library folder, so this shows what it will
+write and asks first. It never replaces a crate cratewise did not write, and
+`--remove` deletes exactly the crates it wrote (the list is kept in
+`_Serato_/cratewise-crates.json`).
+
+- Running it again refreshes the crates, and deletes the crates of groups that
+  were renamed or deleted since.
+- A crate whose tracks you changed inside Serato is yours from then on: it is
+  never replaced or deleted. Writing stops until you rename or delete it in
+  Serato, and `--remove` keeps it.
+
+```bash
+cratewise groups serato --dry-run                         # show the crates and stop
+cratewise groups serato                                   # confirm, then write them
+cratewise groups serato --serato-dir /Volumes/USB/_Serato_
+cratewise groups serato --remove                          # undo: delete them again
+```
+
+Serato keeps one `_Serato_` folder per drive. Tracks on a different drive from
+the folder are left out and counted, because they belong in that drive's own
+`_Serato_` folder.
+
+| Option | Meaning |
+| --- | --- |
+| `--serato-dir DIR` | Serato's library folder, which must be named `_Serato_`. Default `~/Music/_Serato_`. |
+| `--dry-run` | Show what would be written (or removed) and stop. |
+| `--remove` | Delete the crates cratewise wrote instead of writing them. |
+| `--yes` | Skip the confirmation prompt. |
+| `--collection NAME` | Collection to export. |
 
 ---
 
@@ -536,7 +593,7 @@ cratewise apply 4 --mode symlink --yes
 | `SESSION_ID` | The session number from `sort` or `sessions`. |
 | `--mode MODE` | `playlist`, `copy`, `move` or `symlink`. Default: `organize.mode` in the config, which is `playlist`. |
 | `--playlist-dir DIR` | Where playlist mode writes. Default `organize.playlist_dir` (`~/.music-cluster/playlists`). |
-| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. **`overwrite` cannot be undone**: the replaced file is not kept. |
+| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. With `overwrite` the replaced file is moved to `backups/` next to the database (`~/.music-cluster/backups/`, which uses space on that disk) and `undo` puts it back. Overwrite never replaces a folder or a file filed earlier in the same commit. |
 | `--dry-run` | Print the plan and stop. Nothing is changed. |
 | `--yes` | Do not ask for confirmation. |
 | `--learn` / `--no-learn` | Add the filed tracks to their groups as new references. Default: `sorting.learn_on_commit` (on). Run `fit` afterwards to fold them in. |
@@ -565,8 +622,10 @@ Proceed to move 2 item(s)? [y/N]:
 
 Reverse every file operation a session performed.
 
-Undo does not restore a file that `--on-conflict overwrite` replaced, and it
-does not take back the reference tracks that `--learn` added to groups (remove
+A file that `--on-conflict overwrite` replaced is put back from its backup.
+Undo sessions newest first where they filed to the same place: undo refuses an
+operation that a later session built on, and names that session.
+Undo does not take back the reference tracks that `--learn` added to groups (remove
 those with the group screen in the app, or re-import the group). The session's
 decisions stay applied, so `apply` will not run them a second time.
 

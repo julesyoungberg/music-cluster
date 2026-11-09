@@ -1,12 +1,13 @@
 """Sort sessions: scoring, decisions, commit, and learning."""
 
 import os
+import sys
 
 import numpy as np
 import pytest
 
 from music_cluster import groups as groups_mod
-from music_cluster import library, sorting
+from music_cluster import library, organizer, sorting
 from tests.conftest import FEATURE_DIM, make_vector
 
 
@@ -384,3 +385,114 @@ def test_a_track_far_from_every_group_is_reported_as_unmatched(
     from music_cluster.sorter import STATUS_UNMATCHED
 
     assert result["summary"].get(STATUS_UNMATCHED) == 1
+
+
+class TestFileGroup:
+    """Gathering a group's existing tracks into its destination folder."""
+
+    @pytest.fixture
+    def scattered(self, temp_dir, db):
+        """A group with two tracks elsewhere, one already in its folder."""
+        collection_id = db.create_collection("c")
+        destination = temp_dir / "House"
+        (temp_dir / "pile").mkdir()
+        (destination / "old").mkdir(parents=True)
+        group_id = db.create_group(collection_id, "House", destination_path=str(destination))
+        paths = [temp_dir / "pile" / "a.mp3", temp_dir / "pile" / "b.mp3"]
+        paths.append(destination / "old" / "c.mp3")
+        ids = []
+        for path in paths:
+            path.write_bytes(b"audio")
+            ids.append(db.upsert_track(filepath=str(path), filename=path.name))
+        db.add_group_members(group_id, ids)
+        return group_id, destination, paths
+
+    def test_a_dry_run_plans_only_the_tracks_outside_the_folder(self, db, config, scattered):
+        group_id, destination, paths = scattered
+
+        outcome = sorting.file_group(db, config, group_id, "move", dry_run=True)
+
+        planned = sorted(action["source_path"] for action in outcome["plan"]["actions"])
+        assert planned == sorted(str(path) for path in paths[:2])
+        assert outcome["plan"]["problems"][0]["track_count"] == 1
+        assert outcome["session_id"] is None
+        assert all(path.exists() for path in paths)
+        assert db.list_sort_sessions() == []
+
+    def test_moving_files_them_and_undo_puts_them_back(self, db, config, scattered):
+        group_id, destination, paths = scattered
+
+        outcome = sorting.file_group(db, config, group_id, "move")
+
+        assert (destination / "a.mp3").exists() and not paths[0].exists()
+        assert paths[2].exists()  # already inside the folder: untouched
+        moved = db.get_track_by_filepath(str(destination / "a.mp3"))
+        assert moved is not None  # the library follows the move
+        assert db.get_group_member_ids(group_id)  # membership unchanged
+
+        organizer.undo_session(db, outcome["session_id"])
+
+        assert paths[0].exists() and not (destination / "a.mp3").exists()
+        assert db.get_track_by_filepath(str(paths[0])) is not None
+
+    @pytest.mark.parametrize("mode", ["move", "copy"])
+    def test_a_second_run_has_nothing_to_do_and_records_no_session(
+        self, db, config, scattered, mode
+    ):
+        group_id, _, _ = scattered
+        sorting.file_group(db, config, group_id, mode)
+
+        again = sorting.file_group(db, config, group_id, mode)
+
+        assert again["session_id"] is None
+        assert again["plan"]["actions"] == []
+        assert len(db.list_sort_sessions()) == 1
+
+    def test_the_run_does_exactly_what_the_preview_showed(self, temp_dir, db, config, scattered):
+        group_id, _, _ = scattered
+        for folder in ("x", "y"):  # two different tracks with the same filename
+            path = temp_dir / folder / "same.mp3"
+            path.parent.mkdir()
+            path.write_bytes(folder.encode())
+            db.add_group_members(
+                group_id, [db.upsert_track(filepath=str(path), filename="same.mp3")]
+            )
+
+        def pairs(planned):
+            return [(a["source_path"], a["dest_path"]) for a in planned["actions"]]
+
+        preview = sorting.file_group(db, config, group_id, "copy", "rename", dry_run=True)
+        done = sorting.file_group(db, config, group_id, "copy", "rename")
+
+        assert pairs(done["plan"]) == pairs(preview["plan"])
+        assert [(a["source_path"], a["dest_path"]) for a in done["result"]["performed"]] == pairs(
+            preview["plan"]
+        )
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need extra rights on Windows")
+    def test_a_folder_reached_through_a_symlink_still_counts_as_inside(
+        self, temp_dir, db, config, scattered
+    ):
+        group_id, destination, _ = scattered
+        link = temp_dir / "link-to-house"
+        link.symlink_to(destination, target_is_directory=True)
+        db.update_group(group_id, destination_path=str(link))
+
+        outcome = sorting.file_group(db, config, group_id, "copy", dry_run=True)
+
+        assert outcome["plan"]["problems"][-1]["track_count"] == 1
+
+    def test_overwriting_is_refused(self, db, config, scattered):
+        group_id, _, _ = scattered
+        with pytest.raises(ValueError, match="skip or rename"):
+            sorting.file_group(db, config, group_id, "move", "overwrite", dry_run=True)
+
+    def test_playlist_mode_is_refused(self, db, config, scattered):
+        group_id, _, _ = scattered
+        with pytest.raises(ValueError):
+            sorting.file_group(db, config, group_id, "playlist")
+
+    def test_a_group_without_a_folder_is_refused(self, db, config):
+        group_id = db.create_group(db.create_collection("c"), "Unfiled")
+        with pytest.raises(ValueError, match="no destination"):
+            sorting.file_group(db, config, group_id, "copy", dry_run=True)

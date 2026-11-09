@@ -16,12 +16,12 @@ For an unsorted pile with no structure yet, start with `discover` instead.
 import json
 import os
 import sys
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 from tqdm import tqdm
 
-from . import __version__, djexport, organizer, profiles, samples, sorting, tagging
+from . import __version__, djexport, organizer, profiles, samples, serato, sorting, tagging
 from . import discovery as discovery_mod
 from . import groups as groups_mod
 from .config import Config
@@ -79,6 +79,28 @@ def resolve_collection_or_exit(db: Database, name: Optional[str]):
 
 def echo_error(message: str) -> None:
     click.echo(click.style(f"Error: {message}", fg="red"), err=True)
+
+
+def echo_plan(planned: Dict[str, Any]) -> None:
+    """Print a commit plan (``CommitPlan.to_dict()``): what moves where, and what is skipped."""
+    actions = planned["actions"]
+    click.echo(f"Mode: {planned['mode']}\n")
+    for entry in planned["playlists"]:
+        click.echo(f"  playlist  {entry['track_count']:>4} tracks -> {entry['path']}")
+    for action in actions[:20]:
+        click.echo(
+            f"  {action['action']:<8} {os.path.basename(action['source_path'])}"
+            f" -> {action['dest_path']}" + (f"  ({action['note']})" if action["note"] else "")
+        )
+    if len(actions) > 20:
+        click.echo(f"  ... and {len(actions) - 20} more")
+
+    for problem in planned["problems"]:
+        subject = problem.get("group_name") or problem.get("filepath") or problem.get("track_id")
+        count = f", {problem['track_count']} track(s)" if problem.get("track_count") else ""
+        click.echo(
+            click.style(f"  skipped: {problem.get('issue')} ({subject}{count})", fg="yellow")
+        )
 
 
 def format_confidence(value: Optional[float]) -> str:
@@ -486,6 +508,64 @@ def groups_remove(name, collection_name):
     click.echo(f"Removed {group['name']!r}.")
 
 
+@groups.command("file")
+@click.argument("name")
+@click.option("--collection", "collection_name", default=None)
+@click.option(
+    "--mode",
+    type=click.Choice(list(sorting.GROUP_FILING_MODES)),
+    required=True,
+    help="copy or symlink leave the originals where they are; move relocates them",
+)
+@click.option(
+    "--on-conflict",
+    type=click.Choice(list(sorting.GROUP_FILING_CONFLICTS)),
+    default=None,
+    help="When the folder already has a file with that name (default: from config)",
+)
+@click.option("--dry-run", is_flag=True, help="Show what would happen and stop")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+def groups_file(name, collection_name, mode, on_conflict, dry_run, yes):
+    """Gather a group's existing tracks into its destination folder.
+
+    For groups whose tracks live elsewhere, such as ones made by discovery or
+    from a playlist. Tracks already inside the folder are left alone.
+    """
+    config, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    try:
+        group = groups_mod.resolve_group(db, target["id"], name)
+    except LookupError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    def run(dry: bool) -> Dict[str, Any]:
+        try:
+            return sorting.file_group(
+                db, config, group["id"], mode, on_conflict=on_conflict, dry_run=dry
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+    preview = run(True)["plan"]
+    echo_plan(preview)
+    if dry_run:
+        click.echo("\nDry run — nothing was changed.")
+        return
+    if not preview["actions"]:
+        click.echo("\nNothing to file.")
+        return
+    if not yes and not click.confirm(f"\nProceed to {mode} {len(preview['actions'])} file(s)?"):
+        click.echo("Cancelled.")
+        return
+
+    outcome = run(False)
+    result = outcome["result"]
+    click.echo(f"\nDone: {result['performed_count']} file operation(s).")
+    for failure in result["failures"][:5]:
+        echo_error(f"{failure.get('source_path')}: {failure['error']}")
+    click.echo(f"To undo: cratewise undo {outcome['session_id']}")
+
+
 @groups.command("export")
 @click.option("--collection", "collection_name", default=None)
 @click.option("--output", type=click.Path(file_okay=False), default="./playlists")
@@ -512,6 +592,77 @@ def groups_export(collection_name, output, export_format, relative_paths):
     for path in written:
         click.echo(path)
     click.echo(f"Wrote {len(written)} file(s) to {os.path.abspath(output)}")
+
+
+@groups.command("serato")
+@click.option("--collection", "collection_name", default=None)
+@click.option(
+    "--serato-dir",
+    type=click.Path(file_okay=False),
+    default="~/Music/_Serato_",
+    show_default=True,
+    help="Serato's library folder (the drive your tracks are on)",
+)
+@click.option("--dry-run", is_flag=True, help="Show what would be written and stop")
+@click.option("--remove", is_flag=True, help="Delete the crates cratewise wrote instead")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+def groups_serato(collection_name, serato_dir, dry_run, remove, yes):
+    """Write every group as a Serato crate, under a "Cratewise" crate.
+
+    Never replaces a crate cratewise did not write. --remove deletes exactly
+    the crates it wrote, which undoes it.
+    """
+    _, db = get_context()
+    try:
+        serato_dir = serato.check_serato_dir(serato_dir)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if remove:
+        planned = serato.remove_crates(serato_dir, dry_run=True)
+        for path in planned["files"]:
+            click.echo(f"  remove  {path}")
+        for path in planned["kept"]:
+            click.echo(f"  keep    {path}  (its tracks were changed in Serato)")
+        if not planned["files"]:
+            click.echo("No cratewise crates to remove.")
+            return
+        if dry_run:
+            click.echo("\nDry run — nothing was changed.")
+            return
+        if not yes and not click.confirm(f"\nDelete {len(planned['files'])} crate file(s)?"):
+            click.echo("Cancelled.")
+            return
+        removed = serato.remove_crates(serato_dir)
+        click.echo(f"Removed {len(removed['files'])} crate file(s).")
+        return
+
+    target = resolve_collection_or_exit(db, collection_name)
+    try:
+        planned = serato.write_crates(db, target, serato_dir, dry_run=True)
+    except djexport.ExportConflict as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not planned["files"]:
+        raise click.ClickException("Nothing to export: none of the groups has any tracks yet.")
+    for path in planned["files"]:
+        click.echo(f"  write   {path}")
+    for path in planned["removed"]:
+        click.echo(f"  remove  {path}  (its group is gone or renamed)")
+    if planned["left_out"]:
+        click.echo(
+            click.style(
+                f"  {planned['left_out']} track(s) on another drive are left out: they belong "
+                "in that drive's own _Serato_ folder.",
+                fg="yellow",
+            )
+        )
+    if dry_run:
+        click.echo("\nDry run — nothing was changed.")
+        return
+    if not yes and not click.confirm(f"\nWrite {len(planned['files'])} crate file(s)?"):
+        click.echo("Cancelled.")
+        return
+    written = serato.write_crates(db, target, serato_dir)
+    click.echo(f"Wrote {len(written['files'])} crate file(s). Undo with --remove.")
 
 
 # ----------------------------------------------------------------------
@@ -758,25 +909,7 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
         click.echo("Nothing to apply — no accepted decisions are waiting.")
         return
 
-    click.echo(f"Mode: {plan.mode}\n")
-    for entry in plan.playlists:
-        click.echo(f"  playlist  {entry['track_count']:>4} tracks -> {entry['path']}")
-    for action in plan.actions[:20]:
-        click.echo(
-            f"  {action.action:<8} {os.path.basename(action.source_path)} -> {action.dest_path}"
-            + (f"  ({action.note})" if action.note else "")
-        )
-    if len(plan.actions) > 20:
-        click.echo(f"  ... and {len(plan.actions) - 20} more")
-
-    for problem in plan.problems:
-        click.echo(
-            click.style(
-                f"  skipped: {problem.get('issue')}"
-                f" ({problem.get('group_name') or problem.get('filepath') or problem.get('track_id')})",
-                fg="yellow",
-            )
-        )
+    echo_plan(plan.to_dict())
 
     if dry_run:
         click.echo("\nDry run — nothing was changed.")
@@ -812,6 +945,8 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
         click.echo("Run `cratewise fit` to fold them into the model.")
     for failure in result["failures"][:5]:
         echo_error(f"{failure.get('source_path') or failure.get('path')}: {failure['error']}")
+        if failure.get("backup_path"):
+            echo_error(f"  The file it was replacing is kept at {failure['backup_path']}")
 
     if plan.mode == "move":
         click.echo(f"\nTo undo: cratewise undo {session_id}")
