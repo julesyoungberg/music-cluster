@@ -1514,7 +1514,7 @@ def eval_download(dataset, data_dir):
     "--embedding",
     "embeddings",
     multiple=True,
-    help="Also score a pretrained embedding on the sorting suites (repeatable): clap or ast. "
+    help="Also score a pretrained embedding on the sorting suites: ast. "
     "Needs torch and transformers; not used by the app.",
 )
 def eval_run(

@@ -1,5 +1,6 @@
 """Run named suites and collect their results."""
 
+import copy
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -49,11 +50,31 @@ def _sorting(
     result["labels"] = sorted(set(labels))
     out = {"": result}
     for model in embeddings:
-        out.update(
-            _with_embedding(
-                keep, x, labels, artists, cache_name, settings, workers, root, echo, model
+        # The hand-feature result above took the analysis time; an embedding
+        # that fails must not take it down too. Embedding results are not
+        # gated, so recording the failure is enough.
+        try:
+            out.update(
+                _with_embedding(
+                    keep,
+                    x,
+                    labels,
+                    artists,
+                    cache_name,
+                    settings,
+                    workers,
+                    root,
+                    echo,
+                    model,
+                    reference=result,
+                )
             )
-        )
+        except sorting_sim.NotEnoughData as exc:
+            echo(f"  {model} skipped: {exc}")
+            out[f"+{model}"] = {"skipped": str(exc)}
+        except Exception as exc:
+            echo(f"  {model} failed: {type(exc).__name__}: {exc}")
+            out[f"+{model}"] = {"failed": f"{type(exc).__name__}: {exc}"}
     return out
 
 
@@ -68,12 +89,18 @@ def _with_embedding(
     root: Optional[str],
     echo: Echo,
     model: str,
+    reference: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Score the embedding alone and appended to the hand features.
 
     All three feature sets run on the same tracks with the same seed, so every
     trial draws the same folders, references and queries: the comparison is
     paired, and the difference is the features alone.
+
+    Args:
+        reference: The hand-feature result on all of `keep`. Reused for the
+            features variant when every track embeds, since it would be the
+            same simulation again.
     """
     about = pretrained.spec(model)
     echo(f"  embedding {len(keep)} files with {about.repo} (cached after the first run)")
@@ -95,16 +122,15 @@ def _with_embedding(
         f"+{model}:embedding": (learned, None),
         f"+{model}:both": (np.hstack([hand, learned]), tempo),
     }
-    zero_shot = None
-    if model == "clap":
-        zero_shot = pretrained.zero_shot_top1(learned, sub_labels)
-        echo(f"  zero-shot from text prompts: top1 {zero_shot:.3f}")
     out: Dict[str, Dict[str, Any]] = {}
     for suffix, (matrix, column) in variants.items():
         echo(f"  simulating {suffix[1:]} ({matrix.shape[1]} dimensions)")
-        result = sorting_sim.simulate(
-            matrix, sub_labels, sub_artists, settings, tempo_column=column, infer_tempo=False
-        )
+        if suffix.endswith(":features") and reference is not None and len(rows) == len(keep):
+            result = copy.deepcopy(reference)
+        else:
+            result = sorting_sim.simulate(
+                matrix, sub_labels, sub_artists, settings, tempo_column=column, infer_tempo=False
+            )
         # A plain classifier on every track, five folds split by artist: how much
         # the features say about the label when references are plentiful,
         # apart from how the sorter uses them.
@@ -117,8 +143,6 @@ def _with_embedding(
             f"logistic_top1 {headline['logistic_top1']:.3f}, "
             f"probe_top1 {headline['probe_top1']:.3f}"
         )
-        if zero_shot is not None and suffix.endswith(":embedding"):
-            result["headline"]["zero_shot_top1"] = zero_shot
         result["tracks"] = len(rows)
         result["dimensions"] = int(matrix.shape[1])
         result["model"] = {"repo": about.repo, "licence": about.licence, "about": about.about}
@@ -181,14 +205,16 @@ def run(
         picked = sorted(rng.choice(len(items), size=limit, replace=False))
         return [items[i] for i in picked]
 
-    for model in embeddings:
-        pretrained.check(model)
     wanted = list(suites)
     if folders and "sorting-folders" not in wanted:
         wanted.append("sorting-folders")
     unknown = [s for s in wanted if s not in (*ALL_SUITES, "sorting-folders")]
     if unknown:
         raise ValueError(f"Unknown suite {unknown[0]!r}; choose from {', '.join(ALL_SUITES)}")
+    if embeddings and not any(s.startswith("sorting-") for s in wanted):
+        raise ValueError("--embedding is only scored on the sorting suites; add one with --suite")
+    for model in embeddings:
+        pretrained.check(model)
 
     for suite in wanted:
         echo(f"{suite}:")

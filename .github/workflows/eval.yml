@@ -23,7 +23,7 @@ on:
         default: '0'
         required: true
       embedding:
-        description: 'Pretrained embeddings to score on the sorting suites, space separated (clap ast), or none'
+        description: 'Pretrained embeddings to score on the sorting suites, space separated (ast), or none'
         default: 'none'
         required: true
 
@@ -39,7 +39,7 @@ jobs:
     name: Evaluate against the baseline
     runs-on: ubuntu-latest
     # Embedding thousands of tracks on CPU takes hours.
-    timeout-minutes: ${{ (github.event.inputs.embedding || 'none') != 'none' && 330 || 120 }}
+    timeout-minutes: ${{ (github.event.inputs.embedding || 'none') != 'none' && 350 || 120 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +73,7 @@ jobs:
           EMBEDDING: ${{ github.event.inputs.embedding || 'none' }}
         run: |
           for model in $EMBEDDING; do
-            case "$model" in none|clap|ast) ;; *) echo "Unknown embedding: $model" >&2; exit 1 ;; esac
+            case "$model" in none|ast) ;; *) echo "Unknown embedding: $model" >&2; exit 1 ;; esac
           done
           allowed=" beats-synthetic keys-synthetic sorting-fma sorting-fma-sub key-giantsteps tempo-giantsteps "
           for suite in $REQUESTED; do
@@ -83,23 +83,30 @@ jobs:
           if ! [[ "$LIMIT" =~ ^[0-9]+$ ]]; then echo "limit must be a whole number" >&2; exit 1; fi
           key=$(echo $REQUESTED | tr ' ' '-')
           echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "embedding=$(echo $EMBEDDING | tr ' ' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Install embedding models' dependencies
         if: (github.event.inputs.embedding || 'none') != 'none'
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install transformers
+          pip install "torch>=2.5,<3" --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5,<6"
+          pip freeze | grep -iE '^(torch|transformers)=='
 
-      # Datasets and the analysis cache are kept between runs. The analysis
-      # cache is keyed on the measuring code itself, so a restored cache from
-      # older code is ignored rather than reused.
-      - name: Cache datasets
+      # Datasets, the analysis cache and the embedding cache are kept between
+      # runs. Each run saves under its own key, even when it times out, so
+      # analysis or embedding done before a cut-off is not lost. The analysis
+      # cache checks the measuring code itself, so a restored cache from older
+      # code is ignored rather than reused.
+      - name: Restore datasets
+        id: data-cache
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.music-cluster-eval
-          key: eval-data-${{ steps.suites.outputs.key }}-${{ hashFiles('music_cluster/extractor.py', 'music_cluster/features.py', 'music_cluster/tagging.py', 'music_cluster/rhythm.py') }}
-          restore-keys: eval-data-${{ steps.suites.outputs.key }}-
+          key: eval-data-${{ steps.suites.outputs.key }}-${{ steps.suites.outputs.embedding }}-${{ github.run_id }}
+          restore-keys: |
+            eval-data-${{ steps.suites.outputs.key }}-${{ steps.suites.outputs.embedding }}-
+            eval-data-${{ steps.suites.outputs.key }}-
 
       - name: Download datasets
         if: github.event_name == 'workflow_dispatch'
@@ -115,7 +122,9 @@ jobs:
             esac
           done
 
+      # Stops short of the job limit so the cache still gets saved.
       - name: Run
+        timeout-minutes: ${{ (github.event.inputs.embedding || 'none') != 'none' && 310 || 100 }}
         env:
           REQUESTED: ${{ github.event.inputs.suites || 'beats-synthetic keys-synthetic' }}
           TRIALS: ${{ github.event.inputs.trials || '50' }}
@@ -132,6 +141,13 @@ jobs:
             args+=(--baseline eval/baselines/synthetic.json)
           fi
           cratewise eval run "${args[@]}" --trials "$TRIALS" --out eval-report.json
+
+      - name: Save datasets
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.music-cluster-eval
+          key: eval-data-${{ steps.suites.outputs.key }}-${{ steps.suites.outputs.embedding }}-${{ github.run_id }}
 
       - name: Summary
         if: always()

@@ -360,7 +360,8 @@ def test_embeddings_pool_windows_and_are_cached(temp_dir, monkeypatch):
     from music_cluster.eval import pretrained
 
     paths = []
-    for name in ("a", "b", "broken"):
+    # More than one batch, so the decode running ahead must keep tracks in order.
+    for name in [*"abcdefghij", "broken"]:
         audio = temp_dir / f"{name}.mp3"
         audio.write_bytes(name.encode())
         paths.append(str(audio))
@@ -380,15 +381,28 @@ def test_embeddings_pool_windows_and_are_cached(temp_dir, monkeypatch):
 
     monkeypatch.setattr(pretrained, "windows", fake_windows)
     root = str(temp_dir / "data")
-    first = pretrained.embed(items, "clap", "t", root=root, workers=1, embedder=fake_model)
-    assert first[2] is None
+    first = pretrained.embed(items, "ast", "t", root=root, workers=2, embedder=fake_model)
+    assert first[-1] is None
     np.testing.assert_allclose(first[0], [0.5, 0.5])
-    assert calls == [4]
+    np.testing.assert_allclose(first[9], [0.5, 0.5])
+    assert calls == [16, 4]
 
-    again = pretrained.embed(items, "clap", "t", root=root, workers=1, embedder=fake_model)
+    again = pretrained.embed(items, "ast", "t", root=root, workers=1, embedder=fake_model)
     np.testing.assert_allclose(again[1], [0.5, 0.5])
-    assert calls == [4]  # only the undecodable file was tried again, and it never reached the model
-    assert pretrained.cache_path("t", "clap", root).is_relative_to(temp_dir / "data")
+    assert calls == [16, 4]  # only the undecodable file was tried again; it never reached the model
+    assert pretrained.cache_path("t", "ast", root).is_relative_to(temp_dir / "data")
+
+    # A model that loses a clip would shift vectors onto the wrong tracks.
+    (temp_dir / "k.mp3").write_bytes(b"k")
+    with pytest.raises(RuntimeError, match="rows for 2 clips"):
+        pretrained.embed(
+            [datasets.Item(path=str(temp_dir / "k.mp3"), label="x")],
+            "ast",
+            "t",
+            root=root,
+            workers=1,
+            embedder=lambda clips: np.vstack(clips[:1]),
+        )
 
     with pytest.raises(ValueError, match="Unknown embedding"):
         pretrained.spec("no-such-model")
@@ -410,21 +424,52 @@ def test_an_embedding_is_scored_alone_and_with_the_features(rng, monkeypatch):
         return [codes[item.label] + rng.normal(0, 0.1, 16) for item in chosen]
 
     monkeypatch.setattr(pretrained, "embed", fake_embed)
-    monkeypatch.setattr(pretrained, "zero_shot_top1", lambda _v, _l: 0.5)
     settings = sorting_sim.SimulationSettings(trials=3, max_refs=40)
     out = runner._with_embedding(
-        keep, x, list(y), list(who), "t", settings, 1, None, lambda _m: None, "clap"
+        keep, x, list(y), list(who), "t", settings, 1, None, lambda _m: None, "ast"
     )
-    assert set(out) == {"+clap:features", "+clap:embedding", "+clap:both"}
-    assert out["+clap:embedding"]["dimensions"] == 16
-    assert out["+clap:both"]["dimensions"] == FEATURE_DIM + 16
-    assert "tempo_only" not in out["+clap:embedding"]["methods"]
-    assert out["+clap:embedding"]["headline"]["sorter_top1"] > 0.95
-    assert out["+clap:embedding"]["headline"]["probe_top1"] > 0.95
-    assert out["+clap:embedding"]["headline"]["zero_shot_top1"] == 0.5
-    assert "zero_shot_top1" not in out["+clap:both"]["headline"]
+    assert set(out) == {"+ast:features", "+ast:embedding", "+ast:both"}
+    assert out["+ast:embedding"]["dimensions"] == 16
+    assert out["+ast:both"]["dimensions"] == FEATURE_DIM + 16
+    assert "tempo_only" not in out["+ast:embedding"]["methods"]
+    assert out["+ast:embedding"]["headline"]["sorter_top1"] > 0.95
+    assert out["+ast:embedding"]["headline"]["probe_top1"] > 0.95
     # Paired: the same trials drew the same queries for every feature set.
     assert (
-        out["+clap:features"]["methods"]["sorter"]["queries"]
-        == (out["+clap:embedding"]["methods"]["sorter"]["queries"])
+        out["+ast:features"]["methods"]["sorter"]["queries"]
+        == (out["+ast:embedding"]["methods"]["sorter"]["queries"])
     )
+
+
+def test_a_failed_embedding_keeps_the_hand_feature_result(rng, monkeypatch):
+    from music_cluster.eval import analysis, pretrained, runner
+
+    x, y, who = _library(rng, groups=4, artists=4, per_artist=4)
+    items = [
+        datasets.Item(path=f"/t/{i}.mp3", label=label, artist=a)
+        for i, (label, a) in enumerate(zip(y, who, strict=True))
+    ]
+    monkeypatch.setattr(
+        analysis, "analyze", lambda chosen, *_a, **_k: [{"features": list(v)} for v in x]
+    )
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("out of memory")
+
+    monkeypatch.setattr(pretrained, "embed", broken)
+    settings = sorting_sim.SimulationSettings(trials=2, max_refs=20)
+    out = runner._sorting(items, "t", settings, 1, None, lambda _m: None, ["ast"])
+    assert "sorter_top1" in out[""]["headline"]
+    assert out["+ast"] == {"failed": "RuntimeError: out of memory"}
+
+
+def test_an_embedding_needs_a_sorting_suite_and_is_checked_after_the_suites(monkeypatch):
+    from music_cluster.eval import pretrained, runner
+
+    loaded = []
+    monkeypatch.setattr(pretrained, "check", loaded.append)
+    with pytest.raises(ValueError, match="Unknown suite"):
+        runner.run(["sortng-fma"], embeddings=["ast"], echo=lambda _m: None)
+    with pytest.raises(ValueError, match="only scored on the sorting suites"):
+        runner.run(["keys-synthetic"], embeddings=["ast"], echo=lambda _m: None)
+    assert loaded == []

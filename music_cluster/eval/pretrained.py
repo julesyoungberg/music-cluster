@@ -22,10 +22,10 @@ cache, keyed by the model, so a second run is instant.
 import functools
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -55,14 +55,6 @@ class ModelSpec:
 
 
 MODELS: Dict[str, ModelSpec] = {
-    "clap": ModelSpec(
-        name="clap",
-        repo="laion/larger_clap_music",
-        sample_rate=48000,
-        window=10.0,
-        licence="Apache-2.0",
-        about="LAION CLAP trained on music and text, 512 dimensions",
-    ),
     "ast": ModelSpec(
         name="ast",
         repo="MIT/ast-finetuned-audioset-10-10-0.4593",
@@ -130,29 +122,6 @@ def load_model(model: ModelSpec) -> Embedder:
     import transformers
 
     device = _device()
-    if model.name == "clap":
-        processor = transformers.ClapProcessor.from_pretrained(model.repo)
-        net = transformers.ClapModel.from_pretrained(model.repo).to(device).eval()
-
-        def embed_clap(clips: List[np.ndarray]) -> np.ndarray:
-            try:
-                inputs = processor(
-                    audio=clips, sampling_rate=model.sample_rate, return_tensors="pt"
-                )
-            except TypeError:
-                # Older transformers name the argument `audios`.
-                inputs = processor(
-                    audios=clips, sampling_rate=model.sample_rate, return_tensors="pt"
-                )
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-            with torch.no_grad():
-                out = net.get_audio_features(**inputs)
-            # transformers 5 wraps the projected embedding in an output object.
-            out = getattr(out, "pooler_output", out)
-            return out.float().cpu().numpy()
-
-        return embed_clap
-
     if model.name == "ast":
         extractor = transformers.ASTFeatureExtractor.from_pretrained(model.repo)
         net = transformers.ASTModel.from_pretrained(model.repo).to(device).eval()
@@ -167,35 +136,6 @@ def load_model(model: ModelSpec) -> Embedder:
         return embed_ast
 
     raise ValueError(f"No loader for {model.name!r}")
-
-
-def zero_shot_top1(vectors: np.ndarray, labels: Sequence[str]) -> float:
-    """CLAP's own guess from text prompts, as a check that its audio embeddings are sane.
-
-    CLAP places audio and text in one space, so "This is a Rock song." should
-    sit nearest rock tracks with no training at all. A score near chance means
-    the audio side is broken (wrong input format, wrong output), not that the
-    model knows nothing about genre.
-    """
-    require()
-    import torch
-    import transformers
-
-    model = MODELS["clap"]
-    names = sorted(set(labels))
-    processor = transformers.ClapProcessor.from_pretrained(model.repo)
-    net = transformers.ClapModel.from_pretrained(model.repo).eval()
-    inputs = processor(
-        text=[f"This is a {name} song." for name in names], return_tensors="pt", padding=True
-    )
-    with torch.no_grad():
-        out = net.get_text_features(**inputs)
-    text = getattr(out, "pooler_output", out).float().cpu().numpy()
-    text = text / np.linalg.norm(text, axis=1, keepdims=True)
-    audio = np.asarray(vectors, dtype=float)
-    audio = audio / np.linalg.norm(audio, axis=1, keepdims=True)
-    guesses = [names[int(i)] for i in np.argmax(audio @ text.T, axis=1)]
-    return float(np.mean([g == t for g, t in zip(guesses, labels, strict=True)]))
 
 
 def windows(path: str, model: ModelSpec) -> Optional[List[np.ndarray]]:
@@ -263,7 +203,7 @@ def embed(
                     cached[entry["key"]] = np.asarray(entry["vector"], dtype=float)
 
     keys: List[str] = []
-    todo: List[Item] = []
+    todo: List[Tuple[Item, str]] = []
     for item in items:
         try:
             key = f"{item.path}|{_stamp(item.path)}"
@@ -271,24 +211,36 @@ def embed(
             key = f"{item.path}|missing"
         keys.append(key)
         if key not in cached and not key.endswith("|missing"):
-            todo.append(item)
+            todo.append((item, key))
 
     if todo:
         run = embedder or _loaded(model.name)
         total = len(todo)
         done = 0
+        batches = [todo[start : start + BATCH] for start in range(0, total, BATCH)]
         with (
             open(path, "a", encoding="utf-8") as out,
             ThreadPoolExecutor(max_workers=resolve_worker_count(workers)) as pool,
         ):
-            # Decoding runs ahead on threads while the model works through batches.
-            for start in range(0, total, BATCH):
-                batch = todo[start : start + BATCH]
-                decoded = list(pool.map(lambda item: windows(item.path, model), batch))
+
+            def decode(batch: List[Tuple[Item, str]]) -> List["Future[Optional[List[np.ndarray]]]"]:
+                return [pool.submit(windows, item.path, model) for item, _ in batch]
+
+            # The next batch decodes on the threads while the model works on this one.
+            pending = decode(batches[0])
+            for index, batch in enumerate(batches):
+                decoded = [future.result() for future in pending]
+                if index + 1 < len(batches):
+                    pending = decode(batches[index + 1])
                 clips = [clip for found in decoded if found for clip in found]
                 rows = np.asarray(run(clips), dtype=float) if clips else np.zeros((0, 0))
+                if rows.shape[0] != len(clips):
+                    # A wrong count would pool one track's windows into another's vector.
+                    raise RuntimeError(
+                        f"{model.repo} returned {rows.shape[0]} rows for {len(clips)} clips"
+                    )
                 cursor = 0
-                for item, found in zip(batch, decoded, strict=True):
+                for (_, key), found in zip(batch, decoded, strict=True):
                     done += 1
                     if progress:
                         progress(done, total)
@@ -296,7 +248,6 @@ def embed(
                         continue
                     vector = _pool(rows[cursor : cursor + len(found)])
                     cursor += len(found)
-                    key = f"{item.path}|{_stamp(item.path)}"
                     cached[key] = vector
                     out.write(
                         json.dumps(
@@ -308,5 +259,7 @@ def embed(
                         )
                         + "\n"
                     )
+        # The model is only needed while embedding; free its memory for the simulations.
+        _loaded.cache_clear()
 
     return [cached.get(key) for key in keys]
