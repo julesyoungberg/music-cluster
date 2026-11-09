@@ -410,6 +410,7 @@ def test_an_embedding_is_scored_alone_and_with_the_features(rng, monkeypatch):
         return [codes[item.label] + rng.normal(0, 0.1, 16) for item in chosen]
 
     monkeypatch.setattr(pretrained, "embed", fake_embed)
+    monkeypatch.setattr(pretrained, "zero_shot_top1", lambda _v, _l: 0.5)
     settings = sorting_sim.SimulationSettings(trials=3, max_refs=40)
     out = runner._with_embedding(
         keep, x, list(y), list(who), "t", settings, 1, None, lambda _m: None, "clap"
@@ -420,6 +421,8 @@ def test_an_embedding_is_scored_alone_and_with_the_features(rng, monkeypatch):
     assert "tempo_only" not in out["+clap:embedding"]["methods"]
     assert out["+clap:embedding"]["headline"]["sorter_top1"] > 0.95
     assert out["+clap:embedding"]["headline"]["probe_top1"] > 0.95
+    assert out["+clap:embedding"]["headline"]["zero_shot_top1"] == 0.5
+    assert "zero_shot_top1" not in out["+clap:both"]["headline"]
     # Paired: the same trials drew the same queries for every feature set.
     assert (
         out["+clap:features"]["methods"]["sorter"]["queries"]

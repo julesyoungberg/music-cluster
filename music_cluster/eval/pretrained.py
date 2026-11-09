@@ -169,6 +169,35 @@ def load_model(model: ModelSpec) -> Embedder:
     raise ValueError(f"No loader for {model.name!r}")
 
 
+def zero_shot_top1(vectors: np.ndarray, labels: Sequence[str]) -> float:
+    """CLAP's own guess from text prompts, as a check that its audio embeddings are sane.
+
+    CLAP places audio and text in one space, so "This is a Rock song." should
+    sit nearest rock tracks with no training at all. A score near chance means
+    the audio side is broken (wrong input format, wrong output), not that the
+    model knows nothing about genre.
+    """
+    require()
+    import torch
+    import transformers
+
+    model = MODELS["clap"]
+    names = sorted(set(labels))
+    processor = transformers.ClapProcessor.from_pretrained(model.repo)
+    net = transformers.ClapModel.from_pretrained(model.repo).eval()
+    inputs = processor(
+        text=[f"This is a {name} song." for name in names], return_tensors="pt", padding=True
+    )
+    with torch.no_grad():
+        out = net.get_text_features(**inputs)
+    text = getattr(out, "pooler_output", out).float().cpu().numpy()
+    text = text / np.linalg.norm(text, axis=1, keepdims=True)
+    audio = np.asarray(vectors, dtype=float)
+    audio = audio / np.linalg.norm(audio, axis=1, keepdims=True)
+    guesses = [names[int(i)] for i in np.argmax(audio @ text.T, axis=1)]
+    return float(np.mean([g == t for g, t in zip(guesses, labels, strict=True)]))
+
+
 def windows(path: str, model: ModelSpec) -> Optional[List[np.ndarray]]:
     """Up to three consecutive windows from the middle of the file, or None."""
     import librosa

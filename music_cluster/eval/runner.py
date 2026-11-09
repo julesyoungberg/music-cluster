@@ -95,6 +95,10 @@ def _with_embedding(
         f"+{model}:embedding": (learned, None),
         f"+{model}:both": (np.hstack([hand, learned]), tempo),
     }
+    zero_shot = None
+    if model == "clap":
+        zero_shot = pretrained.zero_shot_top1(learned, sub_labels)
+        echo(f"  zero-shot from text prompts: top1 {zero_shot:.3f}")
     out: Dict[str, Dict[str, Any]] = {}
     for suffix, (matrix, column) in variants.items():
         echo(f"  simulating {suffix[1:]} ({matrix.shape[1]} dimensions)")
@@ -113,6 +117,8 @@ def _with_embedding(
             f"logistic_top1 {headline['logistic_top1']:.3f}, "
             f"probe_top1 {headline['probe_top1']:.3f}"
         )
+        if zero_shot is not None and suffix.endswith(":embedding"):
+            result["headline"]["zero_shot_top1"] = zero_shot
         result["tracks"] = len(rows)
         result["dimensions"] = int(matrix.shape[1])
         result["model"] = {"repo": about.repo, "licence": about.licence, "about": about.about}
