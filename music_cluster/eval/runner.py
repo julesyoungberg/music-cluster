@@ -105,6 +105,14 @@ def _with_embedding(
         # the features say about the label when references are plentiful,
         # apart from how the sorter uses them.
         result["headline"]["probe_top1"] = _probe(matrix, sub_labels, sub_artists)
+        # Printed as each one finishes, so a run cut off by a time limit still
+        # leaves its numbers in the log.
+        headline = result["headline"]
+        echo(
+            f"    sorter_top1 {headline['sorter_top1']:.3f}, "
+            f"logistic_top1 {headline['logistic_top1']:.3f}, "
+            f"probe_top1 {headline['probe_top1']:.3f}"
+        )
         result["tracks"] = len(rows)
         result["dimensions"] = int(matrix.shape[1])
         result["model"] = {"repo": about.repo, "licence": about.licence, "about": about.about}
