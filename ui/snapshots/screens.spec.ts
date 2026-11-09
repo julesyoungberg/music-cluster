@@ -57,6 +57,19 @@ test.describe('browsing', () => {
     await expect(page.getByText('Techno Artist').first()).toBeVisible();
     await shot('group-detail', { note: 'One group and its reference tracks' });
 
+    await page.getByRole('button', { name: /File tracks into this folder/ }).click();
+    await expect(
+      page
+        .getByRole('dialog')
+        .getByText(/Nothing to file|Skipped/)
+        .first()
+    ).toBeVisible();
+    await shot('group-file-dialog', {
+      note: 'Filing a group into its folder: here every track is already there',
+      viewportOnly: true
+    });
+    await page.keyboard.press('Escape');
+
     await page.goto('/groups/check');
     await expect(page.getByText(/Deep House/).first()).toBeVisible();
     await shot('groups-overlap', { note: 'Overlap report between groups' });

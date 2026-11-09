@@ -231,6 +231,12 @@ class CommitRequest(BaseModel):
     dry_run: bool = False
 
 
+class FileGroupRequest(BaseModel):
+    mode: str
+    on_conflict: Optional[str] = None
+    dry_run: bool = False
+
+
 class DiscoverRequest(BaseModel):
     paths: List[str] = Field(default_factory=list)
     track_ids: List[int] = Field(default_factory=list)
@@ -1111,6 +1117,30 @@ async def undo_session(session_id: int, remove_playlists: bool = False):
     if not db.get_sort_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     return organizer.undo_session(db, session_id, remove_playlists=remove_playlists)
+
+
+@app.post("/api/groups/{group_id}/file")
+async def file_group(group_id: int, request: FileGroupRequest):
+    """Preview or gather a group's existing tracks into its destination folder."""
+    config, db = get_context()
+    if request.on_conflict is not None and request.on_conflict not in organizer.CONFLICT_POLICIES:
+        raise HTTPException(
+            status_code=422, detail=f"Unknown conflict policy {request.on_conflict!r}"
+        )
+    try:
+        outcome = sorting.file_group(
+            db,
+            config,
+            group_id,
+            request.mode,
+            on_conflict=request.on_conflict,
+            dry_run=request.dry_run,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"dry_run": request.dry_run, **outcome}
 
 
 # ----------------------------------------------------------------------

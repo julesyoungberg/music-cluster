@@ -16,7 +16,7 @@ cratewise --version
 - [Setting up](#setting-up): [`init`](#init), [`info`](#info), [`config`](#config)
 - [The library](#the-library): [`analyze`](#analyze), [`search`](#search), [`similar`](#similar), [`prune`](#prune)
 - [Collections](#collections): [`collection create`](#collection-create), [`collection list`](#collection-list), [`collection delete`](#collection-delete)
-- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups remove`](#groups-remove), [`groups export`](#groups-export)
+- [Groups](#groups): [`groups import-tree`](#groups-import-tree), [`groups add`](#groups-add), [`groups list`](#groups-list), [`groups show`](#groups-show), [`groups rename`](#groups-rename), [`groups set-destination`](#groups-set-destination), [`groups file`](#groups-file), [`groups remove`](#groups-remove), [`groups export`](#groups-export)
 - [Learning the groups](#learning-the-groups): [`fit`](#fit), [`check`](#check)
 - [Sorting](#sorting): [`sort`](#sort), [`review`](#review), [`sessions`](#sessions)
 - [Filing](#filing): [`apply`](#apply), [`undo`](#undo)
@@ -346,6 +346,28 @@ cratewise groups set-destination "Minimal" ~/Music/DJ/Minimal
 cratewise groups set-destination "Kicks" ~/Samples/Kicks --collection "Drum library"
 ```
 
+### `groups file`
+
+Gather a group's existing tracks into its destination folder. Use it for groups
+whose tracks live elsewhere, such as ones made by `discover` or imported from a
+playlist. Tracks already anywhere inside the folder are left alone. It shows
+the plan first and asks before touching anything; the run is recorded as a
+session named "Filing <group>", so `undo` puts everything back.
+
+```bash
+cratewise groups file "Minimal" --mode copy --dry-run   # show the plan and stop
+cratewise groups file "Minimal" --mode move             # confirm, then do it
+cratewise undo 12                                       # the session ID it printed
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--mode copy\|move\|symlink` | Required. `copy` and `symlink` leave the originals where they are; `move` relocates them and the library follows. |
+| `--on-conflict skip\|rename` | What to do when the folder already has a file with that name. Default from config (`skip`). Overwriting is not offered: undo could not bring the replaced file back. |
+| `--dry-run` | Show the plan and stop. |
+| `--yes` | Skip the confirmation prompt. |
+| `--collection NAME` | Collection the group is in. |
+
 ### `groups remove`
 
 Delete a group from the collection. Its tracks stay in the library and on disk.
@@ -370,8 +392,8 @@ cratewise groups export --output ~/Playlists --format m3u --relative-paths
 | Option | Meaning |
 | --- | --- |
 | `--collection NAME` | Collection to export. |
-| `--output DIR` | Where to write the playlists. Default `./playlists`. |
-| `--format m3u\|m3u8` | Playlist format. Default `m3u8`. |
+| `--output DIR` | Where to write the files. Default `./playlists`. |
+| `--format m3u8\|m3u\|rekordbox\|traktor` | One M3U per group, one Rekordbox XML, or one Traktor NML. Default `m3u8`. |
 | `--relative-paths` | Write paths relative to the playlist instead of absolute paths. |
 
 ---

@@ -508,6 +508,64 @@ def groups_remove(name, collection_name):
     click.echo(f"Removed {group['name']!r}.")
 
 
+@groups.command("file")
+@click.argument("name")
+@click.option("--collection", "collection_name", default=None)
+@click.option(
+    "--mode",
+    type=click.Choice(list(sorting.GROUP_FILING_MODES)),
+    required=True,
+    help="copy or symlink leave the originals where they are; move relocates them",
+)
+@click.option(
+    "--on-conflict",
+    type=click.Choice(list(sorting.GROUP_FILING_CONFLICTS)),
+    default=None,
+    help="When the folder already has a file with that name (default: from config)",
+)
+@click.option("--dry-run", is_flag=True, help="Show what would happen and stop")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+def groups_file(name, collection_name, mode, on_conflict, dry_run, yes):
+    """Gather a group's existing tracks into its destination folder.
+
+    For groups whose tracks live elsewhere, such as ones made by discovery or
+    from a playlist. Tracks already inside the folder are left alone.
+    """
+    config, db = get_context()
+    target = resolve_collection_or_exit(db, collection_name)
+    try:
+        group = groups_mod.resolve_group(db, target["id"], name)
+    except LookupError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    def run(dry: bool) -> Dict[str, Any]:
+        try:
+            return sorting.file_group(
+                db, config, group["id"], mode, on_conflict=on_conflict, dry_run=dry
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+    preview = run(True)["plan"]
+    echo_plan(preview)
+    if dry_run:
+        click.echo("\nDry run — nothing was changed.")
+        return
+    if not preview["actions"]:
+        click.echo("\nNothing to file.")
+        return
+    if not yes and not click.confirm(f"\nProceed to {mode} {len(preview['actions'])} file(s)?"):
+        click.echo("Cancelled.")
+        return
+
+    outcome = run(False)
+    result = outcome["result"]
+    click.echo(f"\nDone: {result['performed_count']} file operation(s).")
+    for failure in result["failures"][:5]:
+        echo_error(f"{failure.get('source_path')}: {failure['error']}")
+    click.echo(f"To undo: cratewise undo {outcome['session_id']}")
+
+
 @groups.command("export")
 @click.option("--collection", "collection_name", default=None)
 @click.option("--output", type=click.Path(file_okay=False), default="./playlists")
