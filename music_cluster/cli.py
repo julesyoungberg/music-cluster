@@ -812,6 +812,8 @@ def apply(session_id, mode, playlist_dir, on_conflict, dry_run, yes, learn):
         click.echo("Run `cratewise fit` to fold them into the model.")
     for failure in result["failures"][:5]:
         echo_error(f"{failure.get('source_path') or failure.get('path')}: {failure['error']}")
+        if failure.get("backup_path"):
+            echo_error(f"  The file it was replacing is kept at {failure['backup_path']}")
 
     if plan.mode == "move":
         click.echo(f"\nTo undo: cratewise undo {session_id}")

@@ -536,7 +536,7 @@ cratewise apply 4 --mode symlink --yes
 | `SESSION_ID` | The session number from `sort` or `sessions`. |
 | `--mode MODE` | `playlist`, `copy`, `move` or `symlink`. Default: `organize.mode` in the config, which is `playlist`. |
 | `--playlist-dir DIR` | Where playlist mode writes. Default `organize.playlist_dir` (`~/.music-cluster/playlists`). |
-| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. With `overwrite` the replaced file is moved to `backups/` next to the database (`~/.music-cluster/backups/`) and `undo` puts it back. |
+| `--on-conflict POLICY` | When a file of the same name is already in the destination: `skip` (default), `rename` (add a number), or `overwrite`. With `overwrite` the replaced file is moved to `backups/` next to the database (`~/.music-cluster/backups/`, which uses space on that disk) and `undo` puts it back. Overwrite never replaces a folder or a file filed earlier in the same commit. |
 | `--dry-run` | Print the plan and stop. Nothing is changed. |
 | `--yes` | Do not ask for confirmation. |
 | `--learn` / `--no-learn` | Add the filed tracks to their groups as new references. Default: `sorting.learn_on_commit` (on). Run `fit` afterwards to fold them in. |
@@ -566,6 +566,8 @@ Proceed to move 2 item(s)? [y/N]:
 Reverse every file operation a session performed.
 
 A file that `--on-conflict overwrite` replaced is put back from its backup.
+Undo sessions newest first where they filed to the same place: undo refuses an
+operation that a later session built on, and names that session.
 Undo does not take back the reference tracks that `--learn` added to groups (remove
 those with the group screen in the app, or re-import the group). The session's
 decisions stay applied, so `apply` will not run them a second time.

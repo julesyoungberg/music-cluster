@@ -346,8 +346,17 @@ skip, rename or overwrite).
 With **Overwrite**, the file that was already there is not deleted: it is
 moved to a backup folder next to the database
 (`~/.music-cluster/backups/`), and undo puts it back. The dry run marks those
-tracks *overwrites existing file, kept for undo*. Backups stay until you undo
-the session; once you are happy with a commit you can delete its folder there.
+tracks *overwrites existing file, kept for undo*.
+
+- Each backup takes disk space where the database is. A crate on an external
+  drive is copied to your main disk.
+- A backup stays until you undo its session, which moves it back and removes
+  the session's backup folder. Once you are happy with a commit, you can delete
+  its `session-<number>-…` folder yourself.
+- Overwrite never replaces a folder, or a track filed earlier in the same
+  commit; those tracks are listed as skipped.
+- If a later session filed to the same place, undo that session first. Undo
+  refuses otherwise, so the replaced file is never lost.
 
 Click **Commit** to do it. A notice confirms what was written:
 

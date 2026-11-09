@@ -1325,6 +1325,22 @@ class Database:
             rows = conn.execute(sql, (session_id,)).fetchall()
         return [dict(row) for row in rows]
 
+    def later_file_action_session(self, action_id: int, path: Optional[str]) -> Optional[int]:
+        """The session of the latest action, after this one and not undone, on the same path."""
+        if not path:
+            return None
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT session_id FROM file_actions
+                WHERE id > ? AND undone = 0 AND action != 'playlist'
+                  AND (dest_path = ? OR source_path = ?)
+                ORDER BY id DESC LIMIT 1
+                """,
+                (action_id, path, path),
+            ).fetchone()
+        return row["session_id"] if row else None
+
     def mark_actions_undone(self, action_ids: Sequence[int]) -> None:
         if not action_ids:
             return

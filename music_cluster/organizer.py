@@ -191,9 +191,24 @@ def plan_commit(
                 )
                 continue
 
-            taken = os.path.exists(target) or target in planned_destinations
+            if os.path.isdir(target):
+                plan.problems.append(
+                    {
+                        "track_id": assignment["track_id"],
+                        "group_id": group_id,
+                        "issue": "a folder has this name",
+                        "dest_path": target,
+                    }
+                )
+                continue
+
+            # A dangling symlink still takes the name, so lexists, not exists.
+            taken = os.path.lexists(target) or target in planned_destinations
             if taken:
-                if on_conflict == "skip":
+                if on_conflict == "skip" or (
+                    on_conflict == "overwrite" and target in planned_destinations
+                ):
+                    # Overwriting a file this same commit just filed would discard a track.
                     plan.problems.append(
                         {
                             "track_id": assignment["track_id"],
@@ -277,15 +292,18 @@ def execute_plan(
                 raise ValueError(f"Cannot execute action {action.action!r}")
             ensure_directory(os.path.dirname(action.dest_path))
             if os.path.lexists(action.dest_path):
-                # Only an overwrite gets here. Keep what was there so undo can restore it.
+                # An overwrite, or a file that appeared since planning: keep it for undo.
                 if backups is None:
                     backups = _backup_folder(db, session_id)
-                backup_path = os.path.join(backups, f"{index}-{os.path.basename(action.dest_path)}")
-                shutil.move(action.dest_path, backup_path)
+                backup_path = _back_up(
+                    action.dest_path,
+                    os.path.join(backups, f"{index}-{os.path.basename(action.dest_path)}"),
+                )
             try:
                 _perform(db, action)
             except Exception:
-                if backup_path and not os.path.lexists(action.dest_path):
+                _take_back(action)
+                if backup_path:
                     shutil.move(backup_path, action.dest_path)
                     backup_path = None
                 raise
@@ -332,6 +350,35 @@ def _perform(db: Database, action: PlannedAction) -> None:
         os.symlink(action.source_path, action.dest_path)
 
 
+def _take_back(action: PlannedAction) -> None:
+    """Undo whatever part of a failed _perform reached the disk.
+
+    The destination was free before _perform, so anything there now is ours.
+    """
+    assert action.dest_path
+    if not os.path.lexists(action.dest_path):
+        return
+    if action.action == "move" and not os.path.lexists(action.source_path):
+        shutil.move(action.dest_path, action.source_path)
+    else:
+        os.remove(action.dest_path)
+
+
+def _back_up(path: str, backup_path: str) -> str:
+    """Move a file aside, or leave it where it was if that fails."""
+    try:
+        shutil.move(path, backup_path)
+    except Exception:
+        # A move to another drive copies first; drop a half-written copy.
+        if os.path.lexists(path) and os.path.lexists(backup_path):
+            if os.path.isdir(backup_path) and not os.path.islink(backup_path):
+                shutil.rmtree(backup_path)
+            else:
+                os.remove(backup_path)
+        raise
+    return backup_path
+
+
 def _backup_folder(db: Database, session_id: Optional[int]) -> str:
     """A new folder, beside the database, for files one commit overwrites."""
     root = os.path.join(os.path.dirname(os.path.abspath(db.db_path)), "backups")
@@ -349,6 +396,11 @@ def undo_session(db: Database, session_id: int, remove_playlists: bool = False) 
     for action in actions:
         kind = action["action"]
         try:
+            later = db.later_file_action_session(action["id"], action["dest_path"])
+            if later is not None and later != session_id:
+                raise RuntimeError(
+                    f"session {later} filed to {action['dest_path']} afterwards: undo it first"
+                )
             if kind == "move":
                 if os.path.exists(action["dest_path"]):
                     ensure_directory(os.path.dirname(action["source_path"]))
@@ -385,6 +437,10 @@ def _restore_backup(backup_path: str, dest_path: str) -> None:
         raise FileExistsError(f"Cannot restore {dest_path}: a file is already there")
     ensure_directory(os.path.dirname(dest_path))
     shutil.move(backup_path, dest_path)
+    try:
+        os.rmdir(os.path.dirname(backup_path))  # once a session's last backup is back
+    except OSError:
+        pass
 
 
 def write_playlist(
