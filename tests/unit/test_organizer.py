@@ -176,3 +176,148 @@ def test_unknown_mode_is_rejected(scene):
     db, assignments, groups, _, _ = scene
     with pytest.raises(ValueError, match="Unknown mode"):
         organizer.plan_commit(db, assignments, groups, mode="teleport")
+
+
+@pytest.mark.parametrize("mode", ["copy", "move", "symlink"])
+def test_undo_puts_back_a_file_that_overwrite_replaced(scene, mode):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode=mode, on_conflict="overwrite")
+    result = organizer.execute_plan(db, plan, assignments, session_id=9)
+    assert not result.failures
+    assert (destination / "one.mp3").read_bytes() == b"audio"
+
+    outcome = organizer.undo_session(db, 9)
+
+    assert not outcome["failures"]
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+    assert not (destination / "one.mp3").is_symlink()
+    assert (source / "one.mp3").read_bytes() == b"audio"
+    assert not (destination / "two.mp3").exists()
+    backups = Path(db.db_path).parent / "backups"
+    assert list(backups.iterdir()) == []
+
+
+def test_overwrite_keeps_the_replaced_file_outside_the_destination(scene):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+    organizer.execute_plan(db, plan, assignments, session_id=10)
+
+    backups = [action["backup_path"] for action in db.list_file_actions(10)]
+    kept = [path for path in backups if path]
+    assert len(kept) == 1
+    assert Path(kept[0]).read_bytes() == b"the user's own file"
+    assert Path(kept[0]).parent != destination
+    assert sorted(os.listdir(destination)) == ["one.mp3", "two.mp3"]
+
+
+def test_overwrite_says_the_replaced_file_is_kept_for_undo(scene):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+
+    notes = [action.note for action in plan.actions if action.note]
+    assert notes == ["overwrites existing file, kept for undo"]
+
+
+def test_undoing_an_older_session_first_is_refused_so_the_replaced_file_survives(scene):
+    db, assignments, groups, _, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+    for session_id in (1, 2):
+        plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+        organizer.execute_plan(db, plan, assignments, session_id=session_id)
+
+    refused = organizer.undo_session(db, 1)
+
+    assert refused["undone"] == 0
+    assert all("session 2" in failure["error"] for failure in refused["failures"])
+    assert organizer.undo_session(db, 2)["failures"] == []
+    assert organizer.undo_session(db, 1)["failures"] == []
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+
+
+def test_a_move_that_fails_after_placing_the_file_puts_both_files_back(scene, monkeypatch):
+    db, assignments, groups, source, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(db, "update_track_path", fail)
+    plan = organizer.plan_commit(db, assignments, groups, mode="move", on_conflict="overwrite")
+    result = organizer.execute_plan(db, plan, assignments, session_id=3)
+
+    assert len(result.failures) == 2
+    assert not any("backup_path" in failure for failure in result.failures)
+    assert (source / "one.mp3").read_bytes() == b"audio"
+    assert (source / "two.mp3").read_bytes() == b"audio"
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+    assert os.listdir(destination) == ["one.mp3"]
+
+
+def test_a_copy_that_fails_partway_leaves_the_replaced_file_in_place(scene, monkeypatch):
+    db, assignments, groups, _, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    def partial_copy(source, dest):
+        Path(dest).write_bytes(b"aud")
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(organizer.shutil, "copy2", partial_copy)
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+    result = organizer.execute_plan(db, plan, assignments, session_id=4)
+
+    assert len(result.failures) == 2
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+    assert os.listdir(destination) == ["one.mp3"]
+
+
+def test_a_backup_that_fails_leaves_the_file_where_it_was(scene, monkeypatch):
+    db, assignments, groups, _, destination = scene
+    make_file(destination, "one.mp3", b"the user's own file")
+
+    def partial_move(source, dest):
+        Path(dest).write_bytes(b"the u")  # a copy to another drive that ran out of space
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(organizer.shutil, "move", partial_move)
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+    result = organizer.execute_plan(db, plan, assignments, session_id=5)
+
+    assert [failure["dest_path"] for failure in result.failures] == [str(destination / "one.mp3")]
+    assert "backup_path" not in result.failures[0]
+    assert (destination / "one.mp3").read_bytes() == b"the user's own file"
+    backups = Path(db.db_path).parent / "backups"
+    assert not any(path.is_file() for path in backups.rglob("*"))
+
+
+def test_overwrite_never_replaces_a_file_the_same_commit_filed(scene, temp_dir):
+    db, assignments, groups, _, _ = scene
+    elsewhere = temp_dir / "other"
+    elsewhere.mkdir()
+    twin = dict(assignments[0], item_id=3, filepath=make_file(elsewhere, "one.mp3"))
+    twin["track_id"] = db.upsert_track(filepath=twin["filepath"], filename="one.mp3")
+
+    plan = organizer.plan_commit(
+        db, [*assignments, twin], groups, mode="move", on_conflict="overwrite"
+    )
+
+    assert [action.source_path for action in plan.actions] == [
+        assignments[0]["filepath"],
+        assignments[1]["filepath"],
+    ]
+    assert [problem["track_id"] for problem in plan.problems] == [twin["track_id"]]
+
+
+def test_overwrite_never_replaces_a_folder(scene):
+    db, assignments, groups, _, destination = scene
+    (destination / "one.mp3").mkdir()
+
+    plan = organizer.plan_commit(db, assignments, groups, mode="copy", on_conflict="overwrite")
+
+    assert [action.source_path for action in plan.actions] == [assignments[1]["filepath"]]
+    assert plan.problems[0]["issue"] == "a folder has this name"
