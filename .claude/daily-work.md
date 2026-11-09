@@ -25,14 +25,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 
 ### 2026-11-09
 
-- Minutes: ~50 of 60. Subagents: 1 (log review).
-- State: main green. `pytest tests/unit` passes; the synthetic eval on main matches `eval/baselines/synthetic.json` exactly (beats 0.882, keys 0.825). No open issues. Open PR #31 (AST embedding eval) belongs to another thread.
-- Shipped: this log entry only. No code change.
-- Tried: whether a techno bassline in the kick band (20-150 Hz) explains techno being misread (21 of 61 GiantSteps techno tracks read as breakbeat). Rendered `four_on_floor` with a 55 Hz bass on the sixteenths the kick leaves free, at 124-136 BPM:
+- Minutes: ~55 of 60. Subagents: 1 (log review).
+- State: main green. `pytest tests/unit` passes; the synthetic eval on main matches `eval/baselines/synthetic.json` exactly (beat_accuracy 0.882, key_weighted 0.825). No open issues. Open PR #31 (AST embedding eval) belongs to another thread.
+- sorting-fma in Actions (follow-up from Nov 8): the PR #31 thread has since run it in Actions (run 42617669952, 2,500 FMA tracks, hand-feature sorter top-1 0.447). Its data cache comes to about 16 GB (FMA small plus the extracted copy and analysis, as that thread measured), over the 10 GB Actions limit, so it gets evicted and every run downloads again. sorting-fma works in CI, just slowly.
+- Shipped: this log (PR #32). No code change.
+- Tried: whether a techno bassline in the kick band (20-150 Hz) explains techno being misread (21 of 61 GiantSteps techno tracks read as breakbeat, `eval/baselines/datasets.json`). Method: a throwaway script (not kept) added a 55 Hz bass note to `render("four_on_floor", bpm)` from `music_cluster/eval/drums.py`, on the sixteenths the kick leaves free, at 124, 128, 132 and 136 BPM, then ran `tagging.tag_audio`.
   - Bass on the offbeats, or a rolling bass up to about half the kick's level: still four-to-the-floor.
   - A rolling bass as loud as the kick at 128 and 132: read as two_step, not breakbeat; the bass outweighs the kick in the kick band.
   - Added to every groove as an eval variant, it mostly made slow grooves (dembow 95, backbeat 85) read at double time as four-to-the-floor, because every sixteenth then has an onset. Not a realistic case, so the variant was not kept.
   - So the bass-in-kick-band idea does not reproduce the breakbeat misreads. Next step for that bug is to look at the misread tracks themselves: dispatch `eval.yml` with `key-giantsteps tempo-giantsteps` and read the failures list for techno, rather than guess from synthetic audio.
-- Next: the GiantSteps techno failures as above; novelty check (AUROC at chance, needs sorting-fma, whose CI cache is 16 GB and gets evicted); minor-loop keys.
+- Next: the GiantSteps techno failures as above; the novelty check (`novelty_auroc` in EVALUATION.md: whether a track that fits no group sits further from every group than tracks that do; 0.5 is chance, and it measures about 0.5); minor-loop keys.
 - Budget: 2 runs logged so far, no change to budget_minutes.
-- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB).
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB). Settled since Nov 8: the product name (Cratewise, CLI renamed in PR #25), and the pretrained embedding question became the AST evaluation in PR #31 (CLAP was tried there and its input is broken).
