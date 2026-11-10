@@ -37,3 +37,22 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 - Next: the GiantSteps techno failures as above; the novelty check (`novelty_auroc` in EVALUATION.md: whether a track that fits no group sits further from every group than tracks that do; 0.5 is chance, and it measures about 0.5); minor-loop keys.
 - Budget: 2 runs logged so far, no change to budget_minutes.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB). Settled since Nov 8: the product name (Cratewise, CLI renamed in PR #25), and the pretrained embedding question became the AST evaluation in PR #31 (CLAP was tried there and its input is broken).
+
+### 2026-11-10
+
+- Minutes: ~60 of 60 active (plus about 70 minutes waiting on the dataset run in Actions). Subagents: 2 (independent reviews of PR #33, one at a time).
+- State: main green. No open issues. Open PR #31 (AST embedding eval) belongs to another thread.
+- Shipped: PR #33 (https://github.com/julesyoungberg/music-cluster/pull/33). The `tempo-giantsteps` report now lists every track from a genre whose beat type is not in doubt and whose beat type came out wrong (`beat_misses`): genre, measured and annotated BPM, the three strongest beat rules, and the kick and snare bar as 16 digits (one per sixteenth, 0 silent to 9 loudest). The Markdown summary prints the same table, so it shows in the Actions job log.
+  - Why the log: the report artifact is stored on a host the cloud session cannot reach (`*.blob.core.windows.net` is refused by the proxy), but job logs are readable through the GitHub tools.
+- Dataset run on the PR branch (run 42905140242, then 42916100263 from the cached analysis): headline numbers match `eval/baselines/datasets.json` exactly (key weighted 0.589; tempo acc1 0.678, acc2 0.885; beat_genre_accuracy 0.568). The data cache had been evicted and was downloaded again (36 min); it is saved again under the new analysis code.
+- What the techno misses show (27 of 61 techno tracks wrong in the run's table; the Nov 7 note of 21 counted only "breakbeat"):
+  - Beat grid half a beat off the kick, so the kick sits on the offbeat eighth (bar like `0080009000800090`), or three sixteenths late: 7 tracks (1816200, 2726350, 2745205, 3443201, 4166612, 4207348, 4494659). `beat_scores` does try the bar shifted by 1 to 3 sixteenths for four-to-the-floor, but that reading gets `_ROTATION_PENALTY` (0.93), and the breakbeat rule scores the same off-grid kicks at up to 1.00, so breakbeat wins.
+  - Tempo read about 4/3 too fast (172 to 185 BPM for tracks annotated 127 to 142): 7 tracks (1548088, 3241615, 3298908, 3435022, 4186191, 4358231, 4984238). Trance has the same error on about 10 tracks at 184.57 for 139. With the wrong tempo every bar is misread.
+  - Read as half-time with the kick on the beat but sparse: 4 tracks (1791554, 3692859, 5157605, 956606).
+  - The rest are mixed: kick and snare bands carrying the same pattern, almost no kick, or half tempo.
+- Next:
+  1. Offbeat-grid four-to-the-floor (largest fixable group): when the bar shifted by two sixteenths has a kick on every beat, prefer four-to-the-floor over breakbeat instead of letting the penalty hand it to breakbeat. Change goes in `tagging.py`, judge it with a `key-giantsteps tempo-giantsteps` dispatch (beat_genre_accuracy, and check drum & bass and dubstep did not get worse) and `beats-synthetic`.
+  2. The 4/3 tempo error in `rhythm.py` (techno and trance): look at why the tracker locks onto dotted eighths.
+  3. Novelty check (AUROC about 0.5) and minor-loop keys, as before.
+- Budget: last 3 runs used about 50, 55 and 60 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB).
