@@ -387,3 +387,20 @@ def test_beat_misses_list_wrong_beats_with_their_bar():
     assert miss["snare"] == "0" * 16
     assert "four_on_floor" in miss["scores"] and len(miss["scores"]) <= 3
     assert misses[1]["scores"] == {} and "kick" not in misses[1]
+
+
+def test_markdown_lists_beat_misses():
+    from music_cluster.eval import report
+
+    miss = {
+        "track": "a.LOFI.mp3",
+        "genre": "techno",
+        "annotated_bpm": 128.0,
+        "bpm": 128.0,
+        "beat": "breakbeat",
+        "scores": {"breakbeat": 0.6},
+        "kick": "0900090009000900",
+        "snare": "0" * 16,
+    }
+    text = report.markdown(report.build({"tempo-giantsteps": {"beat_misses": [miss]}}))
+    assert "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` |" in text
