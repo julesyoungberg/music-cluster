@@ -8,6 +8,7 @@ The dataset suites read GiantSteps annotations against the cached analysis
 from :mod:`.analysis`.
 """
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -321,6 +322,45 @@ def _beat_label_accuracy(genres: Sequence[str], beats: Sequence[str]) -> Optiona
     return float(np.mean(hits)) if hits else None
 
 
+def _beat_misses(
+    items: Sequence[Item], beats: Sequence[str], records: Sequence[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Every track from an unambiguous genre whose beat type is wrong, with its bar.
+
+    Kick and snare are the measured bar on the sixteenth grid (0-1 per step),
+    and the scores are each beat rule's score for it, so a misread can be
+    traced to the rule that won and the steps it read.
+    """
+    from .. import rhythm, tagging
+
+    misses = []
+    for item, beat, record in zip(items, beats, records, strict=True):
+        genre = item.meta.get("genre") or "unknown"
+        if genre not in _EXPECTED_BEATS or beat in _EXPECTED_BEATS[genre]:
+            continue
+        profile = record.get("rhythm") or {}
+        pattern = profile.get("pattern") or {}
+        scores = tagging.beat_scores(profile) if profile else {}
+        misses.append(
+            {
+                "track": os.path.basename(item.path),
+                "genre": genre,
+                "annotated_bpm": float(item.label or 0),
+                "bpm": record.get("bpm"),
+                "beat": beat,
+                "scores": {
+                    k: round(v, 3) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])
+                },
+                **{
+                    band: [round(float(x), 2) for x in rhythm.sixteenths(pattern[band])]
+                    for band in ("kick", "snare")
+                    if pattern.get(band)
+                },
+            }
+        )
+    return misses
+
+
 def score_tempo(
     items: Sequence[Item], records: Sequence[Optional[Dict[str, Any]]]
 ) -> Dict[str, Any]:
@@ -350,9 +390,9 @@ def score_tempo(
         beat = record.get("beat") or "none"
         beats.setdefault(genre, {})
         beats[genre][beat] = beats[genre].get(beat, 0) + 1
+    beat_names = [record.get("beat") or "none" for _, _, record in pairs]
     beat_accuracy = _beat_label_accuracy(
-        [item.meta.get("genre") or "unknown" for item, _, _ in pairs],
-        [record.get("beat") or "none" for _, _, record in pairs],
+        [item.meta.get("genre") or "unknown" for item, _, _ in pairs], beat_names
     )
     return {
         "headline": {
@@ -368,6 +408,9 @@ def score_tempo(
         "by_genre": _by_genre([i for i, _, _ in pairs], per_item),
         # Beat type per Beatport genre: a proxy check until beat-type labels exist.
         "beat_by_genre": beats,
+        "beat_misses": _beat_misses(
+            [item for item, _, _ in pairs], beat_names, [record for _, _, record in pairs]
+        ),
         "analysed": len(pairs),
         "missing": len(items) - len(pairs),
     }

@@ -349,3 +349,38 @@ def test_beat_genre_accuracy_counts_only_unambiguous_genres():
     # chill-out is not scored; 3 of the 5 scored tracks match.
     assert tag_suites._beat_label_accuracy(genres, beats) == pytest.approx(0.6)
     assert tag_suites._beat_label_accuracy(["chill-out"], ["backbeat"]) is None
+
+
+def test_beat_misses_list_wrong_beats_with_their_bar():
+    from music_cluster.eval import tag_suites
+    from music_cluster.eval.datasets import Item
+
+    # A techno bar with the kick a sixteenth late: 48 steps, kick on 3, 15, 27, 39.
+    kick = [0.0] * 48
+    for step in (3, 15, 27, 39):
+        kick[step] = 1.0
+    profile = {
+        "bpm": 128.0,
+        "pulse_clarity": 0.5,
+        "onset_rate": 4.0,
+        "transient_strength": 0.5,
+        "pattern": {"kick": kick, "snare": [0.0] * 48, "hat": [0.0] * 48},
+        "bars": 16,
+    }
+    items = [
+        Item("/data/a.LOFI.mp3", label="128", meta={"genre": "techno"}),
+        Item("/data/b.LOFI.mp3", label="128", meta={"genre": "techno"}),
+        Item("/data/c.LOFI.mp3", label="90", meta={"genre": "chill-out"}),
+    ]
+    beats = ["breakbeat", "four_on_floor", "breakbeat"]
+    records = [{"bpm": 128.0, "rhythm": profile}, {"bpm": 128.0}, {"bpm": 90.0}]
+
+    misses = tag_suites._beat_misses(items, beats, records)
+
+    # Only the techno track read as breakbeat: the right beat and an unscored genre are left out.
+    assert [m["track"] for m in misses] == ["a.LOFI.mp3"]
+    miss = misses[0]
+    assert miss["beat"] == "breakbeat" and miss["annotated_bpm"] == 128.0
+    assert miss["kick"][1] == 1.0 and miss["kick"][0] == 0.0
+    assert len(miss["snare"]) == 16
+    assert "four_on_floor" in miss["scores"]
