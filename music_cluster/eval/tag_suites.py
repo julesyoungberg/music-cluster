@@ -327,9 +327,11 @@ def _beat_misses(
 ) -> List[Dict[str, Any]]:
     """Every track from an unambiguous genre whose beat type is wrong, with its bar.
 
-    Kick and snare are the measured bar on the sixteenth grid (0-1 per step),
-    and the scores are each beat rule's score for it, so a misread can be
-    traced to the rule that won and the steps it read.
+    Kick and snare are the measured bar on the sixteenth grid, one digit per
+    step from 0 (silent) to 9 (loudest), read like a sequencer row. A string
+    keeps each bar on one line of the JSON report and baseline. The scores are
+    the three strongest beat rules for that bar, so a misread can be traced to
+    the rule that won and the steps it read.
     """
     from .. import rhythm, tagging
 
@@ -349,10 +351,12 @@ def _beat_misses(
                 "bpm": record.get("bpm"),
                 "beat": beat,
                 "scores": {
-                    k: round(v, 3) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])
+                    k: round(v, 3) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])[:3]
                 },
                 **{
-                    band: [round(float(x), 2) for x in rhythm.sixteenths(pattern[band])]
+                    band: "".join(
+                        str(round(float(x) * 9)) for x in rhythm.sixteenths(pattern[band])
+                    )
                     for band in ("kick", "snare")
                     if pattern.get(band)
                 },

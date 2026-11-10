@@ -371,16 +371,19 @@ def test_beat_misses_list_wrong_beats_with_their_bar():
         Item("/data/a.LOFI.mp3", label="128", meta={"genre": "techno"}),
         Item("/data/b.LOFI.mp3", label="128", meta={"genre": "techno"}),
         Item("/data/c.LOFI.mp3", label="90", meta={"genre": "chill-out"}),
+        # Analysed before records kept the rhythm profile.
+        Item("/data/d.LOFI.mp3", label="174", meta={"genre": "drum-and-bass"}),
     ]
-    beats = ["breakbeat", "four_on_floor", "breakbeat"]
-    records = [{"bpm": 128.0, "rhythm": profile}, {"bpm": 128.0}, {"bpm": 90.0}]
+    beats = ["breakbeat", "four_on_floor", "breakbeat", "beatless"]
+    records = [{"bpm": 128.0, "rhythm": profile}, {"bpm": 128.0}, {"bpm": 90.0}, {"bpm": 0.0}]
 
     misses = tag_suites._beat_misses(items, beats, records)
 
-    # Only the techno track read as breakbeat: the right beat and an unscored genre are left out.
-    assert [m["track"] for m in misses] == ["a.LOFI.mp3"]
+    # The right beat and an unscored genre are left out.
+    assert [m["track"] for m in misses] == ["a.LOFI.mp3", "d.LOFI.mp3"]
     miss = misses[0]
     assert miss["beat"] == "breakbeat" and miss["annotated_bpm"] == 128.0
-    assert miss["kick"][1] == 1.0 and miss["kick"][0] == 0.0
-    assert len(miss["snare"]) == 16
-    assert "four_on_floor" in miss["scores"]
+    assert miss["kick"] == "0900090009000900"
+    assert miss["snare"] == "0" * 16
+    assert "four_on_floor" in miss["scores"] and len(miss["scores"]) <= 3
+    assert misses[1]["scores"] == {} and "kick" not in misses[1]
