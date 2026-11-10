@@ -402,5 +402,13 @@ def test_markdown_lists_beat_misses():
         "kick": "0900090009000900",
         "snare": "0" * 16,
     }
-    text = report.markdown(report.build({"tempo-giantsteps": {"beat_misses": [miss]}}))
-    assert "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` |" in text
+    # Analysed before records kept the rhythm profile: no bar, no scores.
+    old = {"track": "d.LOFI.mp3", "genre": "techno", "annotated_bpm": 128.0, "beat": "beatless"}
+    old["bpm"], old["scores"] = None, {}
+    suites = {"tempo-giantsteps": {"beat_misses": [miss, old]}}
+    text = report.markdown(report.build(suites))
+    assert (
+        "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` | "
+        "`0000000000000000` | breakbeat 0.60 |"
+    ) in text
+    assert "| d.LOFI.mp3 | techno | - (128.000) | beatless | `-` | `-` |  |" in text
