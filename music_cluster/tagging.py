@@ -322,10 +322,20 @@ TRESILLO = [0, 3, 6, 8, 11, 14]
 TRESILLO_OFFBEATS = [3, 6, 11, 14]
 
 
+def _odd_snare_lead(snare: np.ndarray) -> float:
+    """How far the two loudest odd sixteenths stand above a typical even one."""
+    return float(np.mean(np.sort(snare[1::2])[-2:]) - np.median(snare[0::2]))
+
+
 def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
     """Beat-type scores for one reading of the bar. Each rule is readable."""
     k, s = g.kick, g.snare
     kick_on_quarters = float(np.min(k[QUARTERS]))
+    # A kick on every beat, wherever the grid put the beat. Kicks a fixed one
+    # to three sixteenths off every quarter are a steady pulse read off a grid
+    # that locked onto the hats, not syncopation, so they do not make a break.
+    # (On GiantSteps, 7 of 27 misread techno tracks had bars like this.)
+    steady_kick = max(float(np.min(k[offset::4])) for offset in range(4))
     kick_off_quarters = float(np.mean(k[OFF_QUARTERS]))
     backbeat = float(np.mean(s[[4, 12]]))
     ghost_snares = int(np.count_nonzero(_hits(s[[i for i in range(16) if i not in (4, 12)]])))
@@ -342,8 +352,12 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
             1.0 - _ramp(float(s[8]) - backbeat, 0.2, 0.5),
             # ...or answer the kick on the odd sixteenths, which is what a
             # dembow's 3+3+2 snare does. Odd sixteenths stay odd whichever
-            # beat is taken as one, so this holds under every rotation.
-            1.0 - _ramp(float(np.mean(np.sort(s[1::2])[-2:])), 0.35, 0.65),
+            # beat is taken as one, so this holds under every rotation. It is
+            # measured against the even sixteenths: a shaker or hats bleeding
+            # into the snare band fill every step, and on GiantSteps that alone
+            # failed techno whose snare band ran at 0.5-0.9 throughout. The ramp
+            # starts at 0.2 so a dembow over a 0.45 shaker still clears it.
+            1.0 - _ramp(_odd_snare_lead(s), 0.2, 0.45),
         ]
     )
 
@@ -376,7 +390,7 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
             _ramp(float(np.max(s[[4, 12]])), 0.4, 0.7),
             _ramp(float(ghost_snares), 1.0, 3.0),
             _ramp(float(syncopated_kicks), 1.0, 2.0),
-            1.0 - _ramp(kick_on_quarters, 0.3, 0.6),
+            1.0 - _ramp(steady_kick, 0.3, 0.6),
             _window(bpm, 110.0, 180.0, softness=0.2),
         ]
     )

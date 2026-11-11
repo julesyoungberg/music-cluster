@@ -56,3 +56,24 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Novelty check (AUROC about 0.5) and minor-loop keys, as before.
 - Budget: last 3 runs used about 50, 55 and 60 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB).
+
+### 2026-11-11
+
+- Minutes: ~50 of 60 active (plus about 50 minutes waiting on the dataset run, whose cache had been evicted again). Subagents: 1 (independent review of PR #34).
+- State: main green. No open issues. Open PR #31 (AST embedding eval) belongs to another thread.
+- Shipped: PR #34 (https://github.com/julesyoungberg/music-cluster/pull/34), item 1 from the Nov 10 list. In `tagging.py`:
+  - Breakbeat rule: a kick on every beat at any fixed offset (`steady_kick`) counts against a break, not only a kick on the grid's quarters.
+  - Four-to-the-floor dembow guard: odd-sixteenth snares are measured against a typical even one (`_odd_snare_lead`, ramp 0.2 to 0.45), so hats bleeding into the snare band no longer fail it.
+- Numbers: GiantSteps run 43102415466: beat_genre_accuracy 0.568 to 0.588 (misses 211 to 201 of 488); techno misses 27 to 24, tech-house 13 to 10; drum & bass 43 to 44 and dubstep 47 unchanged; key and tempo unchanged. Synthetic eval unchanged. Baseline refreshed in the same PR (`eval/baselines/datasets.json`, `.md`).
+- Method worth reusing: the misses table in the job log can be re-scored offline by rebuilding each bar from its 16 digits and running `tagging.beat_scores`. It reproduced 180 of 211 logged results and predicted the direction of the change. It can't see tracks that were right and turned wrong, so the dataset run still decides.
+- Review findings left open on purpose (answered on PR #34):
+  - The shifted four-to-the-floor reading in `beat_scores` wins outright on late half-time and backbeat bars with no kick on any beat (e.g. kick [1,11], snare [9] at 140 reads four_on_floor 0.698). This is in main already. The comment there says "can tie", which understates it. An earlier gate on the kick cost 0.031; try gating on `steady_kick` instead.
+  - A dembow over a shaker at 0.6 on every step reads as four-to-the-floor.
+- Gotcha: the local `origin/main` ref in a fresh session can be stale (it pointed at abbb64f). Compare against the PR's parent commit, not `origin/main`, unless you fetch first.
+- Next:
+  1. The 4/3 tempo error in `rhythm.py` (techno and trance read at 172 to 185 for 127 to 142).
+  2. Gate the shifted four-to-the-floor reading on `steady_kick` (above), judged by beat_genre_accuracy.
+  3. Dubstep: 47 misses, most read as breakbeat. Not looked at yet.
+  4. Novelty check (AUROC about 0.5) and minor-loop keys, as before.
+- Budget: last 3 runs used about 55, 60 and 50 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB).
