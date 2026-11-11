@@ -355,8 +355,9 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
             # beat is taken as one, so this holds under every rotation. It is
             # measured against the even sixteenths: a shaker or hats bleeding
             # into the snare band fill every step, and on GiantSteps that alone
-            # failed techno whose snare band ran at 0.5-0.9 throughout.
-            1.0 - _ramp(_odd_snare_lead(s), 0.35, 0.65),
+            # failed techno whose snare band ran at 0.5-0.9 throughout. The ramp
+            # starts at 0.2 so a dembow over a 0.45 shaker still clears it.
+            1.0 - _ramp(_odd_snare_lead(s), 0.2, 0.45),
         ]
     )
 
