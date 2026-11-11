@@ -137,6 +137,16 @@ def test_four_on_the_floor_survives_a_beat_grid_off_the_kick(late):
     )
 
 
+@pytest.mark.parametrize("late", [1, 2, 3])
+def test_a_late_four_on_the_floor_with_a_busy_snare_band_is_not_a_break(late):
+    """Hats bleeding into the snare band fill every sixteenth; the kick is still steady."""
+    profile = groove(kick=[(step + late) % 16 for step in (0, 4, 8, 12)], snare=[])
+    busy = np.full(16, 0.6)
+    busy[[(4 + late) % 16, (12 + late) % 16]] = 1.0
+    profile["pattern"]["snare"] = np.repeat(busy, rhythm.SIXTEENTH).tolist()
+    assert best_beat(profile) == "four_on_floor"
+
+
 def test_soft_breaks_are_still_drums():
     """Rolled-off breaks measure 0.015-0.02; a gentle pad stays near 0.01."""
     soft = groove(**GROOVES["breakbeat"])
