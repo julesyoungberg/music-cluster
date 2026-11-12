@@ -65,6 +65,13 @@ def test_a_dotted_eighth_riff_does_not_speed_up_the_tempo(bpm):
     assert measured.bpm == pytest.approx(bpm, rel=0.03)
 
 
+@pytest.mark.parametrize("bpm", [140, 170])
+def test_a_broken_kick_keeps_its_tempo(bpm):
+    # Its kick widens onto every third of the bar, like a grid 4/3 too fast.
+    measured = rhythm.analyze(render("broken_kick", bpm), SAMPLE_RATE)
+    assert measured.bpm == pytest.approx(bpm, rel=0.03)
+
+
 def test_a_slow_backbeat_is_not_doubled():
     measured = rhythm.analyze(render("backbeat", 80), SAMPLE_RATE)
     assert measured.bpm == pytest.approx(80, rel=0.03)

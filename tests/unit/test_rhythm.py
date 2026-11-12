@@ -20,6 +20,6 @@ def test_a_kick_on_the_beats_is_not_on_thirds():
     assert not rhythm._kick_on_thirds(_kick([0, 12, 24, 36]))
 
 
-def test_an_odd_sixteenth_kick_beside_a_triplet_point_is_not_on_thirds():
-    # A backbeat's kick on sixteenth 7 is widened onto step 20 by the grid.
-    assert not rhythm._kick_on_thirds(_kick([0, 20, 21, 22, 24]))
+def test_a_kick_beside_a_third_but_on_beat_three_is_not_on_thirds():
+    # A kick on sixteenth 5 widens onto step 16, but beat three is played too.
+    assert not rhythm._kick_on_thirds(_kick([0, 15, 16, 24, 32, 33]))

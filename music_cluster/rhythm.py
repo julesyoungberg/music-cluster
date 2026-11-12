@@ -65,11 +65,19 @@ HALVE_ABOVE_BPM = 150.0
 RETRACK_BELOW_CONSISTENCY = 0.85
 
 # A grid running 4/3 too fast puts a four-to-the-floor kick on every third
-# of the bar (every 4/3 tracked beats) instead of on the beats. A dotted-eighth
-# riff or delay (period 3 sixteenths) gives the tracker a pulse a third faster
-# than the kick's. On GiantSteps this read techno and trance at 172-185 BPM
-# for 127-142. The kick counts as there at this level of its normalised bar.
+# of the bar (every 4/3 tracked beats) instead of on the beats. A riff or
+# delay every three sixteenths (a dotted eighth) gives the tracker a pulse a
+# third faster than the kick's. In the Nov 10 GiantSteps beat misses
+# (.claude/daily-work.md), techno and trance read at 172-185 BPM for 127-142.
+# The kick counts as there at this level of its normalised bar.
 THIRDS_KICK_LEVEL = 0.5
+# A kick on every third can also be a real groove at its right tempo: a
+# broken kick on sixteenths 0, 5 and 11 widens onto steps 16 and 32, and a
+# 12/8 kick plays half-note triplets. Re-tracked at 3/4, those fall apart
+# (bar consistency 0.50-0.61 on rendered audio), while a four-to-the-floor
+# under a dotted-eighth riff holds together (0.72 and up). Only a slower
+# reading above this floor replaces the tracked one.
+SLOWER_CONSISTENCY_FLOOR = 0.66
 
 # Fewer beats than this and there is no pattern to average, just an accident.
 MIN_BEATS = 8
@@ -447,7 +455,11 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
         bpm, beats = _track(full, sr, hop, tightness=400, bpm=best.bpm * 0.75)
         if bpm > 0 and beats.size >= MIN_BEATS:
             slower = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
-            if slower is not None and not _kick_on_thirds(slower.pattern):
+            if (
+                slower is not None
+                and slower.consistency >= SLOWER_CONSISTENCY_FLOOR
+                and not _kick_on_thirds(slower.pattern)
+            ):
                 best = slower
     intervals = np.diff(best.beats)
     median_interval = float(np.median(intervals))
@@ -531,8 +543,9 @@ def _kick_on_thirds(pattern: Dict[str, List[float]]) -> bool:
     """Is the kick on every third of the bar and off beats two to four?
 
     Only steps 16 and 32 are checked, not every triplet point: the grid widens
-    each hit by a step, so a kick on an odd sixteenth also shows on the
-    triplet point beside it.
+    each hit by a step, so a backbeat's kick on sixteenth 7 also shows on
+    step 20. A kick on sixteenth 5 or 11 still reaches 16 or 32; the caller's
+    consistency check sorts those out.
     """
     kick = np.asarray(pattern.get("kick", []), dtype=float)
     if kick.size != STEPS_PER_BAR:
