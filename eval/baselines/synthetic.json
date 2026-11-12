@@ -1,8 +1,8 @@
 {
   "meta": {
-    "created": "2026-11-07T03:56:01+00:00",
+    "created": "2026-11-12T21:33:16+00:00",
     "version": "2.0.0",
-    "commit": "b517032",
+    "commit": "8786247",
     "python": "3.12.3",
     "args": {
       "suites": [
@@ -18,31 +18,31 @@
   "suites": {
     "beats-synthetic": {
       "headline": {
-        "beat_accuracy": 0.882051282051282,
-        "beat_accuracy_clean": 0.8974358974358975,
-        "beat_macro_f1": 0.8844763871118417,
-        "tempo_accuracy1": 0.8666666666666667,
-        "tempo_accuracy2": 0.9128205128205128
+        "beat_accuracy": 0.9230769230769231,
+        "beat_accuracy_clean": 0.9743589743589743,
+        "beat_macro_f1": 0.9277148823627209,
+        "tempo_accuracy1": 0.9230769230769231,
+        "tempo_accuracy2": 0.9692307692307692
       },
       "by_variant": {
         "clean": {
-          "beat_accuracy": 0.8974358974358975,
-          "tempo_accuracy1": 0.9230769230769231,
+          "beat_accuracy": 0.9743589743589743,
+          "tempo_accuracy1": 1.0,
           "cases": 39
         },
         "deep_kit_with_pad": {
-          "beat_accuracy": 0.8974358974358975,
-          "tempo_accuracy1": 0.9230769230769231,
+          "beat_accuracy": 0.9743589743589743,
+          "tempo_accuracy1": 1.0,
           "cases": 39
         },
         "humanized": {
-          "beat_accuracy": 0.8974358974358975,
-          "tempo_accuracy1": 0.9230769230769231,
+          "beat_accuracy": 0.9487179487179487,
+          "tempo_accuracy1": 0.9743589743589743,
           "cases": 39
         },
         "noisy": {
           "beat_accuracy": 0.9743589743589743,
-          "tempo_accuracy1": 0.8461538461538461,
+          "tempo_accuracy1": 0.9230769230769231,
           "cases": 39
         },
         "rough": {
@@ -64,7 +64,7 @@
         },
         "breakbeat": {
           "precision": 1.0,
-          "recall": 0.4666666666666667,
+          "recall": 0.7333333333333333,
           "support": 30
         },
         "dembow": {
@@ -78,7 +78,7 @@
           "support": 45
         },
         "half_time": {
-          "precision": 0.6521739130434783,
+          "precision": 0.7894736842105263,
           "recall": 1.0,
           "support": 30
         },
@@ -91,11 +91,6 @@
       "confusions": [
         [
           "breakbeat",
-          "half_time",
-          11
-        ],
-        [
-          "breakbeat",
           "four_on_floor",
           5
         ],
@@ -103,6 +98,11 @@
           "backbeat",
           "half_time",
           5
+        ],
+        [
+          "breakbeat",
+          "half_time",
+          3
         ],
         [
           "dembow",
@@ -114,73 +114,9 @@
         {
           "groove": "breakbeat",
           "bpm": 128.0,
-          "variant": "clean",
-          "seed": 7,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "clean",
-          "seed": 8,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "clean",
-          "seed": 9,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "humanized",
-          "seed": 7,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "humanized",
-          "seed": 8,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
           "variant": "humanized",
           "seed": 9,
           "beat_out": "four_on_floor",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "deep_kit_with_pad",
-          "seed": 7,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "deep_kit_with_pad",
-          "seed": 8,
-          "beat_out": "half_time",
-          "bpm_out": 172.27
-        },
-        {
-          "groove": "breakbeat",
-          "bpm": 128.0,
-          "variant": "deep_kit_with_pad",
-          "seed": 9,
-          "beat_out": "half_time",
           "bpm_out": 172.27
         },
         {

@@ -137,6 +137,35 @@ def test_four_on_the_floor_survives_a_beat_grid_off_the_kick(late):
     )
 
 
+@pytest.mark.parametrize("late", [1, 2, 3])
+def test_a_late_four_on_the_floor_with_a_busy_snare_band_is_not_a_break(late):
+    """A kick a fixed sixteenth or more off every beat is steady, not syncopated."""
+    kicks = [(step + late) % 16 for step in (0, 4, 8, 12)]
+    profile = with_snare_band(
+        groove(kick=kicks, snare=[]), 0.6, [(4 + late) % 16, (12 + late) % 16]
+    )
+    assert best_beat(profile) == "four_on_floor"
+
+
+def with_snare_band(profile: Dict, level: float, hits: List[int]) -> Dict:
+    """Every sixteenth of the snare band at ``level``, as hats bleeding in, plus full hits."""
+    busy = np.full(16, level)
+    busy[hits] = 1.0
+    profile["pattern"]["snare"] = np.repeat(busy, rhythm.SIXTEENTH).tolist()
+    return profile
+
+
+def test_a_busy_snare_band_is_not_a_dembow_answer():
+    """Hats at 0.6 on every step do not make the odd sixteenths stand out."""
+    busy = with_snare_band(groove(kick=[0, 4, 8, 12], snare=[]), 0.6, [4, 12])
+    assert tagging.beat_scores(busy)["four_on_floor"] > 0.9
+
+
+def test_a_dembow_over_a_shaker_is_still_a_dembow():
+    profile = with_snare_band(groove(kick=[0, 4, 8, 12], snare=[], bpm=95), 0.45, [3, 6, 11, 14])
+    assert best_beat(profile) == "dembow"
+
+
 def test_soft_breaks_are_still_drums():
     """Rolled-off breaks measure 0.015-0.02; a gentle pad stays near 0.01."""
     soft = groove(**GROOVES["breakbeat"])

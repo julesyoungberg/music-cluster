@@ -192,6 +192,24 @@ def markdown(report: Dict[str, Any], comparison: Optional[List[Dict[str, Any]]] 
                 else:
                     lines.append(f"- {name.replace('_', ' ')}: not reachable")
             lines.append("")
+        misses = data.get("beat_misses")
+        if misses:
+            # Printed in full so a CI log shows them; the JSON report is not
+            # always reachable from where the log is read.
+            lines += [
+                "Wrong beat types (bars: one digit per sixteenth, 0 silent to 9 loudest):",
+                "",
+                "| Track | Genre | BPM (annotated) | Beat | Kick | Snare | Top scores |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for miss in misses:
+                scores = ", ".join(f"{k} {v:.2f}" for k, v in miss.get("scores", {}).items())
+                lines.append(
+                    f"| {miss['track']} | {miss['genre']} | {_fmt(miss.get('bpm'))} "
+                    f"({_fmt(miss.get('annotated_bpm'))}) | {miss['beat']} | "
+                    f"`{miss.get('kick', '-')}` | `{miss.get('snare', '-')}` | {scores} |"
+                )
+            lines.append("")
     if comparison:
         lines += [
             "## Against baseline",

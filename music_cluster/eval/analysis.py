@@ -134,6 +134,9 @@ def analyze_one(path: str, extractor_config: Dict[str, Any], tags: bool) -> Dict
                 # accuracy is measured on every track, not just the confident.
                 descriptors = tagged.descriptors or {}
                 record["key_raw"] = descriptors.get("key")
+                # The measured drum pattern, so a wrong beat type can be read
+                # off the bar itself in the report.
+                record["rhythm"] = descriptors.get("rhythm")
             # Baseline: the stock beat tracker on the same audio, without the
             # drum-pattern octave correction.
             tempo, _beats = librosa.beat.beat_track(y=y, sr=sr)

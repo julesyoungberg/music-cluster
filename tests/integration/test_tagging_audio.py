@@ -47,6 +47,31 @@ def test_half_speed_tempo_readings_are_doubled():
     assert measured.double_time
 
 
+@pytest.mark.parametrize("bpm", [128, 139])
+def test_a_dotted_eighth_riff_does_not_speed_up_the_tempo(bpm):
+    # A riff every three sixteenths, as trance and techno leads and delays
+    # play, gives a pulse 4/3 faster than the kick.
+    drums = render("four_on_floor", bpm)
+    sixteenth = 60.0 / bpm / 4.0
+    t = np.arange(int(0.12 * SAMPLE_RATE)) / SAMPLE_RATE
+    note = 0.4 * np.sin(2 * np.pi * 2000.0 * t) * np.exp(-t * 25.0)
+    riff = np.zeros(drums.size)
+    for start in np.arange(0.0, drums.size / SAMPLE_RATE, 3 * sixteenth):
+        index = int(start * SAMPLE_RATE)
+        end = min(index + note.size, riff.size)
+        riff[index:end] += note[: end - index]
+    mix = drums + riff
+    measured = rhythm.analyze(mix / np.max(np.abs(mix)), SAMPLE_RATE)
+    assert measured.bpm == pytest.approx(bpm, rel=0.03)
+
+
+@pytest.mark.parametrize("bpm", [140, 170])
+def test_a_broken_kick_keeps_its_tempo(bpm):
+    # Its kick widens onto every third of the bar, like a grid 4/3 too fast.
+    measured = rhythm.analyze(render("broken_kick", bpm), SAMPLE_RATE)
+    assert measured.bpm == pytest.approx(bpm, rel=0.03)
+
+
 def test_a_slow_backbeat_is_not_doubled():
     measured = rhythm.analyze(render("backbeat", 80), SAMPLE_RATE)
     assert measured.bpm == pytest.approx(80, rel=0.03)

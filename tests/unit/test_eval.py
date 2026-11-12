@@ -351,6 +351,69 @@ def test_beat_genre_accuracy_counts_only_unambiguous_genres():
     assert tag_suites._beat_label_accuracy(["chill-out"], ["backbeat"]) is None
 
 
+def test_beat_misses_list_wrong_beats_with_their_bar():
+    from music_cluster.eval import tag_suites
+    from music_cluster.eval.datasets import Item
+
+    # A techno bar with the kick a sixteenth late: 48 steps, kick on 3, 15, 27, 39.
+    kick = [0.0] * 48
+    for step in (3, 15, 27, 39):
+        kick[step] = 1.0
+    profile = {
+        "bpm": 128.0,
+        "pulse_clarity": 0.5,
+        "onset_rate": 4.0,
+        "transient_strength": 0.5,
+        "pattern": {"kick": kick, "snare": [0.0] * 48, "hat": [0.0] * 48},
+        "bars": 16,
+    }
+    items = [
+        Item("/data/a.LOFI.mp3", label="128", meta={"genre": "techno"}),
+        Item("/data/b.LOFI.mp3", label="128", meta={"genre": "techno"}),
+        Item("/data/c.LOFI.mp3", label="90", meta={"genre": "chill-out"}),
+        # Analysed before records kept the rhythm profile.
+        Item("/data/d.LOFI.mp3", label="174", meta={"genre": "drum-and-bass"}),
+    ]
+    beats = ["breakbeat", "four_on_floor", "breakbeat", "beatless"]
+    records = [{"bpm": 128.0, "rhythm": profile}, {"bpm": 128.0}, {"bpm": 90.0}, {"bpm": 0.0}]
+
+    misses = tag_suites._beat_misses(items, beats, records)
+
+    # The right beat and an unscored genre are left out.
+    assert [m["track"] for m in misses] == ["a.LOFI.mp3", "d.LOFI.mp3"]
+    miss = misses[0]
+    assert miss["beat"] == "breakbeat" and miss["annotated_bpm"] == 128.0
+    assert miss["kick"] == "0900090009000900"
+    assert miss["snare"] == "0" * 16
+    assert "four_on_floor" in miss["scores"] and len(miss["scores"]) <= 3
+    assert misses[1]["scores"] == {} and "kick" not in misses[1]
+
+
+def test_markdown_lists_beat_misses():
+    from music_cluster.eval import report
+
+    miss = {
+        "track": "a.LOFI.mp3",
+        "genre": "techno",
+        "annotated_bpm": 128.0,
+        "bpm": 128.0,
+        "beat": "breakbeat",
+        "scores": {"breakbeat": 0.6},
+        "kick": "0900090009000900",
+        "snare": "0" * 16,
+    }
+    # Analysed before records kept the rhythm profile: no bar, no scores.
+    old = {"track": "d.LOFI.mp3", "genre": "techno", "annotated_bpm": 128.0, "beat": "beatless"}
+    old["bpm"], old["scores"] = None, {}
+    suites = {"tempo-giantsteps": {"beat_misses": [miss, old]}}
+    text = report.markdown(report.build(suites))
+    assert (
+        "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` | "
+        "`0000000000000000` | breakbeat 0.60 |"
+    ) in text
+    assert "| d.LOFI.mp3 | techno | - (128.000) | beatless | `-` | `-` |  |" in text
+
+
 # ----------------------------------------------------------------------
 # Pretrained embeddings (a fake model; the real ones need torch)
 # ----------------------------------------------------------------------

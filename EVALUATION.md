@@ -41,7 +41,7 @@ fails the run.
 | `sorting-fma-sub` | FMA medium, sub-genres with 40+ tracks | Same, at the granularity of a DJ's folders | Same |
 | `sorting-folders` | Any folder tree you pass with `--folders` | Same, on your own library | Same |
 | `key-giantsteps` | GiantSteps Key (Beatport EDM) | Weighted key score, error kinds, per Beatport genre | Most common key; Essentia `KeyExtractor` (EDM profile) if installed |
-| `tempo-giantsteps` | GiantSteps Tempo, v2 annotations | Accuracy1 (±4%) and Accuracy2 (octave errors forgiven), beat type per genre | librosa `beat_track`; Essentia `RhythmExtractor2013` if installed |
+| `tempo-giantsteps` | GiantSteps Tempo, v2 annotations | Accuracy1 (±4%) and Accuracy2 (octave errors forgiven), beat type per genre, and each misread beat type with its measured kick and snare bar (`beat_misses` in the JSON report) | librosa `beat_track`; Essentia `RhythmExtractor2013` if installed |
 
 Essentia is an optional reference, not a dependency: `pip install essentia`
 and the key and tempo suites score it on the same audio. Its licence (AGPL,
