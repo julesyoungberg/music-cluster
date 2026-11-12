@@ -162,15 +162,15 @@
     },
     "tempo-giantsteps": {
       "headline": {
-        "tempo_accuracy1": 0.6777609682299546,
-        "tempo_accuracy2": 0.8850226928895613,
+        "tempo_accuracy1": 0.6838124054462935,
+        "tempo_accuracy2": 0.8910741301059002,
         "librosa_accuracy1": 0.583963691376702,
-        "beat_genre_accuracy": 0.5881147540983607
+        "beat_genre_accuracy": 0.5942622950819673
       },
       "methods": {
         "ours": {
-          "accuracy1": 0.6777609682299546,
-          "accuracy2": 0.8850226928895613,
+          "accuracy1": 0.6838124054462935,
+          "accuracy2": 0.8910741301059002,
           "count": 661
         },
         "librosa_beat_track": {

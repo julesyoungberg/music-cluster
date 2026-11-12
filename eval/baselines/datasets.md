@@ -22,14 +22,14 @@
 
 | Metric | Value |
 | --- | --- |
-| tempo_accuracy1 | 0.678 |
-| tempo_accuracy2 | 0.885 |
+| tempo_accuracy1 | 0.684 |
+| tempo_accuracy2 | 0.891 |
 | librosa_accuracy1 | 0.584 |
-| beat_genre_accuracy | 0.588 |
+| beat_genre_accuracy | 0.594 |
 
 | Method | accuracy1 | accuracy2 |
 | --- | --- | --- |
-| ours | 0.678 | 0.885 |
+| ours | 0.684 | 0.891 |
 | librosa_beat_track | 0.584 | 0.741 |
 | essentia_rhythm2013 | 0.608 | 0.818 |
 

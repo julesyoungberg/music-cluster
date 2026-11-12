@@ -77,3 +77,24 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   4. Novelty check (AUROC about 0.5) and minor-loop keys, as before.
 - Budget: last 3 runs used about 55, 60 and 50 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app (needs approval for torch + transformers, about 350 MB).
+
+### 2026-11-12
+
+- Minutes: ~55 of 60 active (plus about 75 minutes waiting on two dataset runs; the data cache had been evicted again). Subagents: 1 (independent review of PR #35).
+- State: main green. No open issues. PR #31 (AST embedding eval, another thread) merged during this run.
+- Shipped: PR #35 (https://github.com/julesyoungberg/music-cluster/pull/35), item 1 from the Nov 11 list, merged by Jules.
+  - Cause of the 4/3 tempo error, reproduced on rendered audio: a riff or delay every three sixteenths gives the tracker a pulse a third faster than the kick. Four-to-the-floor at 139 plus such a riff reads 184.6, the exact number on the GiantSteps trance misses. The bars still agree, so the retrack below 0.85 consistency never ran.
+  - Fix in `rhythm.py`: if the folded kick sits on every third of the bar (steps 16 and 32) and off beats two to four, track again at exactly 3/4 of the tempo and keep it if its bars hold together (consistency >= 0.66, `SLOWER_CONSISTENCY_FLOOR`).
+  - Review found the first version also fired on a broken kick (sixteenths 0, 5, 11) and a 12/8 half-note-triplet kick at their right tempo; the consistency floor fixed that.
+- Numbers (GiantSteps, `key-giantsteps tempo-giantsteps`):
+  - First commit, no floor (run 43310234461): tempo acc1 0.678 to 0.697, acc2 0.885 to 0.906, beat_genre_accuracy 0.588 to 0.600.
+  - Merged head with the 0.66 floor (run 43318548417): acc1 0.684, acc2 0.891, beat_genre_accuracy 0.594. Key unchanged (0.589). Baseline headline refreshed to these in this log PR.
+  - So the floor gave back about half the gain: some real trance and techno re-tracks score under 0.66 (e.g. 28952, 310291, 3211234, 3241615, 3435022, 4077896, 4151958 went back to 172 or 184.57).
+- Synthetic: beat_accuracy 0.882 to 0.923, tempo_accuracy1 0.867 to 0.923 (baseline refreshed in #35).
+- Gotcha: once a work branch's PR merges, a fresh push to the same branch needs a force push, which the session refuses. Put follow-ups on a new branch.
+- Next:
+  1. Tune `SLOWER_CONSISTENCY_FLOOR`: real tracks need it lower than 0.66, rendered false cases sit at 0.50-0.61. Try a drop relative to the tracked reading's consistency instead of a fixed floor, or a second guard. Judge with a GiantSteps dispatch; the cache is warm under the current `rhythm.py` hash.
+  2. Gate the shifted four-to-the-floor reading on `steady_kick` (from Nov 11).
+  3. Dubstep misses (most read as breakbeat), novelty check, minor-loop keys.
+- Budget: last 3 runs used about 60, 50 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
