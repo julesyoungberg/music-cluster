@@ -113,7 +113,7 @@ def _with_embedding(
     if len(rows) < len(keep):
         echo(f"  {len(keep) - len(rows)} files could not be embedded and are left out")
     hand = x[rows]
-    learned = np.vstack([vectors[i] for i in rows])
+    learned = np.vstack([v for v in vectors if v is not None])
     sub_labels = [labels[i] for i in rows]
     sub_artists = [artists[i] for i in rows]
     tempo = sorting_sim.find_tempo_column(hand.shape[1])
