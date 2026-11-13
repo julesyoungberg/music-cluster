@@ -1,0 +1,6 @@
+# Paths graphify skips when building graphify-out/ (gitignore syntax).
+# Vendored agent skills, not project code.
+.claude/skills/
+# App icons and UI screenshots carry no code relationships.
+src-tauri/icons/
+docs/images/
