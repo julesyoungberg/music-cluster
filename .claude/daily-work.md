@@ -98,3 +98,19 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Dubstep misses (most read as breakbeat), novelty check, minor-loop keys.
 - Budget: last 3 runs used about 60, 50 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-13
+
+- Minutes: ~55 of 60 active (plus about 60 minutes waiting on two dataset runs). Subagents: 1 (independent review of PR #41).
+- State: main green. No open issues or PRs.
+- Tried item 1 from the Nov 12 list (the 3/4 re-track floor) in PR #41 (https://github.com/julesyoungberg/music-cluster/pull/41). Closed without merging: no effect on GiantSteps.
+  - Rendered with timing jitter, velocity jitter and noise, a four-to-the-floor under a dotted-eighth riff re-tracks at 3/4 with bar consistency 0.47 to 0.64 over seeds and tempi. The broken kick and 12/8 kick false cases score 0.51 to 0.63. So bar consistency alone can't separate them, whatever the floor or a ratio to the tracked reading.
+  - First version: lower the floor to 0.55 and skip the re-track when the tracked grid shows a backbeat. Review found it re-tracked a broken or 12/8 kick under a half-time snare (no backbeat), and an accented riff looked like a backbeat and blocked a correct re-track.
+  - Second version: floor 0.66, plus a slower reading at 0.55 to 0.66 wins if it shows a backbeat the tracked grid lacks. Synthetic unchanged; GiantSteps run 43510317294 identical to main on every number (key 0.589, tempo 0.684/0.891, beat_genre_accuracy 0.594). The real misses don't show a backbeat on the slower grid.
+  - Not fixed on main either, found by the review: a 12/8 kick under a half-time snare at 120, 140 and 170, and a broken kick with no snare at 125 and 140, read at the wrong tempo.
+- Next:
+  1. 3/4 re-track: drop bar consistency as the judge. Look at the GiantSteps tracks that went back to 172 or 184.57 (28952, 310291, 3211234, 3241615, 3435022, 4077896, 4151958) for something the slower reading shows that a broken kick doesn't, e.g. the kick on all four beats of the slower grid. The misses table in the job log has their bars.
+  2. Gate the shifted four-to-the-floor reading on `steady_kick` (from Nov 11).
+  3. Dubstep misses (most read as breakbeat), novelty check, minor-loop keys.
+- Budget: last 3 runs used about 50, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
