@@ -52,8 +52,9 @@ def test_half_speed_tempo_readings_are_doubled():
     [
         (128, {}),
         (139, {}),
-        # Played and recorded rather than sequenced: the slower grid's bars
-        # agree less (about 0.60), as on real records.
+        # Played and recorded rather than sequenced, the slower grid's bars
+        # agree less (here 0.60, under the floor); its backbeat carries it.
+        # Most seeds and tempi score lower still and keep the fast reading.
         (135, {"seed": 1, "humanize_ms": 6, "velocity_jitter": 0.2, "noise": 0.1}),
     ],
 )

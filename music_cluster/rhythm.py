@@ -74,15 +74,17 @@ THIRDS_KICK_LEVEL = 0.5
 # A kick on every third can also be a real groove at its right tempo: a
 # broken kick on sixteenths 0, 5 and 11 widens onto steps 16 and 32, and a
 # 12/8 kick plays half-note triplets. Re-tracked at 3/4, those fall apart
-# (bar consistency 0.50-0.61 on rendered audio), while a four-to-the-floor
-# under a dotted-eighth riff holds together (0.72 and up clean, 0.60 and up
-# with timing jitter and noise). Only a slower reading above this floor
-# replaces the tracked one.
-SLOWER_CONSISTENCY_FLOOR = 0.55
-# Both of those grooves also keep a clean backbeat on the tracked grid (snare
-# on two and four at about 1.0, on one and three at about 0.25), while a grid
-# 4/3 too fast smears a real backbeat or shows the riff on every beat (lead
-# about 0). A tracked reading whose snare leads by this much keeps its tempo.
+# (bar consistency 0.50-0.63 on rendered audio), while a four-to-the-floor
+# under a dotted-eighth riff holds together (0.72 and up clean). Only a
+# slower reading above this floor replaces the tracked one.
+SLOWER_CONSISTENCY_FLOOR = 0.66
+# Played with timing jitter and noise, the riff case's slower bars agree less
+# (0.47-0.64 over seeds and tempi), overlapping the false cases. Its clap
+# then shows the evidence instead: a backbeat on the slower grid that the
+# tracked grid lacks. The broken and 12/8 kicks never gain one at 3/4.
+SLOWER_BACKBEAT_FLOOR = 0.55
+# Snare on two and four ahead of one and three by this much is a backbeat
+# (about 1.0 against 0.25 for a clean one; about 0 for a riff on every beat).
 BACKBEAT_LEAD = 0.5
 
 # Fewer beats than this and there is no pattern to average, just an accident.
@@ -454,7 +456,7 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
             reading = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
             if reading is not None and reading.consistency > best.consistency:
                 best = reading
-    if _kick_on_thirds(best.pattern) and not _has_backbeat(best.pattern):
+    if _kick_on_thirds(best.pattern):
         # Tracked again at exactly 3/4 of the tempo, not resampled from the fast
         # grid: the tracker then puts the beat on the hits, where a resampled
         # grid can land half a beat out on a break.
@@ -463,8 +465,15 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
             slower = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
             if (
                 slower is not None
-                and slower.consistency >= SLOWER_CONSISTENCY_FLOOR
                 and not _kick_on_thirds(slower.pattern)
+                and (
+                    slower.consistency >= SLOWER_CONSISTENCY_FLOOR
+                    or (
+                        slower.consistency >= SLOWER_BACKBEAT_FLOOR
+                        and _has_backbeat(slower.pattern)
+                        and not _has_backbeat(best.pattern)
+                    )
+                )
             ):
                 best = slower
     intervals = np.diff(best.beats)
