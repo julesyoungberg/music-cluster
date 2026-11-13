@@ -75,9 +75,15 @@ THIRDS_KICK_LEVEL = 0.5
 # broken kick on sixteenths 0, 5 and 11 widens onto steps 16 and 32, and a
 # 12/8 kick plays half-note triplets. Re-tracked at 3/4, those fall apart
 # (bar consistency 0.50-0.61 on rendered audio), while a four-to-the-floor
-# under a dotted-eighth riff holds together (0.72 and up). Only a slower
-# reading above this floor replaces the tracked one.
-SLOWER_CONSISTENCY_FLOOR = 0.66
+# under a dotted-eighth riff holds together (0.72 and up clean, 0.60 and up
+# with timing jitter and noise). Only a slower reading above this floor
+# replaces the tracked one.
+SLOWER_CONSISTENCY_FLOOR = 0.55
+# Both of those grooves also keep a clean backbeat on the tracked grid (snare
+# on two and four at about 1.0, on one and three at about 0.25), while a grid
+# 4/3 too fast smears a real backbeat or shows the riff on every beat (lead
+# about 0). A tracked reading whose snare leads by this much keeps its tempo.
+BACKBEAT_LEAD = 0.5
 
 # Fewer beats than this and there is no pattern to average, just an accident.
 MIN_BEATS = 8
@@ -448,7 +454,7 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
             reading = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
             if reading is not None and reading.consistency > best.consistency:
                 best = reading
-    if _kick_on_thirds(best.pattern):
+    if _kick_on_thirds(best.pattern) and not _has_backbeat(best.pattern):
         # Tracked again at exactly 3/4 of the tempo, not resampled from the fast
         # grid: the tracker then puts the beat on the hits, where a resampled
         # grid can land half a beat out on a break.
@@ -553,6 +559,12 @@ def _kick_on_thirds(pattern: Dict[str, List[float]]) -> bool:
     thirds = float(kick[STEPS_PER_BAR // 3 :: STEPS_PER_BAR // 3].min())
     beats = float(kick[STEPS_PER_BEAT::STEPS_PER_BEAT].max())
     return thirds >= THIRDS_KICK_LEVEL and thirds > beats
+
+
+def _has_backbeat(pattern: Dict[str, List[float]]) -> bool:
+    """Is the snare clearly louder on beats two and four than on one and three?"""
+    snare = sixteenths(pattern.get("snare", []))
+    return float(np.mean(snare[[4, 12]]) - np.mean(snare[[0, 8]])) >= BACKBEAT_LEAD
 
 
 def _read(beats: np.ndarray, bpm: float, envelopes: Dict[str, np.ndarray]) -> _Reading:

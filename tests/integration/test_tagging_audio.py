@@ -11,7 +11,7 @@ import pytest
 
 from music_cluster import rhythm, tagging
 from music_cluster.library import analyze_paths, tag_tracks
-from tests.drums import SAMPLE_RATE, render
+from tests.drums import GROOVES, SAMPLE_RATE, render
 
 
 soundfile = pytest.importorskip("soundfile")
@@ -47,11 +47,20 @@ def test_half_speed_tempo_readings_are_doubled():
     assert measured.double_time
 
 
-@pytest.mark.parametrize("bpm", [128, 139])
-def test_a_dotted_eighth_riff_does_not_speed_up_the_tempo(bpm):
+@pytest.mark.parametrize(
+    "bpm, played",
+    [
+        (128, {}),
+        (139, {}),
+        # Played and recorded rather than sequenced: the slower grid's bars
+        # agree less (about 0.60), as on real records.
+        (135, {"seed": 1, "humanize_ms": 6, "velocity_jitter": 0.2, "noise": 0.1}),
+    ],
+)
+def test_a_dotted_eighth_riff_does_not_speed_up_the_tempo(bpm, played):
     # A riff every three sixteenths, as trance and techno leads and delays
     # play, gives a pulse 4/3 faster than the kick.
-    drums = render("four_on_floor", bpm)
+    drums = render("four_on_floor", bpm, **played)
     sixteenth = 60.0 / bpm / 4.0
     t = np.arange(int(0.12 * SAMPLE_RATE)) / SAMPLE_RATE
     note = 0.4 * np.sin(2 * np.pi * 2000.0 * t) * np.exp(-t * 25.0)
@@ -69,6 +78,16 @@ def test_a_dotted_eighth_riff_does_not_speed_up_the_tempo(bpm):
 def test_a_broken_kick_keeps_its_tempo(bpm):
     # Its kick widens onto every third of the bar, like a grid 4/3 too fast.
     measured = rhythm.analyze(render("broken_kick", bpm), SAMPLE_RATE)
+    assert measured.bpm == pytest.approx(bpm, rel=0.03)
+
+
+@pytest.mark.parametrize("bpm", [120, 140, 160])
+def test_a_half_note_triplet_kick_keeps_its_tempo(bpm, monkeypatch):
+    # A 12/8 kick under a backbeat lands on every third of the bar too, and at
+    # 3/4 of the tempo it would be a kick on every beat.
+    triplets = {"kick": [0, 16 / 3, 32 / 3], "snare": [4, 12], "hat": list(range(0, 16, 2))}
+    monkeypatch.setitem(GROOVES, "triplet_kick", triplets)
+    measured = rhythm.analyze(render("triplet_kick", bpm), SAMPLE_RATE)
     assert measured.bpm == pytest.approx(bpm, rel=0.03)
 
 
