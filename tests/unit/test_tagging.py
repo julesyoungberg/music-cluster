@@ -153,7 +153,7 @@ def test_a_sparse_bar_at_drum_and_bass_tempo_is_not_a_four_to_the_floor():
 
 
 def test_a_four_to_the_floor_tracked_at_double_tempo_stays_one():
-    """At 287 for 139 the folded bar is half a real bar, so kicks on 0 and 8 are every beat."""
+    """Guards the tempo window: at 287 for 139 the bar is half a real bar, kicks on 0 and 8."""
     assert best_beat(groove(kick=[0, 8], snare=[], bpm=287)) == "four_on_floor"
 
 

@@ -114,3 +114,21 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Dubstep misses (most read as breakbeat), novelty check, minor-loop keys.
 - Budget: last 3 runs used about 50, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-14
+
+- Minutes: ~55 of 60 active (plus about 75 minutes waiting on two dataset runs; the first re-downloaded the data). Subagents: 1 (independent review of PR #43, run twice).
+- State: main green. No open issues or PRs.
+- Skipped items 1 and 2 from the Nov 13 list after a look: the 3/4 re-track has failed twice on GiantSteps, and the `steady_kick` gate on the late-grid reading is the same kick gate that cost 0.031 in PR #12 (many real techno and trance bars measure no steady kick).
+- Shipped: PR #43 (https://github.com/julesyoungberg/music-cluster/pull/43), item 3 (drum & bass and dubstep misses), in `tagging.py`:
+  - Cause: the four-to-the-floor rule averages four terms, so a sparse bar with no kick on the beat still scored 0.75. In run 43510317294, 31 of 44 drum & bass misses and 16 of 33 dubstep misses read as four-to-the-floor.
+  - Fix: the four terms are scaled by the larger of a steady-kick ramp, a 110-150 bpm window, and the same window on half the tracked tempo.
+  - First form (a fifth averaged term) broke slow house, hard techno and dembow over a shaker in review. Gate form without the half-tempo window (run 43642390663): 0.594 to 0.555, because 33 four-to-the-floor tracks are tracked at double (235-287).
+- Numbers: GiantSteps run 43647103782 at f60d4aa: beat_genre_accuracy 0.594 to 0.623 (misses 198 to 184; 19 drum & bass and 1 dubstep fixed, 6 four-to-the-floor tracks lost, all read at 83-198 bpm). Key 0.589 and tempo 0.684/0.891 unchanged. Synthetic unchanged. Baseline refreshed in #43.
+- Gotcha: the GiantSteps cache restored on the second run (download 7 s, analysis 24 min), so back-to-back runs on one branch are about 25 minutes.
+- Next:
+  1. Dubstep: 11 still read as four-to-the-floor at about 140, inside the window, and 19 as breakbeat. Tempo can't separate them from techno there; look at the snare (a single snare on three) or the low end.
+  2. Drum & bass read as backbeat (14) at 86-89: the backbeat rule's 60-110 window takes half-tempo drum & bass.
+  3. 3/4 re-track, novelty check, minor-loop keys, as before.
+- Budget: last 3 runs used about 55, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.

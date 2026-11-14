@@ -364,10 +364,10 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
         # Without this a sparse bar with no kick on the beat scored 0.75 (three
         # of the four terms above) and beat drum & bass at 170 or read at 86:
         # 31 of 44 GiantSteps drum & bass misses were read as four-to-the-floor.
-        # The kick keeps slow house, hard techno and hardcore, which sit
-        # outside 110-150, whole. Half the tempo counts too: on GiantSteps 33
-        # trance, techno and house tracks are tracked at double (235-287 bpm)
-        # and their bar is half a real bar.
+        # A kick on every beat scores as it did before at any tempo, so slow
+        # house, hard techno and hardcore are unaffected. Half the tempo counts
+        # too: on GiantSteps 33 trance, techno and house tracks are tracked at
+        # double (235-287 bpm) and their bar is half a real bar.
         _ramp(steady_kick, 0.3, 0.6),
         _window(bpm, 110.0, 150.0, softness=0.2),
         _window(bpm / 2.0, 110.0, 150.0, softness=0.2),

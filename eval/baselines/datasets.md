@@ -25,7 +25,7 @@
 | tempo_accuracy1 | 0.684 |
 | tempo_accuracy2 | 0.891 |
 | librosa_accuracy1 | 0.584 |
-| beat_genre_accuracy | 0.594 |
+| beat_genre_accuracy | 0.623 |
 
 | Method | accuracy1 | accuracy2 |
 | --- | --- | --- |
