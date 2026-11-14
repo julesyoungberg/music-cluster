@@ -147,6 +147,11 @@ def test_a_late_four_on_the_floor_with_a_busy_snare_band_is_not_a_break(late):
     assert best_beat(profile) == "four_on_floor"
 
 
+def test_a_sparse_bar_at_drum_and_bass_tempo_is_not_a_four_to_the_floor():
+    """With no kick on the beat, the other four-to-the-floor terms alone must not win at 172."""
+    assert best_beat(groove(kick=[0], snare=[6, 12], bpm=172)) != "four_on_floor"
+
+
 def with_snare_band(profile: Dict, level: float, hits: List[int]) -> Dict:
     """Every sixteenth of the snare band at ``level``, as hats bleeding in, plus full hits."""
     busy = np.full(16, level)

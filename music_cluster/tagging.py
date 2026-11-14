@@ -358,6 +358,11 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
             # failed techno whose snare band ran at 0.5-0.9 throughout. The ramp
             # starts at 0.2 so a dembow over a 0.45 shaker still clears it.
             1.0 - _ramp(_odd_snare_lead(s), 0.2, 0.45),
+            # House to hard dance runs about 110-150. Without this a sparse bar
+            # with no kick on the beat still scored 0.75 on the other terms and
+            # beat drum & bass at 170 (or read at 86): 31 of 44 GiantSteps
+            # drum & bass misses were read as four-to-the-floor.
+            _window(bpm, 110.0, 150.0, softness=0.2),
         ]
     )
 
