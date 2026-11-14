@@ -152,6 +152,14 @@ def test_a_sparse_bar_at_drum_and_bass_tempo_is_not_a_four_to_the_floor():
     assert best_beat(groove(kick=[0], snare=[6, 12], bpm=172)) != "four_on_floor"
 
 
+@pytest.mark.parametrize("bpm", [100, 175])
+def test_a_kick_on_every_beat_is_four_to_the_floor_outside_its_usual_tempos(bpm):
+    """Slow house and hardcore keep their kick, so the tempo window does not apply to them."""
+    late = [(step + 2) % 16 for step in (0, 4, 8, 12)]
+    profile = with_snare_band(groove(kick=late, snare=[], bpm=bpm), 0.7, [6, 14])
+    assert best_beat(profile) == "four_on_floor"
+
+
 def with_snare_band(profile: Dict, level: float, hits: List[int]) -> Dict:
     """Every sixteenth of the snare band at ``level``, as hats bleeding in, plus full hits."""
     busy = np.full(16, level)
