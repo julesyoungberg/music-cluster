@@ -132,3 +132,18 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. 3/4 re-track, novelty check, minor-loop keys, as before.
 - Budget: last 3 runs used about 55, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-15
+
+- Minutes: ~55 of 60 active (plus waiting on CI and a dataset run). Subagents: 1 (independent review of PR #44).
+- State: main green. No open issues or PRs.
+- Took item 2 from the Nov 14 list (drum & bass read as backbeat at 86-89). The bar alone can't fix it: tracked at half speed, a drum & bass bar looks just like a hip hop backbeat, so the fix belongs in the octave choice in `rhythm.py` (`_reads_as_double_time`: busy-sixteenth share >= 0.7 or onsets per beat >= 2.8 on the slow reading). The misses table showed no hats or onset counts, so there was nothing to tune against.
+- Shipped: PR #44 (https://github.com/julesyoungberg/music-cluster/pull/44): the misses table and `beat_misses` gain the hat bar and onsets per beat on the slow reading. No numbers move. Review found 5 issues (onsets counted against the doubled tempo, docstring claims, a missing test, formatting); all fixed.
+- Data run: GiantSteps dispatch 43765955305 on the merged branch head; its job log has the new columns.
+- Gotcha: the session's local `origin/main` was stale (b09dedf), so the first branch was cut from it and the PR showed a conflict and got no CI. Run `git fetch origin main` before branching.
+- Next:
+  1. Read run 43765955305's misses: for the drum & bass rows at 83-89 bpm, compare onsets per beat and the hat bar against the 2.8 and 0.7 thresholds. If they sit just under, a lower threshold may double them; check that the synthetic boom-bap and backbeat bars still read slow (`cratewise eval run --baseline eval/baselines/synthetic.json`). GiantSteps has only 2 hip-hop tracks, so it can't show harm to slow genres on its own.
+  2. Dubstep at about 140 read as four-to-the-floor (11) or breakbeat (19).
+  3. 3/4 re-track, novelty check, minor-loop keys, as before.
+- Budget: last 3 runs used about 55, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.

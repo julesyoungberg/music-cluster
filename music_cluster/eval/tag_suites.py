@@ -322,13 +322,31 @@ def _beat_label_accuracy(genres: Sequence[str], beats: Sequence[str]) -> Optiona
     return float(np.mean(hits)) if hits else None
 
 
+def _slow_onsets_per_beat(profile: Dict[str, Any]) -> Optional[float]:
+    """Onsets per beat of the slow reading, where the double-time check ran."""
+    from .. import rhythm
+
+    bpm = float(profile.get("bpm") or 0.0)
+    if profile.get("double_time") or bpm >= rhythm.HALVE_ABOVE_BPM:
+        slow = bpm / 2.0
+    elif 0.0 < bpm < rhythm.DOUBLE_BELOW_BPM:
+        slow = bpm
+    else:
+        return None
+    return round(float(profile.get("onset_rate") or 0.0) * 60.0 / slow, 2)
+
+
 def _beat_misses(
     items: Sequence[Item], beats: Sequence[str], records: Sequence[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
     """Every track from an unambiguous genre whose beat type is wrong, with its bar.
 
-    Kick and snare are the measured bar on the sixteenth grid, one digit per
-    step from 0 (silent) to 9 (loudest), read like a sequencer row. A string
+    Kick, snare and hat are the measured bar of the final reading on the
+    sixteenth grid, one digit per step from 0 (silent) to 9 (loudest), read
+    like a sequencer row. Onsets per beat is counted on the slow reading, as
+    ``rhythm._reads_as_double_time`` counts it when it decides whether that
+    reading is a fast track counted at half speed; it is None where that check
+    never runs. A string
     keeps each bar on one line of the JSON report and baseline. The scores are
     the three strongest beat rules for that bar, so a misread can be traced to
     the rule that won and the steps it read.
@@ -350,6 +368,7 @@ def _beat_misses(
                 "annotated_bpm": float(item.label or 0),
                 "bpm": record.get("bpm"),
                 "beat": beat,
+                "onsets_per_beat": _slow_onsets_per_beat(profile),
                 "scores": {
                     k: round(v, 3) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])[:3]
                 },
@@ -357,7 +376,7 @@ def _beat_misses(
                     band: "".join(
                         str(round(float(x) * 9)) for x in rhythm.sixteenths(pattern[band])
                     )
-                    for band in ("kick", "snare")
+                    for band in ("kick", "snare", "hat")
                     if pattern.get(band)
                 },
             }
