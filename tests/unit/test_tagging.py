@@ -147,6 +147,24 @@ def test_a_late_four_on_the_floor_with_a_busy_snare_band_is_not_a_break(late):
     assert best_beat(profile) == "four_on_floor"
 
 
+def test_a_sparse_bar_at_drum_and_bass_tempo_is_not_a_four_to_the_floor():
+    """With no kick on the beat, the other four-to-the-floor terms alone must not win at 172."""
+    assert best_beat(groove(kick=[0], snare=[6, 12], bpm=172)) != "four_on_floor"
+
+
+def test_a_four_to_the_floor_tracked_at_double_tempo_stays_one():
+    """Guards the tempo window: at 287 for 139 the bar is half a real bar, kicks on 0 and 8."""
+    assert best_beat(groove(kick=[0, 8], snare=[], bpm=287)) == "four_on_floor"
+
+
+@pytest.mark.parametrize("bpm", [100, 175])
+def test_a_kick_on_every_beat_is_four_to_the_floor_outside_its_usual_tempos(bpm):
+    """Slow house and hardcore keep their kick, so the tempo window does not apply to them."""
+    late = [(step + 2) % 16 for step in (0, 4, 8, 12)]
+    profile = with_snare_band(groove(kick=late, snare=[], bpm=bpm), 0.7, [6, 14])
+    assert best_beat(profile) == "four_on_floor"
+
+
 def with_snare_band(profile: Dict, level: float, hits: List[int]) -> Dict:
     """Every sixteenth of the snare band at ``level``, as hats bleeding in, plus full hits."""
     busy = np.full(16, level)

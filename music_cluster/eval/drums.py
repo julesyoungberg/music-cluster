@@ -56,6 +56,12 @@ GROOVES: Dict[str, Dict[str, List[int]]] = {
         "snare": [3, 6, 11, 14],
         "hat": [0, 2, 4, 6, 8, 10, 12, 14],
     },
+    # A broken kick on 1, the "e" of 2 and the "a" of 3, under a backbeat.
+    "broken_kick": {
+        "kick": [0, 5, 11],
+        "snare": [4, 12],
+        "hat": [0, 2, 4, 6, 8, 10, 12, 14],
+    },
     "backbeat": {
         "kick": [0, 7, 8],
         "snare": [4, 12],

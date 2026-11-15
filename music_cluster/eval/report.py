@@ -139,7 +139,11 @@ def markdown(report: Dict[str, Any], comparison: Optional[List[Dict[str, Any]]] 
         "",
     ]
     for suite, data in report.get("suites", {}).items():
-        lines += [f"## {suite}", "", "| Metric | Value |", "| --- | --- |"]
+        lines += [f"## {suite}", ""]
+        for state in ("skipped", "failed"):
+            if data.get(state):
+                lines += [f"{state.capitalize()}: {data[state]}", ""]
+        lines += ["| Metric | Value |", "| --- | --- |"]
         for name, value in data.get("headline", {}).items():
             lines.append(f"| {name} | {_fmt(value)} |")
         lines.append("")

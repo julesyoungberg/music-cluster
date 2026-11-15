@@ -80,6 +80,35 @@ Fifty trials by default. The report pools every query across trials:
 - `nowhere_auto_filed` — share of "belongs nowhere" tracks that clear the
   auto-accept thresholds. Lower is better.
 
+### Pretrained embeddings
+
+`--embedding ast` checks whether a network trained on lots of audio
+describes music better than the 96 hand features do. It needs a sorting
+suite. On each sorting suite it embeds every track and adds three results,
+all on the same tracks with the same trials, so the comparison is paired:
+
+- `SUITE+ast:features`: the hand features, the reference.
+- `SUITE+ast:embedding`: the embedding alone.
+- `SUITE+ast:both`: the embedding appended to the hand features.
+
+Each also reports `probe_top1`: logistic regression on every track, in five
+folds split by artist. It shows how much the features say about the label
+when references are plentiful, apart from how the sorter uses them.
+
+A track's embedding is the mean of three windows from the middle of the file.
+The model needs `pip install torch transformers` (eval.yml pins the major
+versions), and it downloads its weights on first use. The app doesn't use
+it; this only measures whether it should. If embedding fails, the
+hand-feature result is still reported and the embedding result is marked
+skipped or failed. These results are not gated.
+
+| Name | Model | Licence |
+| --- | --- | --- |
+| `ast` | `MIT/ast-finetuned-audioset-10-10-0.4593` | BSD-3-Clause |
+
+AST takes about 4 seconds a track on a CI runner's CPU, so use the `limit`
+input for FMA.
+
 ## Ground rules
 
 - Splits are by artist, within each folder, wherever the dataset knows the artist.

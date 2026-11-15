@@ -81,6 +81,15 @@ def _split_by_artist(
     return indices[~mask], indices[mask]
 
 
+def find_tempo_column(width: int) -> Optional[int]:
+    """The tempo's index in an extractor vector of this width, if it has one."""
+    try:
+        layout = layout_for_dim(width)
+        return layout.span("tempo")[0] if layout.has("tempo") else None
+    except Exception:
+        return None
+
+
 def _log_uniform(rng: np.random.Generator, low: int, high: int) -> int:
     if high <= low:
         return int(high)
@@ -343,6 +352,8 @@ def simulate(
     artists: Optional[Sequence[Optional[str]]] = None,
     settings: Optional[SimulationSettings] = None,
     sorter_config: Optional[SorterConfig] = None,
+    tempo_column: Optional[int] = None,
+    infer_tempo: bool = True,
 ) -> Dict[str, Any]:
     """Run the trials and summarise every method.
 
@@ -351,6 +362,10 @@ def simulate(
         y: The track's label (genre, folder name).
         artists: Artist per track, for artist-separated splits. None splits by
             track, which overstates accuracy when artists repeat.
+        tempo_column: Where the tempo is, for the tempo-only baseline.
+        infer_tempo: Find the tempo from the feature layout when no column is
+            given. Turn off for vectors that are not (only) extractor output,
+            such as a pretrained embedding, whose width says nothing.
     """
     settings = settings or SimulationSettings()
     sorter_config = sorter_config or SorterConfig()
@@ -360,13 +375,8 @@ def simulate(
         list(artists) if artists is not None else [None] * len(labels)
     )
 
-    tempo_column = None
-    try:
-        layout = layout_for_dim(x.shape[1])
-        if layout.has("tempo"):
-            tempo_column = layout.span("tempo")[0]
-    except Exception:
-        tempo_column = None
+    if tempo_column is None and infer_tempo:
+        tempo_column = find_tempo_column(x.shape[1])
 
     rng = np.random.default_rng(settings.seed)
     pooled: Dict[str, _Outcomes] = {}

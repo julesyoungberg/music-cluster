@@ -64,6 +64,21 @@ HALVE_ABOVE_BPM = 150.0
 # probably locked on to a cross-rhythm, and related tempi are tried.
 RETRACK_BELOW_CONSISTENCY = 0.85
 
+# A grid running 4/3 too fast puts a four-to-the-floor kick on every third
+# of the bar (every 4/3 tracked beats) instead of on the beats. A riff or
+# delay every three sixteenths (a dotted eighth) gives the tracker a pulse a
+# third faster than the kick's. In the Nov 10 GiantSteps beat misses
+# (.claude/daily-work.md), techno and trance read at 172-185 BPM for 127-142.
+# The kick counts as there at this level of its normalised bar.
+THIRDS_KICK_LEVEL = 0.5
+# A kick on every third can also be a real groove at its right tempo: a
+# broken kick on sixteenths 0, 5 and 11 widens onto steps 16 and 32, and a
+# 12/8 kick plays half-note triplets. Re-tracked at 3/4, those fall apart
+# (bar consistency 0.50-0.61 on rendered audio), while a four-to-the-floor
+# under a dotted-eighth riff holds together (0.72 and up). Only a slower
+# reading above this floor replaces the tracked one.
+SLOWER_CONSISTENCY_FLOOR = 0.66
+
 # Fewer beats than this and there is no pattern to average, just an accident.
 MIN_BEATS = 8
 
@@ -170,23 +185,31 @@ def _tracking_envelope(full: np.ndarray, kick: np.ndarray) -> np.ndarray:
 
 
 def _track(
-    curve: np.ndarray, sr: int, hop: int, start_bpm: float = 120.0, tightness: float = 100.0
+    curve: np.ndarray,
+    sr: int,
+    hop: int,
+    start_bpm: float = 120.0,
+    tightness: float = 100.0,
+    bpm: Optional[float] = None,
 ) -> Tuple[float, np.ndarray]:
-    """Tempo and beat frames for an onset curve.
+    """Tempo and beat frames for an onset curve, or beat frames at a given ``bpm``.
 
     Tempo is estimated on the curve at half resolution — 23 ms, librosa's own
     default — because the autocorrelation behind it is the costliest step in
     tagging and gains nothing from finer frames. The beats themselves are then
     placed on the full-resolution curve, where the pattern is read.
     """
-    usable = curve[: curve.size - curve.size % 2]
-    coarse = usable.reshape(-1, 2).max(axis=1) if usable.size else usable
-    if coarse.size < 4:
-        return 0.0, np.zeros(0)
-    estimate = librosa.feature.tempo(
-        onset_envelope=coarse, sr=sr, hop_length=hop * 2, start_bpm=start_bpm
-    )
-    bpm = float(np.atleast_1d(np.asarray(estimate, dtype=float))[0]) if np.size(estimate) else 0.0
+    if bpm is None:
+        usable = curve[: curve.size - curve.size % 2]
+        coarse = usable.reshape(-1, 2).max(axis=1) if usable.size else usable
+        if coarse.size < 4:
+            return 0.0, np.zeros(0)
+        estimate = librosa.feature.tempo(
+            onset_envelope=coarse, sr=sr, hop_length=hop * 2, start_bpm=start_bpm
+        )
+        bpm = (
+            float(np.atleast_1d(np.asarray(estimate, dtype=float))[0]) if np.size(estimate) else 0.0
+        )
     if bpm <= 0:
         return 0.0, np.zeros(0)
     tempo, beats = librosa.beat.beat_track(
@@ -425,6 +448,19 @@ def _analyze(y: np.ndarray, sr: int) -> RhythmProfile:
             reading = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
             if reading is not None and reading.consistency > best.consistency:
                 best = reading
+    if _kick_on_thirds(best.pattern):
+        # Tracked again at exactly 3/4 of the tempo, not resampled from the fast
+        # grid: the tracker then puts the beat on the hits, where a resampled
+        # grid can land half a beat out on a break.
+        bpm, beats = _track(full, sr, hop, tightness=400, bpm=best.bpm * 0.75)
+        if bpm > 0 and beats.size >= MIN_BEATS:
+            slower = _resolve_octave(_align(beats, combined), bpm, envelopes, combined, onset_rate)
+            if (
+                slower is not None
+                and slower.consistency >= SLOWER_CONSISTENCY_FLOOR
+                and not _kick_on_thirds(slower.pattern)
+            ):
+                best = slower
     intervals = np.diff(best.beats)
     median_interval = float(np.median(intervals))
     profile.bpm = best.bpm
@@ -501,6 +537,22 @@ def _halve(beats: np.ndarray, kick: np.ndarray) -> np.ndarray:
     even, odd = beats[0::2], beats[1::2]
     weight = [float(kick[np.clip(np.round(b).astype(int), 0, limit)].sum()) for b in (even, odd)]
     return even if weight[0] >= weight[1] else odd
+
+
+def _kick_on_thirds(pattern: Dict[str, List[float]]) -> bool:
+    """Is the kick on every third of the bar and off beats two to four?
+
+    Only steps 16 and 32 are checked, not every triplet point: the grid widens
+    each hit by a step, so a backbeat's kick on sixteenth 7 also shows on
+    step 20. A kick on sixteenth 5 or 11 still reaches 16 or 32; the caller's
+    consistency check sorts those out.
+    """
+    kick = np.asarray(pattern.get("kick", []), dtype=float)
+    if kick.size != STEPS_PER_BAR:
+        return False
+    thirds = float(kick[STEPS_PER_BAR // 3 :: STEPS_PER_BAR // 3].min())
+    beats = float(kick[STEPS_PER_BEAT::STEPS_PER_BEAT].max())
+    return thirds >= THIRDS_KICK_LEVEL and thirds > beats
 
 
 def _read(beats: np.ndarray, bpm: float, envelopes: Dict[str, np.ndarray]) -> _Reading:
