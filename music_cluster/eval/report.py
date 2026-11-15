@@ -195,15 +195,16 @@ def markdown(report: Dict[str, Any], comparison: Optional[List[Dict[str, Any]]] 
             lines += [
                 "Wrong beat types (bars: one digit per sixteenth, 0 silent to 9 loudest):",
                 "",
-                "| Track | Genre | BPM (annotated) | Beat | Kick | Snare | Top scores |",
-                "| --- | --- | --- | --- | --- | --- | --- |",
+                "| Track | Genre | BPM (annotated) | Beat | Kick | Snare | Hat | Onsets/beat | Top scores |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
             for miss in misses:
                 scores = ", ".join(f"{k} {v:.2f}" for k, v in miss.get("scores", {}).items())
                 lines.append(
                     f"| {miss['track']} | {miss['genre']} | {_fmt(miss.get('bpm'))} "
                     f"({_fmt(miss.get('annotated_bpm'))}) | {miss['beat']} | "
-                    f"`{miss.get('kick', '-')}` | `{miss.get('snare', '-')}` | {scores} |"
+                    f"`{miss.get('kick', '-')}` | `{miss.get('snare', '-')}` | `{miss.get('hat', '-')}` | "
+                    f"{_fmt(miss.get('onsets_per_beat'))} | {scores} |"
                 )
             lines.append("")
     if comparison:

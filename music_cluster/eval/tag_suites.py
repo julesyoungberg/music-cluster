@@ -327,8 +327,10 @@ def _beat_misses(
 ) -> List[Dict[str, Any]]:
     """Every track from an unambiguous genre whose beat type is wrong, with its bar.
 
-    Kick and snare are the measured bar on the sixteenth grid, one digit per
-    step from 0 (silent) to 9 (loudest), read like a sequencer row. A string
+    Kick, snare and hat are the measured bar on the sixteenth grid, one digit
+    per step from 0 (silent) to 9 (loudest), read like a sequencer row. Hats
+    and onsets per beat are what decide whether a slow reading is a fast track
+    counted at half speed (``rhythm._reads_as_double_time``). A string
     keeps each bar on one line of the JSON report and baseline. The scores are
     the three strongest beat rules for that bar, so a misread can be traced to
     the rule that won and the steps it read.
@@ -350,6 +352,11 @@ def _beat_misses(
                 "annotated_bpm": float(item.label or 0),
                 "bpm": record.get("bpm"),
                 "beat": beat,
+                "onsets_per_beat": (
+                    round(float(profile.get("onset_rate") or 0.0) * 60.0 / float(record["bpm"]), 2)
+                    if profile and record.get("bpm")
+                    else None
+                ),
                 "scores": {
                     k: round(v, 3) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])[:3]
                 },
@@ -357,7 +364,7 @@ def _beat_misses(
                     band: "".join(
                         str(round(float(x) * 9)) for x in rhythm.sixteenths(pattern[band])
                     )
-                    for band in ("kick", "snare")
+                    for band in ("kick", "snare", "hat")
                     if pattern.get(band)
                 },
             }

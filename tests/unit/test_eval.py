@@ -384,9 +384,12 @@ def test_beat_misses_list_wrong_beats_with_their_bar():
     miss = misses[0]
     assert miss["beat"] == "breakbeat" and miss["annotated_bpm"] == 128.0
     assert miss["kick"] == "0900090009000900"
-    assert miss["snare"] == "0" * 16
+    assert miss["snare"] == miss["hat"] == "0" * 16
+    # 4 onsets a second at 128 bpm: what the double-time check reads.
+    assert miss["onsets_per_beat"] == 1.88
     assert "four_on_floor" in miss["scores"] and len(miss["scores"]) <= 3
     assert misses[1]["scores"] == {} and "kick" not in misses[1]
+    assert misses[1]["onsets_per_beat"] is None
 
 
 def test_markdown_lists_beat_misses():
@@ -401,6 +404,8 @@ def test_markdown_lists_beat_misses():
         "scores": {"breakbeat": 0.6},
         "kick": "0900090009000900",
         "snare": "0" * 16,
+        "hat": "9090909090909090",
+        "onsets_per_beat": 1.88,
     }
     # Analysed before records kept the rhythm profile: no bar, no scores.
     old = {"track": "d.LOFI.mp3", "genre": "techno", "annotated_bpm": 128.0, "beat": "beatless"}
@@ -409,6 +414,6 @@ def test_markdown_lists_beat_misses():
     text = report.markdown(report.build(suites))
     assert (
         "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` | "
-        "`0000000000000000` | breakbeat 0.60 |"
+        "`0000000000000000` | `9090909090909090` | 1.880 | breakbeat 0.60 |"
     ) in text
-    assert "| d.LOFI.mp3 | techno | - (128.000) | beatless | `-` | `-` |  |" in text
+    assert "| d.LOFI.mp3 | techno | - (128.000) | beatless | `-` | `-` | `-` | - |  |" in text
