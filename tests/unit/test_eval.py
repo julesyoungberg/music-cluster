@@ -385,11 +385,21 @@ def test_beat_misses_list_wrong_beats_with_their_bar():
     assert miss["beat"] == "breakbeat" and miss["annotated_bpm"] == 128.0
     assert miss["kick"] == "0900090009000900"
     assert miss["snare"] == miss["hat"] == "0" * 16
-    # 4 onsets a second at 128 bpm: what the double-time check reads.
-    assert miss["onsets_per_beat"] == 1.88
+    # The double-time check never runs between 100 and 150 bpm.
+    assert miss["onsets_per_beat"] is None
     assert "four_on_floor" in miss["scores"] and len(miss["scores"]) <= 3
     assert misses[1]["scores"] == {} and "kick" not in misses[1]
     assert misses[1]["onsets_per_beat"] is None
+
+
+def test_beat_misses_count_onsets_per_beat_on_the_slow_reading():
+    from music_cluster.eval import tag_suites
+
+    # 8 onsets a second: 5.65 a beat at 85, the reading the double-time check saw.
+    doubled = {"bpm": 170.0, "double_time": True, "onset_rate": 8.0}
+    assert tag_suites._slow_onsets_per_beat(doubled) == 5.65
+    assert tag_suites._slow_onsets_per_beat({"bpm": 85.0, "onset_rate": 8.0}) == 5.65
+    assert tag_suites._slow_onsets_per_beat({"bpm": 128.0, "onset_rate": 8.0}) is None
 
 
 def test_markdown_lists_beat_misses():
@@ -414,6 +424,6 @@ def test_markdown_lists_beat_misses():
     text = report.markdown(report.build(suites))
     assert (
         "| a.LOFI.mp3 | techno | 128.000 (128.000) | breakbeat | `0900090009000900` | "
-        "`0000000000000000` | `9090909090909090` | 1.880 | breakbeat 0.60 |"
+        "`0000000000000000` | `9090909090909090` | 1.88 | breakbeat 0.60 |"
     ) in text
     assert "| d.LOFI.mp3 | techno | - (128.000) | beatless | `-` | `-` | `-` | - |  |" in text
