@@ -147,3 +147,18 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. 3/4 re-track, novelty check, minor-loop keys, as before.
 - Budget: last 3 runs used about 55, 55 and 55 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-16
+
+- Minutes: ~45 of 60 active (plus about 45 minutes waiting on the dataset run; the data cache had been evicted). Subagents: 1 (independent review of PR #45).
+- State: main green. No open issues or PRs.
+- Item 1 from the Nov 15 list (drum & bass read as backbeat at 83-89): run 43765955305 shows onsets per beat from 0.9 to 2.8 on those rows, spread widely under the 2.8 threshold, not just under it. 8 of the 25 drum & bass misses are annotated at half tempo themselves. A lower threshold can't be judged without hip hop data, so it was left alone.
+- Tried item 2 (dubstep read as four-to-the-floor at about 140) in PR #45 (https://github.com/julesyoungberg/music-cluster/pull/45). Closed without merging.
+  - Most of the 11 rows have one kick a bar (e.g. `7000000000000000`), which still scored 0.75 from the rule's absence terms. Gate tried: second-loudest kick on a quarter, ramp 0.15-0.35 (review lowered it from 0.3-0.6 for accented downbeats).
+  - GiantSteps run 43959295898: beat_genre_accuracy 0.623 to 0.578. 1 dubstep fixed, 23 lost: 20 trance, techno and house tracked at double tempo (235-287) whose half bar measures a near-zero second kick. Exempting double tempo still nets -1.
+- Next:
+  1. Dubstep: the kick band can't separate it from four-to-the-floor at 140. Try the snare (one hit on three, the half_time rule) or the low end.
+  2. 3/4 re-track, novelty check (AUROC about 0.5), minor-loop keys, as before.
+  3. Beat-type tuning has given small or no gains for four runs. A run on the novelty check or another roadmap item may be worth more.
+- Budget: last 3 runs used about 55, 55 and 45 of 60; not all hit the cap, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
