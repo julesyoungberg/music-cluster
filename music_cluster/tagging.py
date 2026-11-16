@@ -372,13 +372,15 @@ def _beat_rules(g: _Groove, bpm: float) -> Dict[str, float]:
         _window(bpm, 110.0, 150.0, softness=0.2),
         _window(bpm / 2.0, 110.0, 150.0, softness=0.2),
     )
-    # And a kick on at least two of the four beats, at any tempo. A bar with one
-    # kick scored 0.75 inside the tempo window above: most of the 11 GiantSteps
-    # dubstep tracks read as four-to-the-floor at about 140 (run 43765955305)
-    # had one kick a bar. Two, not four, so a four-to-the-floor tracked at double
-    # tempo (kicks on one and three) keeps its reading, and so does techno whose
-    # kick measures weak on some beats (gating on all four cost 0.031 in PR #12).
-    scores["four_on_floor"] *= _ramp(float(np.sort(k[QUARTERS])[-2]), 0.3, 0.6)
+    # And something in the kick band on at least two of the four beats, at any
+    # tempo. A bar with one kick scored 0.75 inside the tempo window above: most
+    # of the 11 GiantSteps dubstep tracks read as four-to-the-floor at about 140
+    # (run 43765955305) had one kick a bar. Two beats, not four, so a
+    # four-to-the-floor tracked at double tempo (kicks on one and three) keeps
+    # its reading. The ramp is low because the bar is scaled to its loudest
+    # step: an accented beat one leaves the other kicks at 0.4-0.5, and the
+    # first term of the mean already marks that bar down.
+    scores["four_on_floor"] *= _ramp(float(np.sort(k[QUARTERS])[-2]), 0.15, 0.35)
 
     scores["half_time"] = _mean(
         [
