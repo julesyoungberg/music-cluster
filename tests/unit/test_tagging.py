@@ -152,6 +152,13 @@ def test_a_sparse_bar_at_drum_and_bass_tempo_is_not_a_four_to_the_floor():
     assert best_beat(groove(kick=[0], snare=[6, 12], bpm=172)) != "four_on_floor"
 
 
+@pytest.mark.parametrize("kick", [[0], [0, 6]])
+def test_one_kick_a_bar_at_dubstep_tempo_is_not_a_four_to_the_floor(kick):
+    """A lone kick at 140 with a weak snare: 11 GiantSteps dubstep tracks read like this."""
+    profile = with_snare_band(groove(kick=kick, snare=[], bpm=140), 0.3, [])
+    assert tagging.beat_scores(profile)["four_on_floor"] < 0.3
+
+
 def test_a_four_to_the_floor_tracked_at_double_tempo_stays_one():
     """Guards the tempo window: at 287 for 139 the bar is half a real bar, kicks on 0 and 8."""
     assert best_beat(groove(kick=[0, 8], snare=[], bpm=287)) == "four_on_floor"
