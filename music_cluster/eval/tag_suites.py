@@ -132,9 +132,10 @@ def run_beats(quick: bool = False, workers: int = -1) -> Dict[str, Any]:
 
 PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Scale degrees (semitones above the tonic) of each chord's root, and its quality.
-# The "loop" progressions are the four-chord loops dance music leans on, and
-# share every pitch with their relative key: only the weight on the tonic says
-# which one it is. The "cadence" progressions keep returning home, which is
+# The "loop" progressions are the four-chord loops dance music leans on. The
+# minor loop plays the same chords for the same time as the major loop of its
+# relative major, only in another order, so a mean chroma can't tell them apart
+# (EVALUATION.md, "The minor loop"). The "cadence" progressions keep returning home, which is
 # how a theory book would make the key unambiguous.
 PROGRESSIONS = {
     ("major", "loop"): ((0, "maj"), (7, "maj"), (9, "min"), (5, "maj")),  # I-V-vi-IV

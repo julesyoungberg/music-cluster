@@ -36,7 +36,7 @@ fails the run.
 | Suite | Data | What it measures | Baselines beside it |
 | --- | --- | --- | --- |
 | `beats-synthetic` | Rendered grooves, 13 groove/tempo pairs × 5 roughness variants × 3 kit seeds | Beat-type accuracy, tempo accuracy | – |
-| `keys-synthetic` | Rendered chord progressions in all 24 keys, with and without drums | Key accuracy (MIREX weighted) | – |
+| `keys-synthetic` | Rendered chord progressions in all 24 keys, with and without drums | Key accuracy (MIREX weighted); `key_correct_minor_loop` stays at 0 by design, see [The minor loop](#the-minor-loop) | – |
 | `sorting-fma` | FMA small, 8 top-level genres, artist ids | Simulated libraries: see below | Majority folder, tempo only, logistic regression, kNN |
 | `sorting-fma-sub` | FMA medium, sub-genres with 40+ tracks | Same, at the granularity of a DJ's folders | Same |
 | `sorting-folders` | Any folder tree you pass with `--folders` | Same, on your own library | Same |
@@ -46,6 +46,20 @@ fails the run.
 Essentia is an optional reference, not a dependency: `pip install essentia`
 and the key and tempo suites score it on the same audio. Its licence (AGPL,
 and its models are non-commercial) keeps it out of the app itself.
+
+### The minor loop
+
+The minor loop (i-VI-III-VII, Am-F-C-G in A minor) uses the same four chords,
+each for the same time, as the major loop of its relative major (I-V-vi-IV,
+C-G-Am-F in C major). Only the order differs, so the mean chroma the key rule
+reads is the same for both, and no key profile can get both right.
+`key_correct_minor_loop` is 0 and the loop is read as the relative major.
+
+- It is kept as a reminder of what a mean-chroma key can't see, not as a
+  target. A fix would need a cue other than the mean chroma (which chord
+  starts a phrase, or the bass note under the downbeat), checked on
+  GiantSteps, not tuned to this case.
+- The cadence progressions return to the tonic and test the key rule itself.
 
 ### Simulated libraries
 

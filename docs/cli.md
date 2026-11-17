@@ -857,6 +857,7 @@ cratewise eval run --all --folders ~/Music/DJ
 | `--out FILE` | Report path. Default `eval-report.json`. |
 | `--baseline FILE` | Compare against an earlier report; exits non-zero on a regression. |
 | `--tolerance X` | Allowed drop before a number counts as a regression. Default 0.02. |
+| `--embedding ast` | Also score a pretrained audio embedding on the sorting suites. Needs `torch` and `transformers`; the app does not use it. See [Pretrained embeddings](../EVALUATION.md#pretrained-embeddings). |
 
 ### `eval download`
 
