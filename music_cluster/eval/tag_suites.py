@@ -134,9 +134,9 @@ PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Scale degrees (semitones above the tonic) of each chord's root, and its quality.
 # The "loop" progressions are the four-chord loops dance music leans on. The
 # minor loop plays the same chords for the same time as the major loop of its
-# relative major, only in another order, so a mean chroma can't tell them apart
-# (EVALUATION.md, "The minor loop"). The "cadence" progressions keep returning home, which is
-# how a theory book would make the key unambiguous.
+# relative major, only in another order, so a mean chroma can't tell them
+# apart (EVALUATION.md, "The minor loop"). The "cadence" progressions keep
+# returning home, which is how a theory book would make the key unambiguous.
 PROGRESSIONS = {
     ("major", "loop"): ((0, "maj"), (7, "maj"), (9, "min"), (5, "maj")),  # I-V-vi-IV
     ("minor", "loop"): ((0, "min"), (8, "maj"), (3, "maj"), (10, "maj")),  # i-VI-III-VII

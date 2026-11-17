@@ -1,4 +1,8 @@
-"""docs/cli.md is the reference for every command, so it must name each one and each option."""
+"""docs/cli.md is the reference for every command, so it must name each one and each option.
+
+shortcut: a name counts as documented if it appears anywhere in the doc, and
+short-only flags (-r) are not checked; check per section if one slips through.
+"""
 
 from pathlib import Path
 from typing import Iterator, Tuple

@@ -36,7 +36,7 @@ fails the run.
 | Suite | Data | What it measures | Baselines beside it |
 | --- | --- | --- | --- |
 | `beats-synthetic` | Rendered grooves, 13 groove/tempo pairs × 5 roughness variants × 3 kit seeds | Beat-type accuracy, tempo accuracy | – |
-| `keys-synthetic` | Rendered chord progressions in all 24 keys, with and without drums | Key accuracy (MIREX weighted); `key_correct_minor_loop` stays at 0 by design, see [The minor loop](#the-minor-loop) | – |
+| `keys-synthetic` | Rendered chord progressions in all 24 keys, with and without drums | Key accuracy (MIREX weighted); `key_correct_minor_loop` stays at 0, a known limit, see [The minor loop](#the-minor-loop) | – |
 | `sorting-fma` | FMA small, 8 top-level genres, artist ids | Simulated libraries: see below | Majority folder, tempo only, logistic regression, kNN |
 | `sorting-fma-sub` | FMA medium, sub-genres with 40+ tracks | Same, at the granularity of a DJ's folders | Same |
 | `sorting-folders` | Any folder tree you pass with `--folders` | Same, on your own library | Same |
