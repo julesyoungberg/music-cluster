@@ -162,3 +162,17 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Beat-type tuning has given small or no gains for four runs. A run on the novelty check or another roadmap item may be worth more.
 - Budget: last 3 runs used about 55, 55 and 45 of 60; not all hit the cap, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-17
+
+- Minutes: ~35 of 60 active. Subagents: 1 (independent review of PR #47).
+- State: main green. No open issues or PRs.
+- Skipped beat-type tuning (small or no gains for four runs) and the novelty check (a sorter change needs a sorting-fma dispatch whose 16 GB cache is evicted; too slow to iterate inside the budget without a plan).
+- Checked docs against code instead. Shipped PR #47 (https://github.com/julesyoungberg/music-cluster/pull/47):
+  - `docs/cli.md` gains `eval run --embedding`, the one undocumented option; `tests/unit/test_cli_docs.py` now fails on any CLI command or option missing from the doc.
+  - The synthetic minor loop (i-VI-III-VII) is the major loop of its relative major (I-V-vi-IV) in another order, same chords for the same time. Its mean chroma is the same, so `key_correct_minor_loop` 0/24 can't be fixed by any key profile. Documented in EVALUATION.md ("The minor loop"). Stop listing "minor-loop keys" as a fix target; a real fix needs a cue beyond the mean chroma (bass under the downbeat, phrase start) and must be judged on GiantSteps.
+- Next:
+  1. Novelty check (AUROC about 0.5 on hand features and AST alike, so the distance rule may be the limit, not the features). Plan it first: list two or three alternative rules (e.g. kNN distance to the nearest reference track instead of group widths) and test them in one sorting-fma dispatch with a warm cache.
+  2. Dubstep at about 140 (snare on three or the low end), 3/4 re-track, as before.
+- Budget: last 3 runs used about 55, 45 and 35 of 60; not all hit the cap and not all under half, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
