@@ -18,7 +18,7 @@ Hundreds of trials give a distribution rather than one lucky number.
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -66,6 +66,9 @@ class _Outcomes:
     distance: List[float] = field(default_factory=list)
     status: List[str] = field(default_factory=list)
     ref_count: List[int] = field(default_factory=list)
+    # Candidate "belongs nowhere" scores, by name (sorter only).
+    novelty: Dict[str, List[float]] = field(default_factory=dict)
+    trial: List[int] = field(default_factory=list)
 
 
 def _split_by_artist(
@@ -149,6 +152,43 @@ def _baselines(
     return out
 
 
+def _novelty_scores(
+    sorter: GroupSorter,
+    sorter_config: SorterConfig,
+    ref_sets: Dict[int, np.ndarray],
+    names: Dict[int, str],
+    query_x: np.ndarray,
+    suggestions: Sequence[Any],
+) -> Dict[str, List[float]]:
+    """Other ways to score "belongs nowhere", to compare with the sorter's own.
+
+    The sorter's own (`group_widths`) is the distance to the nearest group in
+    that group's widths, in a space shaped to tell the folders apart. A genre
+    that is no folder may land between them there, so the candidates change
+    one thing each: the units, the distance (one nearest track), or the space
+    (plain PCA, without the folder-separating part).
+    """
+    from scipy.spatial.distance import cdist
+
+    assert sorter.embedding is not None  # fitted by the caller
+    points = sorter.embedding.transform(query_x)
+    refs = np.vstack([profile.vectors for profile in sorter.profiles])
+    # Every ranked distance is raw / library scale while scale_normalization is
+    # off (the default), so this puts the nearest track in the same units.
+    nearest = cdist(points, refs).min(axis=1) / max(sorter.global_scale, 1e-9)
+
+    plain = GroupSorter(replace(sorter_config, discriminant_weight=0.0)).fit(ref_sets, names)
+    plain_suggestions = plain.suggest_batch(query_x, top_k=1)
+    return {
+        "group_widths": [s.distance for s in suggestions],
+        # In library units only while scale_normalization is off (the default).
+        "library_units": [s.ranked[0]["distance"] for s in suggestions],
+        "one_minus_confidence": [1.0 - s.confidence for s in suggestions],
+        "nearest_track": [float(d) for d in nearest],
+        "plain_space_group_widths": [s.distance for s in plain_suggestions],
+    }
+
+
 def _trial(
     x: np.ndarray,
     y: np.ndarray,
@@ -158,6 +198,7 @@ def _trial(
     rng: np.random.Generator,
     tempo_column: Optional[int],
     pooled: Dict[str, _Outcomes],
+    trial_number: int = 0,
 ) -> bool:
     labels = sorted(set(y.tolist()))
     if len(labels) < 3:
@@ -190,15 +231,18 @@ def _trial(
 
     ids = {label: i for i, label in enumerate(folders)}
     names = {i: label for label, i in ids.items()}
-    sorter = GroupSorter(sorter_config).fit(
-        {ids[label]: x[idx] for label, idx in ref_idx.items()}, names
-    )
+    ref_sets = {ids[label]: x[idx] for label, idx in ref_idx.items()}
+    sorter = GroupSorter(sorter_config).fit(ref_sets, names)
     query_x = x[[q for q, _ in query_idx]]
     truths = [t for _, t in query_idx]
     ref_sizes = {label: len(idx) for label, idx in ref_idx.items()}
 
     suggestions = sorter.suggest_batch(query_x, top_k=len(folders))
     out = pooled.setdefault("sorter", _Outcomes())
+    for name, scores in _novelty_scores(
+        sorter, sorter_config, ref_sets, names, query_x, suggestions
+    ).items():
+        out.novelty.setdefault(name, []).extend(scores)
     for truth, suggestion in zip(truths, suggestions, strict=True):
         ranked = [names[r["group_id"]] for r in suggestion.ranked]
         out.truth.append(truth)
@@ -209,6 +253,7 @@ def _trial(
         out.distance.append(suggestion.distance)
         out.status.append(suggestion.status)
         out.ref_count.append(ref_sizes.get(truth, 0))
+        out.trial.append(trial_number)
 
     ref_x = np.vstack([x[idx] for idx in ref_idx.values()])
     ref_y = [label for label, idx in ref_idx.items() for _ in idx]
@@ -288,6 +333,19 @@ def _decisions(
     }
 
 
+def _mean_trial_auroc(outcomes: _Outcomes, scores: List[float]) -> Optional[float]:
+    values = []
+    for trial in sorted(set(outcomes.trial)):
+        rows = [i for i, t in enumerate(outcomes.trial) if t == trial]
+        value = metrics.auroc(
+            [scores[i] for i in rows if outcomes.truth[i] == NOWHERE],
+            [scores[i] for i in rows if outcomes.truth[i] != NOWHERE],
+        )
+        if value is not None:
+            values.append(value)
+    return float(np.mean(values)) if values else None
+
+
 def _sorter_details(outcomes: _Outcomes, config: SorterConfig) -> Dict[str, Any]:
     known = _known(outcomes)
     novel = [i for i, t in enumerate(outcomes.truth) if t == NOWHERE]
@@ -336,6 +394,16 @@ def _sorter_details(outcomes: _Outcomes, config: SorterConfig) -> Dict[str, Any]
         "novelty_auroc": metrics.auroc(
             [outcomes.distance[i] for i in novel], [outcomes.distance[i] for i in known]
         ),
+        # The same question for other candidate scores; see _novelty_scores.
+        "novelty_auroc_by_score": {
+            name: metrics.auroc([scores[i] for i in novel], [scores[i] for i in known])
+            for name, scores in outcomes.novelty.items()
+        },
+        # Averaged over trials instead: one library at a time, so a score whose
+        # range shifts with the folder count (confidence) is not penalised for it.
+        "novelty_auroc_by_score_per_trial": {
+            name: _mean_trial_auroc(outcomes, scores) for name, scores in outcomes.novelty.items()
+        },
         "reliability": metrics.reliability(confidence, correct),
         "risk_coverage": metrics.risk_coverage(confidence, correct, points=10)["curve"],
         "threshold_sweep": sweep,
@@ -383,7 +451,9 @@ def simulate(
     completed = attempts = 0
     while completed < settings.trials and attempts < settings.trials * 5:
         attempts += 1
-        if _trial(x, labels, artist_list, settings, sorter_config, rng, tempo_column, pooled):
+        if _trial(
+            x, labels, artist_list, settings, sorter_config, rng, tempo_column, pooled, completed
+        ):
             completed += 1
 
     if "sorter" not in pooled:
