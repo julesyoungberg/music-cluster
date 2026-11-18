@@ -131,6 +131,9 @@ def test_sorter_beats_trivial_baselines_on_separable_groups(rng):
     assert by_score["group_widths"] == pytest.approx(headline["novelty_auroc"])
     # Each candidate must point the right way: a far-off genre scores higher.
     assert all(value > 0.6 for value in by_score.values()), by_score
+    per_trial = result["sorter"]["novelty_auroc_by_score_per_trial"]
+    assert set(per_trial) == set(by_score)
+    assert all(value > 0.6 for value in per_trial.values()), per_trial
     assert 0.0 <= headline["auto_coverage_current"] <= 1.0
     assert result["trials"] == 6
 

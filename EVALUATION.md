@@ -96,6 +96,9 @@ Fifty trials by default. The report pools every query across trials:
   `one_minus_confidence`, `nearest_track` (one nearest reference track) and
   `plain_space_group_widths` (the sorter's rule in plain PCA space, without
   the part fitted to tell the folders apart). The report prints them.
+  `novelty_auroc_by_score_per_trial` averages each over the simulated
+  libraries instead of pooling them; pooled, a score whose range shifts with
+  the folder count (confidence) looks worse than it is.
 - `nowhere_auto_filed` — share of "belongs nowhere" tracks that clear the
   auto-accept thresholds. Lower is better.
 

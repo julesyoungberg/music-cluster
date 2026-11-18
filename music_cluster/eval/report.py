@@ -194,8 +194,15 @@ def markdown(report: Dict[str, Any], comparison: Optional[List[Dict[str, Any]]] 
             lines.append("")
         novelty = (data.get("sorter") or {}).get("novelty_auroc_by_score")
         if novelty:
-            lines += ["Novelty AUROC by candidate score (0.5 is chance):", ""]
-            lines += [f"- {name}: {_fmt(value)}" for name, value in novelty.items()]
+            per_trial = data["sorter"].get("novelty_auroc_by_score_per_trial") or {}
+            lines += [
+                "Novelty AUROC by candidate score, pooled / mean per trial (0.5 is chance):",
+                "",
+            ]
+            lines += [
+                f"- {name}: {_fmt(value)} / {_fmt(per_trial.get(name))}"
+                for name, value in novelty.items()
+            ]
             lines.append("")
         misses = data.get("beat_misses")
         if misses:

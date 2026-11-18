@@ -207,6 +207,11 @@ class GroupSorter:
         return self.embedding is not None and len(self.profiles) >= 2
 
     @property
+    def global_scale(self) -> float:
+        """The library-wide distance unit ranked distances are divided by."""
+        return self._global_scale
+
+    @property
     def group_ids(self) -> List[int]:
         return [profile.group_id for profile in self.profiles]
 
