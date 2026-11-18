@@ -176,3 +176,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   2. Dubstep at about 140 (snare on three or the low end), 3/4 re-track, as before.
 - Budget: last 3 runs used about 55, 45 and 35 of 60; not all hit the cap and not all under half, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-18
+
+- Minutes: ~40 of 60 active (plus waiting on the dataset run). Subagents: 1 (independent review of PR #48).
+- State: main green. No open issues or PRs.
+- Took item 1 from the Nov 17 list (novelty check), measuring first. Shipped PR #48 (https://github.com/julesyoungberg/music-cluster/pull/48): the sorting suites report `novelty_auroc_by_score`, pooled and averaged per trial, for the current rule (`group_widths`) and four candidates: `library_units`, `one_minus_confidence`, `nearest_track`, `plain_space_group_widths` (the rule in PCA space without the folder-separating part). Sorter unchanged. Review found 5 issues; 3 fixed (per-trial AUROC, since pooled confidence mixes in the folder count; cdist; public `GroupSorter.global_scale`), 2 answered.
+- Data run: sorting-fma dispatch 44399750712 on the first commit (pooled numbers only; the FMA cache had been evicted, so it downloads and analyses from scratch). Numbers go on PR #48 when it finishes.
+- Next:
+  1. Read the novelty lines in run 44399750712's job log (or re-dispatch sorting-fma on main for per-trial numbers; the cache should be warm). If a candidate clearly beats 0.5, switch the sorter's `_decide` to it in one PR, judged on `nowhere_auto_filed`, top-1 and the baseline in `eval/baselines/datasets.json`. If none does, the "nowhere" genre in FMA may simply overlap the folders; say so in EVALUATION.md and stop.
+  2. Dubstep at about 140 (snare on three or the low end), 3/4 re-track, as before.
+- Budget: last 3 runs used about 45, 35 and 40 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
