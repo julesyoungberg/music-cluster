@@ -18,7 +18,7 @@ Hundreds of trials give a distribution rather than one lucky number.
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -66,6 +66,8 @@ class _Outcomes:
     distance: List[float] = field(default_factory=list)
     status: List[str] = field(default_factory=list)
     ref_count: List[int] = field(default_factory=list)
+    # Candidate "belongs nowhere" scores, by name (sorter only).
+    novelty: Dict[str, List[float]] = field(default_factory=dict)
 
 
 def _split_by_artist(
@@ -149,6 +151,38 @@ def _baselines(
     return out
 
 
+def _novelty_scores(
+    sorter: GroupSorter,
+    sorter_config: SorterConfig,
+    ref_sets: Dict[int, np.ndarray],
+    names: Dict[int, str],
+    query_x: np.ndarray,
+    suggestions: Sequence[Any],
+) -> Dict[str, List[float]]:
+    """Other ways to score "belongs nowhere", to compare with the sorter's own.
+
+    The sorter's own (`group_widths`) is the distance to the nearest group in
+    that group's widths, in a space shaped to tell the folders apart. A genre
+    that is no folder may land between them there, so the candidates change
+    one thing each: the units, the distance (one nearest track), or the space
+    (plain PCA, without the folder-separating part).
+    """
+    points = sorter.embedding.transform(query_x) if sorter.embedding else query_x
+    refs = np.vstack([profile.vectors for profile in sorter.profiles])
+    nearest = np.min(np.linalg.norm(points[:, None, :] - refs[None, :, :], axis=2), axis=1)
+    scale = max(sorter._global_scale, 1e-9)
+
+    plain = GroupSorter(replace(sorter_config, discriminant_weight=0.0)).fit(ref_sets, names)
+    plain_suggestions = plain.suggest_batch(query_x, top_k=1)
+    return {
+        "group_widths": [s.distance for s in suggestions],
+        "library_units": [s.ranked[0]["distance"] for s in suggestions],
+        "one_minus_confidence": [1.0 - s.confidence for s in suggestions],
+        "nearest_track": [float(d / scale) for d in nearest],
+        "plain_space_group_widths": [s.distance for s in plain_suggestions],
+    }
+
+
 def _trial(
     x: np.ndarray,
     y: np.ndarray,
@@ -190,15 +224,18 @@ def _trial(
 
     ids = {label: i for i, label in enumerate(folders)}
     names = {i: label for label, i in ids.items()}
-    sorter = GroupSorter(sorter_config).fit(
-        {ids[label]: x[idx] for label, idx in ref_idx.items()}, names
-    )
+    ref_sets = {ids[label]: x[idx] for label, idx in ref_idx.items()}
+    sorter = GroupSorter(sorter_config).fit(ref_sets, names)
     query_x = x[[q for q, _ in query_idx]]
     truths = [t for _, t in query_idx]
     ref_sizes = {label: len(idx) for label, idx in ref_idx.items()}
 
     suggestions = sorter.suggest_batch(query_x, top_k=len(folders))
     out = pooled.setdefault("sorter", _Outcomes())
+    for name, scores in _novelty_scores(
+        sorter, sorter_config, ref_sets, names, query_x, suggestions
+    ).items():
+        out.novelty.setdefault(name, []).extend(scores)
     for truth, suggestion in zip(truths, suggestions, strict=True):
         ranked = [names[r["group_id"]] for r in suggestion.ranked]
         out.truth.append(truth)
@@ -336,6 +373,11 @@ def _sorter_details(outcomes: _Outcomes, config: SorterConfig) -> Dict[str, Any]
         "novelty_auroc": metrics.auroc(
             [outcomes.distance[i] for i in novel], [outcomes.distance[i] for i in known]
         ),
+        # The same question for other candidate scores; see _novelty_scores.
+        "novelty_auroc_by_score": {
+            name: metrics.auroc([scores[i] for i in novel], [scores[i] for i in known])
+            for name, scores in outcomes.novelty.items()
+        },
         "reliability": metrics.reliability(confidence, correct),
         "risk_coverage": metrics.risk_coverage(confidence, correct, points=10)["curve"],
         "threshold_sweep": sweep,

@@ -91,6 +91,11 @@ Fifty trials by default. The report pools every query across trials:
   optimistic; the grid is coarse (8 × 6 settings), which keeps that small.
 - `novelty_auroc` — does distance separate "belongs nowhere" from "belongs
   somewhere"? 0.5 is chance.
+- `novelty_auroc_by_score` — the same for other candidate scores, to choose
+  the sorter's rule: `group_widths` (the sorter's own), `library_units`,
+  `one_minus_confidence`, `nearest_track` (one nearest reference track) and
+  `plain_space_group_widths` (the sorter's rule in plain PCA space, without
+  the part fitted to tell the folders apart). The report prints them.
 - `nowhere_auto_filed` — share of "belongs nowhere" tracks that clear the
   auto-accept thresholds. Lower is better.
 

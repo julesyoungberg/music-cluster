@@ -127,6 +127,10 @@ def test_sorter_beats_trivial_baselines_on_separable_groups(rng):
     assert {"majority", "tempo_only", "logistic", "knn"} <= set(methods)
     headline = result["headline"]
     assert headline["novelty_auroc"] is not None and headline["novelty_auroc"] > 0.8
+    by_score = result["sorter"]["novelty_auroc_by_score"]
+    assert by_score["group_widths"] == pytest.approx(headline["novelty_auroc"])
+    # Each candidate must point the right way: a far-off genre scores higher.
+    assert all(value > 0.6 for value in by_score.values()), by_score
     assert 0.0 <= headline["auto_coverage_current"] <= 1.0
     assert result["trials"] == 6
 
