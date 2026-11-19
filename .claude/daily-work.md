@@ -188,3 +188,13 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   2. Dubstep at about 140 (snare on three or the low end), 3/4 re-track, as before.
 - Budget: last 3 runs used about 45, 35 and 40 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-19
+
+- Minutes: ~25 of 60 active. Subagents: 1 (independent review of the PR).
+- State: main green. No open issues or PRs.
+- Item 1 from the Nov 18 list: run 44399750712 put every novelty candidate at 0.50-0.52 (numbers on PR #48). Wrote the result into EVALUATION.md ("Belongs nowhere") and stopped, as planned. Shipped in the PR for this run.
+- Looked at item 2 (dubstep at about 140) in run 43765955305's misses: 45 dubstep rows, losing mostly to breakbeat (snare band busy on most sixteenths) and to four-to-the-floor (one kick a bar). No single bar cue separates them, and the misses table lists no correct reads, so a rule change can't be checked for harm before a GiantSteps run. Not tried.
+- Next: beat-type tuning and the novelty check have both stopped paying off. The bigger levers need Jules: shipping AST (top-1 0.646 vs 0.447 on FMA, needs torch + transformers), or a direction for new work.
+- Budget: last 3 runs used about 35, 40 and 25 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: what to work on next (see Next). Still open: license, commit dialog default mode, shipping AST in the app.
