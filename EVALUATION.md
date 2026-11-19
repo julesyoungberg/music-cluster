@@ -102,6 +102,25 @@ Fifty trials by default. The report pools every query across trials:
 - `nowhere_auto_filed` — share of "belongs nowhere" tracks that clear the
   auto-accept thresholds. Lower is better.
 
+### Belongs nowhere
+
+On FMA small with the hand features, no "belongs nowhere" score is more than
+seed noise above chance (run 44399750712, 50 trials, pooled):
+
+| Score | Novelty AUROC |
+| --- | --- |
+| `group_widths` (the sorter's rule) | 0.503 |
+| `library_units` | 0.520 |
+| `one_minus_confidence` | 0.497 |
+| `nearest_track` | 0.502 |
+| `plain_space_group_widths` | 0.512 |
+
+- Seed noise is about 0.02, so the sorter's rule stays as it is. A held-back
+  FMA genre sits as close to the folders as their own unseen tracks do.
+- With the AST embedding alone (the `+ast:embedding` result on 2,500 FMA tracks,
+  the run in PR #31), the pooled `novelty_auroc` is 0.52 as well, so a better
+  space alone has not fixed it either.
+
 ### Pretrained embeddings
 
 `--embedding ast` checks whether a network trained on lots of audio
