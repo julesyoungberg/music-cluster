@@ -198,3 +198,13 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 - Next: beat-type tuning and the novelty check have both stopped paying off. The bigger levers need Jules: shipping AST (top-1 0.646 vs 0.447 on FMA, needs torch + transformers), or a direction for new work.
 - Budget: last 3 runs used about 35, 40 and 25 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: what to work on next (see Next). Still open: license, commit dialog default mode, shipping AST in the app.
+
+### 2026-11-20
+
+- Minutes: ~15 of 60 active. Subagents: 1 (independent review of the log PR).
+- State: main green (all four workflows on c9cea34). No open issues or PRs.
+- No reply yet to the Nov 19 question (ship AST in the app, or another direction). No roadmap item is left that doesn't need Jules: beat-type tuning and the novelty check have stopped paying off (see the Nov 16 to Nov 19 entries), and README, docs and code list no unbuilt features. Started no new work rather than invent a feature.
+- Housekeeping found: 35 remote branches whose PRs are merged or closed (#1 to #49, e.g. `claude/project-thread-rkela7`, `daily-work-log`, `add-graphify`). Not deleted; deleting remote branches needs Jules's OK.
+- Next (all need Jules): ship AST (FMA top-1 0.646 vs 0.447, adds torch + transformers, about 350 MB); or a new direction; plus the standing questions below and the branch cleanup.
+- Budget: last 3 runs used about 40, 25 and 15 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: what to work on next. Still open: license, commit dialog default mode, shipping AST in the app, deleting the 35 merged branches.
