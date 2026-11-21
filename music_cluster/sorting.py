@@ -97,8 +97,8 @@ def score_session(
     matrix, found_ids = track_vectors(db, collection, config, track_ids)
     if len(found_ids) == 0:
         raise ValueError(
-            "None of the session's tracks have been analysed for the "
-            f"{profile_of(collection)} profile"
+            "None of the session's tracks could be described for sorting: not analysed for "
+            f"the {profile_of(collection)} profile, or not decodable by the pretrained model"
         )
 
     suggestions = sorter.suggest_batch(matrix, found_ids)
@@ -115,6 +115,12 @@ def score_session(
             payload["status"] = STATUS_UNMATCHED
         items.append(payload)
 
+    # A track with no vector (a pretrained model could not decode it) still
+    # belongs in the session, so the user sees it rather than losing it.
+    found = set(found_ids)
+    items.extend(
+        {"track_id": tid, "status": STATUS_UNMATCHED} for tid in track_ids if tid not in found
+    )
     db.upsert_sort_items(session_id, items)
 
     if auto_accept:

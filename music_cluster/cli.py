@@ -28,6 +28,7 @@ from .config import Config
 from .database import Database
 from .library import analyze_paths, prune_missing, tag_tracks
 from .metadata import display_name
+from .pretrained import MissingDependency
 from .utils import parse_extensions
 
 
@@ -680,7 +681,7 @@ def fit(collection_name):
     click.echo(f"Fitting {target['name']!r}...")
     try:
         metrics = groups_mod.fit_collection(db, target, config)
-    except ValueError as exc:
+    except (ValueError, MissingDependency) as exc:
         raise click.ClickException(str(exc)) from exc
 
     embedding = metrics.get("embedding", {})
@@ -703,7 +704,10 @@ def check(collection_name, refit):
     target = resolve_collection_or_exit(db, collection_name)
 
     if refit:
-        groups_mod.fit_collection(db, target, config)
+        try:
+            groups_mod.fit_collection(db, target, config)
+        except (ValueError, MissingDependency) as exc:
+            raise click.ClickException(str(exc)) from exc
 
     model = db.load_model(target["id"])
     if not model:
@@ -770,7 +774,7 @@ def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
             progress=progress_bar("Analysing"),
             auto_accept=auto_accept,
         )
-    except (ValueError, LookupError) as exc:
+    except (ValueError, LookupError, MissingDependency) as exc:
         raise click.ClickException(str(exc)) from exc
 
     session = outcome["session"]
@@ -1537,7 +1541,6 @@ def eval_run(
 
     from .eval import report as report_mod
     from .eval import runner
-    from .pretrained import MissingDependency
 
     if Path(out).suffix.lower() == ".md":
         echo_error("--out is the JSON report; the Markdown summary is written beside it")

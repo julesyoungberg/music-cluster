@@ -395,6 +395,9 @@ class TestPretrainedFeatureSet:
             embedded.extend(paths)
             out = []
             for path in paths:
+                if "broken" in path:
+                    out.append(None)
+                    continue
                 folder = os.path.dirname(path)
                 centres.setdefault(folder, rng.normal(0, 1, 16) * 8.0)
                 out.append(centres[folder] + rng.normal(0, 0.5, 16))
@@ -449,3 +452,43 @@ class TestPretrainedFeatureSet:
             groups_mod.track_vectors(
                 db, db.get_collection(collection_id=collection_id), config, [1]
             )
+
+    def test_sorting_on_ast_keeps_a_track_that_could_not_be_embedded(
+        self, db, config, populated, fake_ast, rng
+    ):
+        from music_cluster import sorting
+
+        collection_id, membership, _ = populated
+        self._with_ast(db, collection_id)
+        new = db.upsert_track(filepath="/fake/group0/new.mp3", filename="new.mp3")
+        broken = db.upsert_track(filepath="/fake/broken.mp3", filename="broken.mp3")
+        for track_id in (new, broken):
+            db.add_features(track_id, rng.normal(0, 1, FEATURE_DIM))
+        session_id = db.create_sort_session(
+            collection_id=collection_id, name="Incoming", source_path=None
+        )
+
+        sorting.score_session(db, config, session_id, track_ids=[new, broken])
+        items = {item["track_id"]: item for item in db.list_sort_items(session_id)}
+
+        assert items[new]["suggested_group_id"] == next(iter(membership))
+        assert items[broken]["status"] == "unmatched"
+
+    def test_a_global_ast_setting_leaves_sample_collections_on_hand_features(self, db, config):
+        config.set(["sorting", "feature_set"], "ast")
+        collection_id = db.create_collection("Kits", profile="sample")
+
+        sorter_config = groups_mod.sorter_config_for(
+            db.get_collection(collection_id=collection_id), config
+        )
+
+        assert sorter_config.feature_set == "hand"
+
+    def test_reanalysing_a_track_drops_its_old_embedding(self, db, populated):
+        _, membership, _ = populated
+        track_id = next(iter(membership.values()))[0]
+        db.add_embedding(track_id, "ast", np.ones(16))
+
+        db.add_features(track_id, np.zeros(FEATURE_DIM))
+
+        assert db.get_embedding_matrix([track_id], "ast")[1] == []

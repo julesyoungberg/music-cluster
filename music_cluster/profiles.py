@@ -87,6 +87,9 @@ PROFILES: Dict[str, Profile] = {
             "max_seconds": 30,
         },
         sorting={
+            # Pretrained embeddings describe music; a one-shot keeps the hand
+            # features even when music sorts on AST.
+            "feature_set": "hand",
             # Envelope is what separates a clap from a snare when their spectra
             # are nearly identical; tempo means little for a single hit.
             "feature_weights": {

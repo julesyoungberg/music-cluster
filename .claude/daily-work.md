@@ -213,7 +213,7 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 
 - Minutes: ~45 of 60 active. Subagents: 1 (independent review of PR #55).
 - State: main green. No open issues or PRs. Jules picked "Ship AST in the app" on the Nov 20 card.
-- Shipped: PR #55 (https://github.com/julesyoungberg/music-cluster/pull/55): `sorting.feature_set: ast` makes the sorter fit and score on the AST embedding (FMA top-1 0.646 vs 0.447). Opt-in extra `cratewise[ast]` (torch, transformers); embeddings stored in a new `embeddings` table on first fit or sort; changing the setting refits. Music collections only. Not merged: it adds large dependencies, so it waits for Jules (promised in the Nov 20 thread).
+- Shipped: PR #55 (https://github.com/julesyoungberg/music-cluster/pull/55). Review found 7 issues, all fixed (a global `ast` setting broke sample collections; unembeddable tracks vanished from sessions; stale embeddings after re-analysis). `sorting.feature_set: ast` makes the sorter fit and score on the AST embedding (FMA top-1 0.646 vs 0.447). Opt-in extra `cratewise[ast]` (torch, transformers); embeddings stored in a new `embeddings` table on first fit or sort; changing the setting refits. Music collections only. Not merged: it adds large dependencies, so it waits for Jules (promised in the Nov 20 thread).
 - Real-model check: huggingface.co and download.pytorch.org are blocked from the cloud session. Dispatched eval.yml (sorting-fma, limit 300, embedding ast) on the branch to prove the moved model loader still works.
 - Next:
   1. Desktop app: bundle torch in the PyInstaller sidecar (size, build time, `COLLECT_ALL` in `scripts/build_sidecar.py`) and add a Settings toggle. Plan first; it is a large build change.

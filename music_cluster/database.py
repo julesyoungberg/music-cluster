@@ -616,6 +616,9 @@ class Database:
                 """,
                 (track_id, profiles.normalize(profile), vector.tobytes(), len(vector)),
             )
+            # New features mean the audio was (re)analysed; an old embedding may
+            # describe a different version of the file.
+            conn.execute("DELETE FROM embeddings WHERE track_id = ?", (track_id,))
             conn.commit()
 
     def get_features(self, track_id: int, profile: Optional[str] = None) -> Optional[np.ndarray]:

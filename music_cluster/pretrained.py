@@ -2,7 +2,7 @@
 
 The sorter's 96 hand-made features cap genre sorting on FMA at about 45% top-1;
 the AST embedding below reaches 0.646 on the same simulated libraries
-(EVALUATION.md). It is optional: set `sorting.embedding: ast` and install
+(EVALUATION.md). It is optional: set `sorting.feature_set: ast` and install
 PyTorch and Hugging Face `transformers` (`pip install "cratewise[ast]"`). The
 model's weights (about 350 MB) download on first use.
 
@@ -70,7 +70,7 @@ def require() -> None:
         import transformers  # noqa: F401
     except ImportError as exc:
         raise MissingDependency(
-            "Pretrained embeddings need PyTorch and transformers: pip install torch transformers"
+            'Pretrained embeddings need PyTorch and transformers: pip install "cratewise[ast]"'
         ) from exc
 
 
