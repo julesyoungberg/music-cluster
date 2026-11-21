@@ -86,7 +86,7 @@ Fill these in `site/site.json`:
 | Key | What it needs |
 | --- | --- |
 | `name` | The product name shown on the page |
-| `license` | The license the code is released under. Add the matching `LICENSE` file and `setup.py` classifier at the same time |
+| `license` | The license the code is released under (MIT). If it changes, change `LICENSE`, the `setup.py` classifier and `license` in `src-tauri/Cargo.toml` with it |
 | `site_url` | The address the site is served from, for link previews |
 | `contact_form_action` | A form endpoint that emails you, e.g. [Formspree](https://formspree.io) or [Basin](https://usebasin.com). The form posts `name`, `email` and `message` |
 | `newsletter_form_action` | The signup endpoint from a mailing list service, e.g. [Buttondown](https://buttondown.com). The form posts `email` |
@@ -94,8 +94,8 @@ Fill these in `site/site.json`:
 
 `maker` is the company credited under the hero buttons and in the footer.
 The same name is set in `setup.py` (`author`), `src-tauri/Cargo.toml`
-(`authors`) and `src-tauri/tauri.conf.json` (`publisher`, `copyright`); change
-all four together.
+(`authors`), `src-tauri/tauri.conf.json` (`publisher`, `copyright`) and the
+copyright line in `LICENSE`; change all five together.
 
 `download_url`, `releases_url`, `docs_url` and `github_url` point at the GitHub
 repository, so they work once it is public.
