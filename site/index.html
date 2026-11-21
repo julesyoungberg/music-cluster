@@ -6,11 +6,10 @@
     <title>${name}: ${tagline}</title>
     <meta
       name="description"
-      content="${name} learns what your genre folders sound like and suggests where each new track belongs. You decide, it files, and every move can be undone. Free desktop app and command line tool for DJs."
+      content="${name} learns what your genre folders sound like and suggests where each new track belongs. You decide, it files, and every move can be undone. Free command line tool and desktop app for DJs."
     />
     <meta property="og:title" content="${name}" />
     <meta property="og:description" content="${tagline}" />
-    <meta property="og:image" content="${site_url}/images/sort-review.png" />
     <meta name="color-scheme" content="light dark" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,6 +25,7 @@
         <a class="brand" href="#top">${name}</a>
         <nav aria-label="Sections">
           <a href="#features">Features</a>
+          <a href="#commands">Commands</a>
           <a href="#install">Install</a>
           <a href="#learn">Tutorials</a>
           <a href="#faq">FAQ</a>
@@ -40,24 +40,29 @@
         <h1>${tagline}</h1>
         <p class="lede">
           You buy fifteen tracks, and now you have to decide which crate each one goes in.
-          ${name} learns what your genre folders sound like, then tells you where each new
-          track probably belongs and how sure it is. You listen, you decide, and it files them.
+          ${name} is a command line tool that learns what your genre folders sound like, then
+          tells you where each new track probably belongs and how sure it is. You decide, and it
+          files them.
         </p>
         <div class="actions">
-          <a class="button primary" href="${download_url}">Download the desktop app</a>
-          <a class="button" href="#install">Install the command line tool</a>
+          <a class="button primary" href="#install">Install with pipx</a>
+          <a class="button" href="${download_url}">Or get the desktop app</a>
         </div>
         <p class="small">
           By ${maker}. Free and open source. macOS, Windows and Linux. Runs on your computer.
         </p>
-        <figure class="shot hero-shot">
-          <img
-            src="images/sort-review.png"
-            width="1280"
-            height="820"
-            alt="Reviewing a new track: the suggested groups with their scores, the waveform and the queue"
-          />
-        </figure>
+        <div class="terminal hero-terminal" role="figure" aria-label="A first sort, start to finish">
+          <pre><code><span class="dim"># each subfolder of your crates folder becomes a group</span>
+<span class="prompt">&#36;</span> ${cli_command} groups import-tree ~/Music/DJ
+<span class="dim"># learn what each group sounds like, and check they can be told apart</span>
+<span class="prompt">&#36;</span> ${cli_command} fit
+<span class="prompt">&#36;</span> ${cli_command} check
+<span class="dim"># score new buys against your groups, then review them one by one</span>
+<span class="prompt">&#36;</span> ${cli_command} sort ~/Downloads/NewMusic
+<span class="dim"># see every file operation first, then file them (undo puts them back)</span>
+<span class="prompt">&#36;</span> ${cli_command} apply 1 --mode copy --dry-run
+<span class="prompt">&#36;</span> ${cli_command} apply 1 --mode copy</code></pre>
+        </div>
       </section>
 
       <section class="band" aria-labelledby="how">
@@ -76,8 +81,9 @@
               <span class="step-no">02</span>
               <h3>Sort new music</h3>
               <p>
-                Every new track gets its likely groups, each with a score. Listen to it on its
-                waveform and press <kbd>1</kbd>–<kbd>5</kbd> to pick, or <kbd>s</kbd> to skip.
+                Every new track gets its likely groups, each with a score. In the review, press
+                <kbd>1</kbd>–<kbd>5</kbd> to pick, <kbd>s</kbd> to skip, or <kbd>l</kbd> to choose
+                any group.
               </p>
             </li>
             <li>
@@ -141,50 +147,44 @@
         </div>
       </section>
 
-      <section class="wrap" aria-labelledby="screens">
-        <h2 id="screens">Screenshots</h2>
-        <div class="gallery">
-          <figure class="shot">
-            <img
-              src="images/groups.png"
-              width="1280"
-              height="800"
-              loading="lazy"
-              alt="The groups in a collection, each with its own colour"
-            />
-            <figcaption>Your groups, each with its own crate colour.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="images/sort-commit-preview-move.png"
-              width="1280"
-              height="800"
-              loading="lazy"
-              alt="The commit preview listing every file that will be moved and where"
-            />
-            <figcaption>A preview of every file operation before anything happens.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="images/library-tag-filter.png"
-              width="1280"
-              height="992"
-              loading="lazy"
-              alt="The library filtered by genre, beat type and mood tags"
-            />
-            <figcaption>Browse the library by genre, beat, mood and energy.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="images/dark-group-detail.png"
-              width="1280"
-              height="830"
-              loading="lazy"
-              alt="A group's colour, notes, destination and reference tracks, in the dark theme"
-            />
-            <figcaption>Light and dark themes, following your system.</figcaption>
-          </figure>
+      <section class="wrap" id="commands" aria-labelledby="commands-title">
+        <h2 id="commands-title">More from the command line</h2>
+        <div class="commands">
+          <article>
+            <h3>Check your folders</h3>
+            <pre><code>${cli_command} check</code></pre>
+            <p>How many of each group's tracks sort back into it, and which two groups get mixed up most.</p>
+          </article>
+          <article>
+            <h3>Accept the sure ones</h3>
+            <pre><code>${cli_command} sort ~/Downloads/NewMusic --auto-accept</code></pre>
+            <p>Confident suggestions are accepted for you, so you only review the uncertain tracks.</p>
+          </article>
+          <article>
+            <h3>Undo a session</h3>
+            <pre><code>${cli_command} undo 1</code></pre>
+            <p>Moves, copies and links are reversed. Files an overwrite replaced come back from their backup.</p>
+          </article>
+          <article>
+            <h3>No folders yet?</h3>
+            <pre><code>${cli_command} discover ~/Music/Unsorted</code></pre>
+            <p>Breaks one pile into candidate groups, each with a few tracks to audition before you keep it.</p>
+          </article>
+          <article>
+            <h3>Find tracks by tag</h3>
+            <pre><code>${cli_command} tags find --beat half_time --min-energy 7</code></pre>
+            <p>Filter by genre, beat type, mood, energy, danceability and Camelot key.</p>
+          </article>
+          <article>
+            <h3>Export to your DJ app</h3>
+            <pre><code>${cli_command} groups export --format rekordbox</code></pre>
+            <p>Every group as a Rekordbox or Traktor playlist with BPM, key and genre, or as M3U.</p>
+          </article>
         </div>
+        <p class="small">
+          Every command and option is in the
+          <a href="${docs_url}/docs/cli.md">command line reference</a>.
+        </p>
       </section>
 
       <section class="band" aria-labelledby="safe">
@@ -215,21 +215,8 @@
         <h2 id="install-title">Get ${name}</h2>
         <div class="install">
           <article class="panel">
-            <h3>Desktop app</h3>
-            <p>The full workflow with audio previews and waveforms.</p>
-            <a class="button primary" href="${download_url}">Download the latest release</a>
-            <ul class="specs">
-              <li>macOS (Apple silicon or Intel): <code>.dmg</code></li>
-              <li>Windows: <code>.msi</code></li>
-              <li>Linux: <code>.AppImage</code> or <code>.deb</code></li>
-            </ul>
-            <p class="small">
-              The app needs FFmpeg to read audio. On a Mac: <code>brew install ffmpeg</code>.
-            </p>
-          </article>
-          <article class="panel">
             <h3>Command line</h3>
-            <p>Everything the app does, scriptable. Needs Python 3.10 to 3.12 and FFmpeg.</p>
+            <p>The whole workflow in your terminal. Needs Python 3.10 to 3.12 and FFmpeg.</p>
             <pre><code>pipx install ${pypi_package}
 ${cli_command} init
 ${cli_command} groups import-tree ~/Music/DJ
@@ -239,6 +226,19 @@ ${cli_command} sort ~/Downloads/NewMusic</code></pre>
               <code>pip install ${pypi_package}</code> works too. See the
               <a href="${docs_url}/INSTALL.md">install guide</a> for FFmpeg and running from
               source.
+            </p>
+          </article>
+          <article class="panel">
+            <h3>Desktop app</h3>
+            <p>The same workflow in a window, with audio previews and waveforms.</p>
+            <a class="button" href="${download_url}">Download the latest release</a>
+            <ul class="specs">
+              <li>macOS (Apple silicon or Intel): <code>.dmg</code></li>
+              <li>Windows: <code>.msi</code></li>
+              <li>Linux: <code>.AppImage</code> or <code>.deb</code></li>
+            </ul>
+            <p class="small">
+              The app needs FFmpeg to read audio. On a Mac: <code>brew install ffmpeg</code>.
             </p>
           </article>
         </div>

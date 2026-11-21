@@ -238,38 +238,35 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
-/* Screenshots */
-.shot {
-  margin: 0;
-}
-
-.shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.12);
-}
-
-.shot figcaption {
-  font-size: 0.9rem;
-  color: hsl(var(--muted-foreground));
-  margin-top: 0.6rem;
-}
-
+/* Terminal. Always dark, like a real one, in both themes. */
 .hero {
   padding-top: 64px;
 }
 
-.hero-shot {
+.terminal {
   margin-top: 48px;
+  background: hsl(30 6% 7%);
+  color: hsl(40 12% 90%);
+  border: 1px solid hsl(30 5% 17%);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.18);
 }
 
-.gallery {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 32px;
+.terminal pre {
+  background: none;
+  margin: 0;
+  padding: 24px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.terminal .prompt {
+  color: hsl(32 95% 55%);
+  user-select: none;
+}
+
+.terminal .dim {
+  color: hsl(35 6% 60%);
 }
 
 /* Grids of cards */
@@ -288,6 +285,25 @@ summary:focus-visible {
   gap: 24px;
 }
 
+.commands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.commands article {
+  border-top: 2px solid hsl(var(--primary));
+  padding-top: 1rem;
+  min-width: 0;
+}
+
+.commands pre {
+  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  white-space: pre-wrap;
+}
+
 .learn {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
@@ -300,6 +316,7 @@ summary:focus-visible {
 }
 
 .features p,
+.commands p,
 .steps p,
 .learn p {
   color: hsl(var(--muted-foreground));
@@ -479,7 +496,9 @@ textarea {
     flex-direction: column;
   }
 
-  .gallery {
-    grid-template-columns: 1fr;
+  .terminal pre {
+    padding: 16px;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
   }
 }
