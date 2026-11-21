@@ -70,6 +70,7 @@ setup(
     extras_require={
         "api": ["fastapi>=0.104.0", "uvicorn>=0.24.0"],
         "llm": ["anthropic>=0.40.0"],
+        "ast": ["torch>=2.0.0", "transformers>=4.30.0"],
         "dev": ["pytest>=7.4.0", "pytest-cov>=4.1.0", "httpx>=0.27.0"],
     },
     entry_points={

@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 import numpy as np
 
-from . import profiles
+from . import pretrained, profiles
 from .config import Config
 from .database import Database
 from .library import AnalysisResult, analyze_files, collect_files
@@ -357,15 +357,53 @@ def looks_like_playlist(path: str) -> bool:
 # ----------------------------------------------------------------------
 
 
+def track_vectors(
+    db: Database, collection: Dict, config: Config, track_ids: Sequence[int]
+) -> Tuple[np.ndarray, List[int]]:
+    """The vectors the collection's sorter works on, for the given tracks.
+
+    With a pretrained feature set, tracks without a stored embedding are
+    embedded now and stored, so only the first fit or sort pays for them.
+    """
+    feature_set = sorter_config_for(collection, config).feature_set
+    if feature_set == "hand":
+        return db.get_feature_matrix(track_ids, profile_of(collection))
+    model = pretrained.spec(feature_set)
+    if profile_of(collection) != profiles.MUSIC:
+        raise ValueError(f"The {model.name} feature set is for music collections only")
+
+    _, stored = db.get_embedding_matrix(track_ids, model.name)
+    have = set(stored)
+    missing = [tid for tid in track_ids if tid not in have]
+    if missing:
+        pretrained.require()
+        tracks = db.get_tracks(missing)
+        todo = [tid for tid in missing if tid in tracks]
+        vectors = pretrained.embed_files([tracks[tid]["filepath"] for tid in todo], model.name)
+        for tid, vector in zip(todo, vectors, strict=True):
+            if vector is not None:
+                db.add_embedding(tid, model.name, vector)
+    return db.get_embedding_matrix(track_ids, model.name)
+
+
 def load_group_features(
-    db: Database, collection_id: int, profile: Optional[str] = None
+    db: Database,
+    collection_id: int,
+    profile: Optional[str] = None,
+    matrix_for: Optional[Callable[[List[int]], Tuple[np.ndarray, List[int]]]] = None,
 ) -> Tuple[Dict[int, np.ndarray], Dict[int, str], Dict[int, List[int]], List[Dict]]:
     """Load reference features for every group in a collection.
 
     Returns ``(features_by_group, names_by_group, track_ids_by_group, problems)``
     where *problems* lists groups that are empty or missing features.
+
+    Args:
+        matrix_for: Where vectors come from (default: the profile's stored
+            features). See :func:`track_vectors`.
     """
     profile = profiles.normalize(profile)
+    if matrix_for is None:
+        matrix_for = lambda ids: db.get_feature_matrix(ids, profile)  # noqa: E731
     groups = db.list_groups(collection_id)
     features: Dict[int, np.ndarray] = {}
     names: Dict[int, str] = {}
@@ -381,7 +419,7 @@ def load_group_features(
             )
             continue
 
-        matrix, found_ids = db.get_feature_matrix(member_ids, profile)
+        matrix, found_ids = matrix_for(member_ids)
         if len(found_ids) == 0:
             problems.append(
                 {
@@ -415,7 +453,10 @@ def fit_collection(
     DJ's folders are actually distinguishable from each other.
     """
     features, names, track_ids, problems = load_group_features(
-        db, collection["id"], profile_of(collection)
+        db,
+        collection["id"],
+        profile_of(collection),
+        matrix_for=lambda ids: track_vectors(db, collection, config, ids),
     )
     if len(features) < 2:
         raise ValueError(
@@ -448,10 +489,16 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
     Returns ``(sorter, model_row)``.
     """
     model = db.load_model(collection["id"])
-    stale = model is None or (
-        collection.get("updated_at")
-        and model.get("fitted_at")
-        and str(model["fitted_at"]) < str(collection["updated_at"])
+    stale = (
+        model is None
+        or (
+            collection.get("updated_at")
+            and model.get("fitted_at")
+            and str(model["fitted_at"]) < str(collection["updated_at"])
+        )
+        # A sorter fitted on one feature set can't score vectors from another.
+        or model["params"].get("feature_set", "hand")
+        != sorter_config_for(collection, config).feature_set
     )
 
     if stale:

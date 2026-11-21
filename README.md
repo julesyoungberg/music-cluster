@@ -339,6 +339,7 @@ sorting:
     harmony: 1.0
     dynamics: 1.0
   learn_on_commit: true
+  feature_set: hand             # or ast: see "Sorting with AST" below
 
 organize:
   mode: playlist                # default filing mode
@@ -363,6 +364,25 @@ sorting:
 
 After changing anything under `sorting`, run `fit` again; after
 `feature_extraction`, re-analyse (`analyze --update`) and then fit.
+
+### Optional: sorting with AST
+
+AST (the Audio Spectrogram Transformer, a network trained on AudioSet) can
+describe each track in place of the 96 hand-made features. On FMA genres it
+sorts 65% of tracks into the right folder first, against 45% for the hand
+features (see [EVALUATION.md](EVALUATION.md)). It is off by default because it
+needs PyTorch and Hugging Face `transformers` (several hundred MB), downloads
+the model (about 350 MB) on first use, and takes a few seconds per track on
+a laptop CPU.
+
+```bash
+pipx inject cratewise torch transformers   # or install with the extra: 'cratewise[ast] @ git+https://...'
+cratewise config --set sorting.feature_set=ast
+cratewise fit                               # embeds every reference track once, then stores it
+```
+
+New tracks are embedded when you sort them. Music collections only; sample
+collections keep the hand features. The desktop app does not bundle it yet.
 
 ### Optional: LLM naming
 

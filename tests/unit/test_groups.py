@@ -380,3 +380,72 @@ class TestFitting:
 
         # A stale sorter would keep suggesting only the original groups.
         assert new_group in sorter.group_ids
+
+
+class TestPretrainedFeatureSet:
+    @pytest.fixture
+    def fake_ast(self, monkeypatch, rng):
+        """Stub the AST model: each group folder gets its own 16-dim region."""
+        from music_cluster import pretrained
+
+        centres: dict = {}
+        embedded: list = []
+
+        def embed_files(paths, model_name, embedder=None):
+            embedded.extend(paths)
+            out = []
+            for path in paths:
+                folder = os.path.dirname(path)
+                centres.setdefault(folder, rng.normal(0, 1, 16) * 8.0)
+                out.append(centres[folder] + rng.normal(0, 0.5, 16))
+            return out
+
+        monkeypatch.setattr(pretrained, "require", lambda: None)
+        monkeypatch.setattr(pretrained, "embed_files", embed_files)
+        return embedded
+
+    def _with_ast(self, db, collection_id):
+        db.update_collection(collection_id, settings={"sorting": {"feature_set": "ast"}})
+        return db.get_collection(collection_id=collection_id)
+
+    def test_embeds_each_track_once_and_sorts_on_the_embedding(
+        self, db, config, populated, fake_ast
+    ):
+        collection_id, membership, _ = populated
+        collection = self._with_ast(db, collection_id)
+
+        metrics = groups_mod.fit_collection(db, collection, config)
+        all_ids = [tid for ids in membership.values() for tid in ids]
+        matrix, found = db.get_embedding_matrix(all_ids, "ast")
+
+        assert matrix.shape == (36, 16) and sorted(found) == sorted(all_ids)
+        assert metrics["accuracy"] > 0.8
+        assert len(fake_ast) == 36
+
+        groups_mod.fit_collection(db, collection, config)
+        assert len(fake_ast) == 36  # stored, not embedded again
+
+    def test_switching_feature_set_refits_the_sorter(self, db, config, populated, fake_ast):
+        collection_id, _, _ = populated
+        groups_mod.fit_collection(db, db.get_collection(collection_id=collection_id), config)
+
+        sorter, model = groups_mod.load_sorter(db, self._with_ast(db, collection_id), config)
+
+        assert model["params"]["feature_set"] == "ast"
+        assert sorter.embedding.input_dim == 16
+
+    def test_sample_collections_keep_the_hand_features(self, db, config):
+        collection_id = db.create_collection("Kits", profile="sample")
+        collection = self._with_ast(db, collection_id)
+
+        with pytest.raises(ValueError, match="music collections only"):
+            groups_mod.track_vectors(db, collection, config, [1])
+
+    def test_an_unknown_feature_set_is_refused(self, db, config, populated):
+        collection_id, _, _ = populated
+        db.update_collection(collection_id, settings={"sorting": {"feature_set": "clap"}})
+
+        with pytest.raises(ValueError, match="Unknown embedding"):
+            groups_mod.track_vectors(
+                db, db.get_collection(collection_id=collection_id), config, [1]
+            )

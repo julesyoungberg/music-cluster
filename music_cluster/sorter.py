@@ -50,6 +50,9 @@ class SorterConfig:
     min_margin: float = 0.08
     novelty_factor: float = 3.0
     feature_weights: Dict[str, float] = field(default_factory=dict)
+    # What describes a track: "hand" (the extractor's features) or a
+    # pretrained model named in music_cluster/pretrained.py.
+    feature_set: str = "hand"
 
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "SorterConfig":
@@ -151,7 +154,11 @@ class GroupSorter:
             pca_variance=self.config.pca_variance,
             max_components=self.config.max_components,
             discriminant_weight=self.config.discriminant_weight,
-            feature_weights=self.config.feature_weights,
+            # Family weights name blocks of the hand features; a pretrained
+            # embedding has no timbre or rhythm columns to weight.
+            feature_weights=self.config.feature_weights
+            if self.config.feature_set == "hand"
+            else {},
             profile=self.audio_profile,
         ).fit(all_features, labels)
 

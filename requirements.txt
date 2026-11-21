@@ -15,3 +15,7 @@ uvicorn>=0.24.0
 
 # Optional: LLM-assisted naming of discovered groups (cratewise discover --llm)
 # anthropic>=0.40.0
+
+# Optional: sort on the AST embedding (sorting.feature_set: ast)
+# torch>=2.0.0
+# transformers>=4.30.0

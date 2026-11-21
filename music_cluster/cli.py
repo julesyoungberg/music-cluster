@@ -1537,7 +1537,7 @@ def eval_run(
 
     from .eval import report as report_mod
     from .eval import runner
-    from .eval.pretrained import MissingDependency
+    from .pretrained import MissingDependency
 
     if Path(out).suffix.lower() == ".md":
         echo_error("--out is the JSON report; the Markdown summary is written beside it")

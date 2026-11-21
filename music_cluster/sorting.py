@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .config import Config
 from .database import Database
-from .groups import load_sorter, profile_of, resolve_collection
+from .groups import load_sorter, profile_of, resolve_collection, track_vectors
 from .library import analyze_files, collect_files
 from .metadata import display_name
 from .organizer import CommitPlan, CommitResult, execute_plan, plan_commit
@@ -94,7 +94,7 @@ def score_session(
     if not track_ids:
         return {}
 
-    matrix, found_ids = db.get_feature_matrix(track_ids, profile_of(collection))
+    matrix, found_ids = track_vectors(db, collection, config, track_ids)
     if len(found_ids) == 0:
         raise ValueError(
             "None of the session's tracks have been analysed for the "
