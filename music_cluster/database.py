@@ -100,6 +100,18 @@ class Database:
                     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
                 );
 
+                -- A pretrained model's description of a track (music_cluster/pretrained.py),
+                -- one row per (track, model). Kept apart from features: it is not
+                -- the extractor's output and is only computed when a collection
+                -- sorts with it.
+                CREATE TABLE IF NOT EXISTS embeddings (
+                    track_id INTEGER NOT NULL,
+                    model TEXT NOT NULL,
+                    vector BLOB NOT NULL,
+                    PRIMARY KEY (track_id, model),
+                    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS collections (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT UNIQUE NOT NULL,
@@ -604,6 +616,9 @@ class Database:
                 """,
                 (track_id, profiles.normalize(profile), vector.tobytes(), len(vector)),
             )
+            # New features mean the audio was (re)analysed; an old embedding may
+            # describe a different version of the file.
+            conn.execute("DELETE FROM embeddings WHERE track_id = ?", (track_id,))
             conn.commit()
 
     def get_features(self, track_id: int, profile: Optional[str] = None) -> Optional[np.ndarray]:
@@ -686,6 +701,35 @@ class Database:
             ).fetchall()
         have = {row[0] for row in rows}
         return [tid for tid in track_ids if tid not in have]
+
+    def add_embedding(self, track_id: int, model: str, vector: np.ndarray) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO embeddings (track_id, model, vector) VALUES (?, ?, ?)",
+                (track_id, model, np.asarray(vector, dtype=np.float64).tobytes()),
+            )
+            conn.commit()
+
+    def get_embedding_matrix(
+        self, track_ids: Sequence[int], model: str
+    ) -> Tuple[np.ndarray, List[int]]:
+        """Like :meth:`get_feature_matrix`, for a pretrained model's vectors."""
+        vectors: List[np.ndarray] = []
+        found: List[int] = []
+        ids = list(track_ids)
+        with self.connection() as conn:
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    "SELECT track_id, vector FROM embeddings"
+                    f" WHERE model = ? AND track_id IN ({placeholders})",
+                    [model, *chunk],
+                ).fetchall()
+                for row in rows:
+                    vectors.append(np.frombuffer(row[1], dtype=np.float64))
+                    found.append(row[0])
+        return _stack(vectors, found)
 
     # ------------------------------------------------------------------
     # Auto-tags

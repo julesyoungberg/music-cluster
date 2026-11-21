@@ -208,3 +208,16 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 - Next (all need Jules): ship AST (FMA top-1 0.646 vs 0.447, adds torch + transformers, about 350 MB); or a new direction; plus the standing questions below and the branch cleanup.
 - Budget: last 3 runs used about 40, 25 and 15 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: what to work on next. Still open: license, commit dialog default mode, shipping AST in the app, deleting the 35 merged branches.
+
+### 2026-11-21
+
+- Minutes: ~45 of 60 active. Subagents: 1 (independent review of PR #55).
+- State: main green. No open issues or PRs. Jules picked "Ship AST in the app" on the Nov 20 card.
+- Shipped: PR #55 (https://github.com/julesyoungberg/music-cluster/pull/55). Review found 7 issues, all fixed (a global `ast` setting broke sample collections; unembeddable tracks vanished from sessions; stale embeddings after re-analysis). `sorting.feature_set: ast` makes the sorter fit and score on the AST embedding (FMA top-1 0.646 vs 0.447). Opt-in extra `cratewise[ast]` (torch, transformers); embeddings stored in a new `embeddings` table on first fit or sort; changing the setting refits. Music collections only. Not merged: it adds large dependencies, so it waits for Jules (promised in the Nov 20 thread).
+- Real-model check: huggingface.co and download.pytorch.org are blocked from the cloud session. Dispatched eval.yml (sorting-fma, limit 300, embedding ast) on the branch to prove the moved model loader still works.
+- Next:
+  1. Desktop app: bundle torch in the PyInstaller sidecar (size, build time, `COLLECT_ALL` in `scripts/build_sidecar.py`) and add a Settings toggle. Plan first; it is a large build change.
+  2. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+  3. Embed during `analyze` instead of at the first fit, so the wait comes with the analysis the user already expects.
+- Budget: last 3 runs used about 25, 15 and 45 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: OK to merge PR #55 (adds torch + transformers as an optional extra)? Still open: deleting the merged branches (script in project files).

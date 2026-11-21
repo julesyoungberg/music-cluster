@@ -36,6 +36,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # Measured on simulated libraries (EVALUATION.md): leaning on the
         # centroid beats leaning on the nearest few references, which are noisy.
         "knn_weight": 0.3,
+        # "hand" or "ast": AST sorts FMA genres at 0.646 top-1 vs 0.447 for the
+        # hand features (EVALUATION.md), but needs torch and transformers.
+        "feature_set": "hand",
         # Dividing each group's distance by its own spread was meant to keep a
         # broad folder from swallowing a tight one; measured, it does the
         # opposite and buries small folders (recall 0.10 vs 0.32 without it).
