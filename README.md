@@ -456,4 +456,4 @@ See [EVALUATION.md](EVALUATION.md).
 
 ## License
 
-MIT
+MIT, copyright Light Lands. See [LICENSE](LICENSE).
