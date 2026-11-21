@@ -75,9 +75,11 @@ python scripts/build_site.py              # writes site/dist/
 python -m http.server -d site/dist 8080   # preview at http://localhost:8080
 ```
 
-The build copies the screenshots the page uses from `docs/images/`, so
-retaking the docs screenshots (see the README) updates the site too. It lists
-any `site.json` value that still starts with "TODO".
+The page leads with the command line and shows no screenshots, because the
+docs screenshots use a made-up library. An `<img src="images/NAME.png">` in the
+page is copied from `docs/images/` by the build, so screenshots of a real
+library can be added that way. The build lists any `site.json` value that
+still starts with "TODO".
 
 ### Before it goes live
 

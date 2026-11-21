@@ -27,7 +27,7 @@ def test_real_site_builds_with_every_local_reference_present(tmp_path):
         for ref in re.findall(r'(?:href|src)="([^"]+)"', page)
         if not ref.startswith(("http", "#", "mailto:", "TODO"))
     ]
-    assert local, "expected the page to reference its stylesheet and screenshots"
+    assert local, "expected the page to reference its stylesheet"
     for ref in local:
         assert (out / ref).is_file(), f"index.html links {ref}, which the build did not write"
 
