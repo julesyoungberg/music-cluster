@@ -7,7 +7,7 @@
 site/index.html is a template: `${key}` is replaced by that key's value from
 site/site.json, so the product name, links and form endpoints are each set in
 one place. Screenshots the page uses (`images/<name>.png`) are copied from
-docs/images/, the same files the README and tutorial show.
+docs/images/, the same files the tutorial shows.
 
 Values in site.json that start with "TODO" still need a real value before the
 site goes live; the build lists them.

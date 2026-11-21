@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Snapshot screen names used by docs/tutorial.md (and the README).
+# Snapshot screen names used by docs/tutorial.md and the landing page (site/).
 SCREENS = [
     "overview",
     "groups-new-collection-dialog",
