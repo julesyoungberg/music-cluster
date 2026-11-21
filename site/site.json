@@ -7,7 +7,7 @@
   "docs_url": "https://github.com/julesyoungberg/music-cluster/blob/main",
   "download_url": "https://github.com/julesyoungberg/music-cluster/releases/latest",
   "releases_url": "https://github.com/julesyoungberg/music-cluster/releases",
-  "license": "TODO: the license the code is released under, e.g. MIT",
+  "license": "MIT",
   "pypi_package": "cratewise",
   "cli_command": "cratewise",
   "contact_form_action": "TODO: form endpoint that emails you, e.g. a Formspree or Basin form URL",
