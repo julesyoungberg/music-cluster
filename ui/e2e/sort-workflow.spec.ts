@@ -118,6 +118,11 @@ test.describe('sorting new music', () => {
     await expect(dialog).toBeVisible();
     // The promise in the README: you see exactly what would be written first.
     await expect(dialog.getByText(/playlist|copy|move/i).first()).toBeVisible();
+    // Opens in the configured filing mode (the seeded config keeps the default, playlist).
+    await expect(dialog.getByRole('button', { name: 'Playlists only' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   test('a session appears in the list and can be deleted', async ({ page }) => {
