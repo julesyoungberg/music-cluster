@@ -35,16 +35,19 @@ by default.
 
 - **You define the groups.** It never invents a category. Discovery only
   proposes piles; nothing becomes a group until you promote it.
-- **Nothing on disk changes until `apply`.** Analysing, sorting, reviewing and
-  discovering only write to the database in `~/.music-cluster/`.
-- **`apply` shows its plan first.** `--dry-run` prints the plan and stops;
+- **Your files only change when you file or export.** Analysing, sorting,
+  reviewing and discovering only write to the database in `~/.music-cluster/`.
+  Files change only with `apply`, `groups file`, `groups export` and
+  `groups serato`.
+- **Filing shows its plan first.** `--dry-run` prints the plan and stops;
   without it, `apply` asks before doing anything.
 - **Every filing mode has an undo.** `cratewise undo SESSION` reverses a
-  session. It refuses to undo a session that a later one built on, and names
-  that session.
+  session. A file that a later session filed over is left in place, and undo
+  names that later session so you can undo it first.
 - **No silent overwrites.** A file already at the destination is skipped by
-  default. With `--on-conflict overwrite`, the replaced file is moved to
-  `~/.music-cluster/backups/` and `undo` puts it back.
+  default (`--on-conflict rename` adds a number instead). With
+  `--on-conflict overwrite`, the replaced file is moved to a `backups/` folder
+  beside the database and `undo` puts it back.
 - **Your Serato crates are left alone.** Only crates cratewise wrote are ever
   replaced or removed.
 - **Tags never move a file** and never change a group.
@@ -135,7 +138,9 @@ Press `1` to `5` to file it, `s` to skip, `l` to pick any group, `q` to stop
 and come back later.
 
 The [command-line reference](docs/cli.md) has every command and option, with
-examples.
+examples, including building a group from a playlist or a few seed tracks
+(`groups add`), finding tracks that sound alike (`similar`), and keeping more
+than one sorting scheme (`--collection NAME`).
 
 ### Starting from one unsorted pile
 
@@ -183,7 +188,7 @@ cratewise discover ~/Samples/Unsorted --profile sample
 ```
 
 ```
-Run 3: 7 candidate group(s)
+Run 3: 5 candidate group(s)
 
   [ 0] Kicks                                 214 tracks  92% Kick
   [ 1] Closed Hats                           186 tracks  88% Closed Hat
@@ -226,7 +231,7 @@ existed is tagged with `tags run`.
 
 ```bash
 cratewise tags find --beat half_time --min-energy 7   # browse by tag
-cratewise tags show "roller" --why                    # the scores and drum pattern behind a tag
+cratewise tags show "roller" --why                    # a track's tags, with the scores behind them
 cratewise tags summary                                # the library by genre, beat and mood
 cratewise tags vocabulary                             # every tag, and what it means
 ```
@@ -287,7 +292,8 @@ cratewise undo 3                          # put everything back
 ```
 
 A group whose tracks live elsewhere (one made by discovery, or from a playlist)
-can be gathered into its folder the same way with
+can be gathered into its folder the same way: give it a folder with
+`cratewise groups set-destination`, then run
 `cratewise groups file "Minimal" --mode copy`. Tracks already there are left
 alone, and `undo` reverses it.
 
@@ -365,8 +371,9 @@ only metadata is sent (artist, title, genre tag, tempo; for samples, filenames
 and measured shape), never audio.
 
 ```bash
-pipx inject cratewise anthropic   # or, in a checkout: pip install anthropic
+pipx inject cratewise anthropic   # or install with the extra: 'cratewise[llm] @ git+https://...'
 export ANTHROPIC_API_KEY=...
+cratewise config --set labeling.llm_enabled=true
 cratewise discover ~/Music/Unsorted --llm
 ```
 
