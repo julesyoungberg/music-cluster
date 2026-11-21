@@ -107,7 +107,10 @@ test.describe('sorting new music', () => {
     await expect(page.getByText('6 filed')).toBeVisible();
   });
 
-  test('committing shows the plan before anything is written', async ({ page }) => {
+  test('committing shows the plan before anything is written', async ({ page, request }) => {
+    // A non-default filing mode, to prove the dialog reads it from the config.
+    const config = `${process.env.E2E_API_BASE ?? 'http://127.0.0.1:8123'}/api/config`;
+    await request.put(config, { data: { values: { 'organize.mode': 'symlink' } } });
     await startSession(page, 'Commit preview');
     await page.getByRole('button', { name: /Accept confident/ }).click();
     await expect(page.getByText('6 filed')).toBeVisible();
@@ -118,6 +121,11 @@ test.describe('sorting new music', () => {
     await expect(dialog).toBeVisible();
     // The promise in the README: you see exactly what would be written first.
     await expect(dialog.getByText(/playlist|copy|move/i).first()).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Symlink' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await request.put(config, { data: { values: { 'organize.mode': 'playlist' } } });
   });
 
   test('a session appears in the list and can be deleted', async ({ page }) => {

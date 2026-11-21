@@ -133,8 +133,10 @@
 
   async function preview() {
     try {
-      const result = await api.commit(sessionId, { mode, dry_run: true });
+      // No mode: the API plans with the library's configured filing mode.
+      const result = await api.commit(sessionId, { dry_run: true });
       plan = result.plan;
+      mode = result.plan.mode as OrganizeMode;
       commitOpen = true;
     } catch (err) {
       notifyError('Could not build plan', err instanceof ApiError ? err.message : String(err));
@@ -487,10 +489,21 @@
           class="rounded-md border px-3 py-1.5 text-sm transition-colors {mode === value
             ? 'border-primary bg-primary/10'
             : 'border-input hover:bg-secondary'}"
+          aria-pressed={mode === value}
           onclick={async () => {
             mode = value as OrganizeMode;
-            const result = await api.commit(sessionId, { mode, dry_run: true });
-            plan = result.plan;
+            // Clearing the plan disables Commit until the plan on screen matches the mode.
+            plan = null;
+            try {
+              const result = await api.commit(sessionId, { mode, dry_run: true });
+              // A slower reply for an earlier click must not replace the current plan.
+              if (result.plan.mode === mode) plan = result.plan;
+            } catch (err) {
+              notifyError(
+                'Could not build plan',
+                err instanceof ApiError ? err.message : String(err)
+              );
+            }
           }}
         >
           {label}
