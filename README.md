@@ -5,60 +5,148 @@
 [![End-to-end tests](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-e2e.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/test-e2e.yml)
 [![Build desktop app](https://github.com/julesyoungberg/music-cluster/actions/workflows/build.yml/badge.svg)](https://github.com/julesyoungberg/music-cluster/actions/workflows/build.yml)
 
-Sort new music into the folders you already keep.
+Sort new music, and samples, into the folders you already keep.
 
-You buy fifteen tracks, and now you have to decide which crate each one goes in.
-music-cluster learns what your existing genre folders sound like and, for every
-new track, tells you where it thinks it belongs and how sure it is. You listen,
-you decide, and it files the results.
+You buy fifteen tracks and have to decide which crate each one goes in.
+music-cluster learns what your existing folders sound like and, for every new
+track, says where it thinks it belongs and how sure it is. You decide, and it
+files the result.
 
-It does the same for samples. Point it at your kicks, snares, claps, hats,
-basses and chords and it learns those folders too — see
-[Samples](#samples).
+It's one command, `cratewise`, in four steps:
 
-**You define the groups.** The tool never invents a category and never moves a
-file you have not confirmed.
+1. **groups**: tell it which folders you sort into (`groups import-tree`), or
+   let it propose piles from an unsorted folder (`discover`).
+2. **fit**: learn what each group sounds like, and `check` that your groups can
+   actually be told apart.
+3. **sort**: score a folder of new music against your groups, then `review` the
+   suggestions one track at a time in the terminal.
+4. **file**: write your decisions to disk (`apply`, with a dry run and an
+   `undo`), or export your groups as playlists for Rekordbox, Traktor or Serato.
 
-**New here?** The [tutorial](docs/tutorial.md) walks through a first sort,
-screen by screen. Every command and option is in the
-[command-line reference](docs/cli.md).
+Along the way it tags each track (genre, beat type, mood, energy, key), and
+it sorts one-shots (kicks, snares, hats, basses, chords) as well as full tracks.
+A desktop app runs the same steps with audio previews; see
+[Desktop app](#desktop-app).
 
-## What it looks like
+## Safety first
 
-![Reviewing a new track: the suggested groups with their scores, the waveform and the queue](docs/images/sort-review.png)
+Your music library is the one thing this tool must not damage, so it is careful
+by default.
 
-_Sorting new buys: every track gets its likely groups and a score, and you
-decide where it goes._
+- **You define the groups.** It never invents a category. Discovery only
+  proposes piles; nothing becomes a group until you promote it.
+- **Your files only change when you file or export.** Analysing, sorting,
+  reviewing and discovering only write to the database in `~/.music-cluster/`.
+  Files change only with `apply`, `groups file`, `groups export` and
+  `groups serato`.
+- **Filing shows its plan first.** `--dry-run` prints the plan and stops;
+  without it, `apply` asks before doing anything.
+- **Every filing mode has an undo.** `cratewise undo SESSION` reverses a
+  session. A file that a later session filed over is left in place, and undo
+  names that later session so you can undo it first.
+- **No silent overwrites.** A file already at the destination is skipped by
+  default (`--on-conflict rename` adds a number instead). With
+  `--on-conflict overwrite`, the replaced file is moved to a `backups/` folder
+  beside the database and `undo` puts it back.
+- **Your Serato crates are left alone.** Only crates cratewise wrote are ever
+  replaced or removed.
+- **Tags never move a file** and never change a group.
+- **Your audio never leaves your computer.** Optional LLM naming is off by
+  default and sends only metadata.
 
-| Your groups                                                          | One group, in the dark theme                                                                  |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| ![The groups in a collection, each with its colour](docs/images/groups.png) | ![A group's colour, notes, destination and reference tracks](docs/images/dark-group-detail.png) |
+One thing it cannot protect: if a DJ app already manages a track, moving the
+file breaks the app's link to it. Use `playlist` or `copy` filing for those.
 
-The app follows your system's light or dark setting (Settings › Appearance
-overrides it). To retake these screenshots, run `npm run ui:snapshot` in `ui/`,
-then `python scripts/update_doc_screenshots.py` from the repository root; the
-[tutorial](docs/tutorial.md) has one for every step.
+## Prerequisites
 
-## The two workflows
+- **Python 3.10 to 3.12.** Newer versions may work, but librosa and numba,
+  which the analysis uses, tend to support them late.
+- **FFmpeg**, to decode audio: `brew install ffmpeg` on macOS,
+  `sudo apt-get install ffmpeg` on Debian or Ubuntu, `winget install ffmpeg`
+  on Windows.
 
-**I already have folders.** Point it at the parent of your genre folders. Each
-subfolder becomes a group, with itself as the destination for new music. Then
-sort a folder of new buys against them.
+## Install
 
 ```bash
-cratewise init
-cratewise groups import-tree ~/Music/DJ    # each subfolder becomes a group
-cratewise fit                              # learn what each one contains
-cratewise check                            # are they actually distinguishable?
-
-cratewise sort ~/Downloads/NewMusic        # score, then review interactively
-cratewise apply 1 --mode copy              # write it to disk
+pipx install --python python3.12 git+https://github.com/julesyoungberg/music-cluster
+# or: uv tool install --python 3.12 git+https://github.com/julesyoungberg/music-cluster
+cratewise --help
 ```
 
-**I have one big unsorted pile.** Discovery breaks it into candidate piles, each
-with a handful of representative tracks to audition. You keep the ones that are
-real, name them, and throw away the rest — then sort against them like any other
-groups.
+From a checkout, for development, see [Development](#development).
+[INSTALL.md](INSTALL.md) covers the desktop app, optional extras and
+troubleshooting.
+
+## Configure
+
+```bash
+cratewise init              # creates ~/.music-cluster/library.db and config.yaml
+cratewise config            # what's in effect
+cratewise info              # what's in the library
+```
+
+Every setting has a default, and the [Configuration](#configuration) section
+lists the ones worth changing. To keep a separate library per DJ setup, point
+the `MUSIC_CLUSTER_DB` and `MUSIC_CLUSTER_CONFIG` environment variables at
+another folder.
+
+## Using it
+
+The short version, for a folder of genre folders and a folder of new buys:
+
+```bash
+cratewise groups import-tree ~/Music/DJ    # each subfolder becomes a group
+cratewise fit                              # learn what each one contains
+cratewise check                            # can they be told apart?
+
+cratewise sort ~/Downloads/NewMusic        # score, then review in the terminal
+cratewise apply 1 --mode copy --dry-run    # see the plan
+cratewise apply 1 --mode copy              # then write it
+cratewise undo 1                           # if you change your mind
+```
+
+`check` re-sorts every track you already filed, with itself hidden, and reports
+how many came back to the right group:
+
+```
+Group                             Tracks  Correct  Accuracy
+Minimal                              156       94       60%
+Tech House                           288      201       70%
+Deep House                           412      381       92%
+
+Most easily confused:
+    52 tracks from 'Minimal' look like 'Tech House' (33%)
+```
+
+That says as much about your folders as about the tool: two folders that
+overlap this much are either one folder, or need clearer examples of what
+separates them.
+
+`sort` analyses the new music and saves a numbered **session**:
+
+```
+Session 1 (NewMusic):
+  11 to review
+  3 auto-accepted
+  1 matched nothing in this collection
+```
+
+A track far from every group is reported as matching nothing rather than
+forced into the least-bad one. `review` then shows each track's length, BPM,
+key and genre tag with up to five ranked groups and a confidence for each.
+Press `1` to `5` to file it, `s` to skip, `l` to pick any group, `q` to stop
+and come back later.
+
+The [command-line reference](docs/cli.md) has every command and option, with
+examples, including building a group from a playlist or a few seed tracks
+(`groups add`), finding tracks that sound alike (`similar`), and keeping more
+than one sorting scheme (`--collection NAME`).
+
+### Starting from one unsorted pile
+
+Discovery breaks a pile into candidate groups, each with a few representative
+tracks to audition. Keep the ones that are real, name them, discard the rest,
+then sort against them like any other groups.
 
 ```bash
 cratewise discover ~/Music/Unsorted        # propose candidate groups
@@ -66,54 +154,41 @@ cratewise candidates 1                     # audition, name, keep or discard
 cratewise fit
 ```
 
-Nothing becomes a group until you say so.
-
 ## Samples
 
-A kick is not a short track. It is 300 milliseconds long, it has no tempo, and
+A kick is not a short track. It is 300 milliseconds long and has no tempo, and
 what makes it a kick rather than a clap is the shape of its envelope and where
-its energy sits — none of which survives being averaged over ninety seconds the
-way a track is analysed.
+its energy sits. None of that survives being averaged over ninety seconds the
+way a track is.
 
-So a collection declares what it holds, once, when you make it:
+So a collection declares what it holds, once, when you create it:
 
 ```bash
 cratewise collection create "Drum library" --profile sample
 cratewise groups import-tree ~/Samples/Drums --collection "Drum library"
 cratewise fit --collection "Drum library"
-
 cratewise sort ~/Downloads/NewPack --collection "Drum library"
 ```
 
-From there it is the same tool: the same review screen, the same confidence
-bars, the same four filing modes, the same undo. What changes is underneath.
+From there it is the same tool, with the same review, filing modes and undo.
+Underneath, a sample collection:
 
-**Analysis starts at the first sample and never excerpts.** A one-shot's attack
-is the most identifying thing about it and it is over 20 ms in. Analysis steps
-four times more finely through time, so a 60 ms hi-hat still has a measurable
-shape.
+- **analyses from the first sample and never excerpts**, four times more finely
+  through time, so a 60 ms hi-hat still has a measurable shape;
+- **adds 29 measurements of the single sound**: attack, decay, sustain and
+  release, how long it lasts, energy in eight bands from sub to air, pitch and
+  how many notes, percussive or harmonic, one hit or a bar of them;
+- **records no BPM for a single hit**, rather than the meaningless number a
+  beat tracker returns for a 400 ms kick.
 
-**Twenty-nine extra measurements, all about a single sonic event.** Attack,
-decay, sustain and release; how long the sound actually lasts; energy across
-eight bands from sub to air; whether there is a note and how many notes;
-whether the sound is percussive or harmonic; whether it is one hit or a bar of
-them. This is what separates a clap from a snare when their spectra are nearly
-identical, and a bass from a chord when both are just "a low pitched thing".
-
-**Tempo is not invented.** Beat tracking a 400 ms kick returns a number, and
-that number is meaningless. Under this profile a single hit records no BPM
-rather than a fabricated one.
-
-### Discovering a pack that has no structure
-
-Discovery over samples names its candidates in the vocabulary you would use:
+Discovery over samples names its candidates in a producer's words:
 
 ```bash
 cratewise discover ~/Samples/Unsorted --profile sample
 ```
 
 ```
-Run 3: 7 candidate group(s)
+Run 3: 5 candidate group(s)
 
   [ 0] Kicks                                 214 tracks  92% Kick
   [ 1] Closed Hats                           186 tracks  88% Closed Hat
@@ -122,163 +197,93 @@ Run 3: 7 candidate group(s)
   [ 4] Chords                                 61 tracks  77% Chord
 ```
 
-The percentage is how much of the pile really looks like its name — a candidate
-that is 45% anything is telling you the clustering found something you have not
-got a word for yet. Names are still suggestions: nothing becomes a group until
-you promote it.
-
-Two things inform the guess. The filename, which in a sample library is usually
-the truth (`BD_808_01.wav` is a kick, and nothing measured is going to know
-better), and the audio, which carries the half of every pack named
-`Sample 04.wav`. To see what it makes of a folder without changing anything:
+The percentage is how much of the pile looks like its name. A candidate that is
+45% anything has found something you don't have a word for yet. The guess uses
+the filename (in a sample library `BD_808_01.wav` is a kick, and nothing
+measured will know better) and the audio, for every pack named `Sample 04.wav`.
 
 ```bash
-cratewise samples classify ~/Samples/Unsorted
+cratewise samples classify ~/Samples/Unsorted              # what it makes of a folder
 cratewise samples classify ~/Samples/Unsorted --no-names   # audio only
 cratewise samples categories
 ```
 
-### Both in one library
-
-Profiles are per collection, and a collection's profile is fixed when it is
-created — its stored features, its fitted space and its group references all
-assume one kind of audio. Sorting both means two collections, which share one
-database and one library; a file analysed both ways keeps both vectors.
-
-```bash
-cratewise collection list
-   1  My Folders                   music     8 groups    3104 tracks
-   2  Drum library                 sample   11 groups     842 tracks
-```
+A collection's profile is fixed when it is created, because its stored
+features assume one kind of audio. To sort both music and samples, make two
+collections; they share one library.
 
 ## Auto-tagging
 
 Groups say which of *your* folders a track belongs in. Tags say what it *is*,
-in the words you would use to describe it to another DJ:
-
-```
-cratewise tags find --beat half_time --min-energy 7
-
-  Artist A - Roller                     Drum & Bass · Half-time · Dark · E8 · dance 0.81 · 172 BPM · 8A
-  Artist B - Weight                     Dubstep · Half-time · Hypnotic · E7 · dance 0.77 · 140 BPM · 5A
-```
+in the words you would use with another DJ.
 
 | Tag | What it is |
 | --- | --- |
-| **Beat type** | Four to the floor, half-time, 2-step, breaks, baile funk (tamborzão), dembow, backbeat, or beatless — plus whether it swings |
+| **Beat type** | Four to the floor, half-time, 2-step, breaks, baile funk (tamborzão), dembow, backbeat or beatless, and whether it swings |
 | **Genre** | House, deep house, tech house, techno, hard techno, trance, UK garage, breaks, drum & bass, jungle, dubstep, trap, baile funk, reggaeton, hip hop, downtempo, ambient |
 | **Mood** | One or two of dark, euphoric, melancholic, aggressive, chill, hypnotic, groovy |
-| **Energy** | 1–10 |
-| **Danceability** | 0–1 |
+| **Energy** | 1 to 10 |
+| **Danceability** | 0 to 1 |
 | **Key** | With its Camelot code, for mixing in key |
 
-Music is tagged while it is analysed, from the same decoded audio, so there is
-no second pass. A library analysed before tagging existed is tagged with:
+Music is tagged while it is analysed. A library analysed before tagging
+existed is tagged with `tags run`.
 
 ```bash
-cratewise tags run                  # everything analysed that has no tags yet
-cratewise tags show "roller" --why  # the scores and drum pattern behind the tags
-cratewise tags summary              # the library by genre, beat and mood
-cratewise tags vocabulary           # every tag, and what it means
+cratewise tags find --beat half_time --min-energy 7   # browse by tag
+cratewise tags show "roller" --why                    # a track's tags, with the scores behind them
+cratewise tags summary                                # the library by genre, beat and mood
+cratewise tags vocabulary                             # every tag, and what it means
 ```
-
-The library screen in the desktop app filters by genre, beat, mood and energy,
-and the review screen shows each track's tags next to its group suggestions.
 
 **How beat type is measured.** The spectrum is split into kick, snare and hat
 bands; the beat is tracked; each band is sampled twelve times per beat and
-folded into one averaged bar — the track's drum pattern, as you would draw it
-in a sequencer. That is what separates a four-to-the-floor from a 2-step at
-the same 132 BPM: the 2-step has no kick on three. A half-time roller has one
-snare per bar; a tamborzão plays its low end in 3+3+2. Beat trackers routinely
-count a 172 as 86, so a slow reading whose sixteenths are busy is re-read at
-double time. Swing is measured from how late the offbeat hats land.
+folded into one averaged bar: the track's drum pattern, as you would draw it in
+a sequencer. That separates a four-to-the-floor from a 2-step at the same
+132 BPM (the 2-step has no kick on three). Beat trackers often count a 172 as
+86, so a slow reading with busy sixteenths is re-read at double time. Swing is
+how late the offbeat hats land.
 
 **What it is not.** Every tag is a readable rule over measured quantities
-(`music_cluster/tagging.py`), not a trained model — in the same spirit as the
-sample classifier. That makes each tag explainable, and means it will be wrong
-in explainable ways: genre comes mostly from tempo and beat type, so it cannot
-hear the difference between two genres that share both, and a genre tag
-already in the file is used as evidence to tip close calls. Tags never move a
-file and never change a group.
-
-## Desktop app
-
-The same workflow with audio previews and waveforms, which is what you actually
-want when deciding whether a track is deep house or tech house.
-
-```bash
-python start-dev.py        # API + UI at http://localhost:1420
-python start-dev.py --tauri
-```
-
-The review screen plays each track, shows the ranked groups with confidence
-bars, and takes `1`–`5` to file, `s` to skip, `g` to pick any group. Committing
-shows exactly what would be written before anything is.
+(`music_cluster/tagging.py`), not a trained model, so each tag can be explained
+and is wrong in explainable ways. Genre comes mostly from tempo and beat type,
+so two genres that share both look alike; a genre tag already in the file tips
+close calls.
 
 ## How the sorting works
 
-Your folders are the training data. That is the whole idea, and it is what makes
-this different from clustering a library and hoping the results mean something.
+Your folders are the training data. That is what makes this different from
+clustering a library and hoping the clusters mean something.
 
-1. **Features.** Every track gets a 96-dimension vector: MFCCs and spectral
-   shape (timbre), tempo and onset statistics (rhythm), chroma (harmony), RMS
-   and dynamics. Tags — artist, title, genre, BPM, key — are read at the same
-   time. A sample collection measures 125 dimensions instead: the same
-   ninety-six plus a block describing the single event — envelope, band
-   balance, pitch. See [Samples](#samples).
-
-2. **A space tuned to your boundaries.** Reference tracks carry group labels, so
-   the feature space is fitted with LDA, which finds the directions that
-   separate *your* groups, blended with PCA components that preserve general
-   audio structure. Pure LDA would flatten everything onto `n_groups − 1` axes
-   and lose the ability to notice a track that resembles nothing you own.
-
+1. **Features.** Every track gets a 96-number description: timbre (MFCCs and
+   spectral shape), rhythm (tempo and onsets), harmony (chroma) and dynamics.
+   Artist, title, genre, BPM and key tags are read at the same time. A sample
+   collection adds the 29 measurements described under [Samples](#samples).
+2. **A space tuned to your boundaries.** The feature space is fitted with LDA,
+   which finds the directions that separate *your* groups, blended with PCA,
+   which keeps the general shape of the audio. LDA alone would lose the ability
+   to notice a track that resembles nothing you own.
 3. **Fair comparison across group sizes.** A track's distance to a group blends
-   its group centroid (stable for a group of eight) with its *k* nearest
-   references (handles a folder containing several distinct sounds), leaning on
-   the centroid. Dividing by each group's own spread is available
-   (`sorting.scale_normalization`) but off by default: on simulated libraries it
-   left 8–20 track crates almost never winning (10% recall, against 32% without).
-
-4. **A decision, with a confidence.** Scores across groups yield a confidence
-   and a top-1/top-2 margin. Clear the thresholds and a track can be auto-filed;
-   otherwise it goes to your queue. Too far from everything and it is reported
-   as matching nothing rather than forced into the least-bad group.
-
-5. **Learning.** Tracks you file become references for that group, so the sorter
-   follows your taste as it drifts. Turn it off if you would rather curate your
-   reference sets by hand.
-
-### Checking your own folders
-
-`cratewise check` re-sorts every reference track with itself hidden from its
-own group and reports what came back where.
-
-```
-Group                             Tracks  Correct  Accuracy
-Deep House                           412      381       92%
-Tech House                           288      201       70%
-Minimal                              156       94       60%
-
-Most easily confused:
-    52 tracks from 'Minimal' look like 'Tech House' (33%)
-```
-
-That is useful information about your library, not just about the tool: two
-folders that overlap this much are either the same folder or need clearer
-examples of what separates them.
+   the group's centre (stable for a small group) with its nearest tracks
+   (handles a folder that holds several distinct sounds).
+4. **A decision, with a confidence.** Scores give a confidence and a margin over
+   the runner-up. Clear both thresholds and a track can be accepted
+   automatically (`sort --auto-accept`); otherwise it waits for your review.
+   Too far from everything and it matches nothing.
+5. **Learning.** Tracks you file become references for their group, so the
+   sorter follows your taste as it drifts. Turn it off with
+   `sorting.learn_on_commit: false`.
 
 ## Filing
 
-Four modes, all with a dry run first and an undo afterwards:
+Four modes, each with a dry run first and an undo after:
 
 | Mode | What it does |
 | --- | --- |
 | `playlist` | Writes one M3U per group. Nothing on disk moves. |
 | `copy` | Copies into the group's destination folder. |
 | `move` | Moves the file, and follows it in the library. |
-| `symlink` | Links it into the folder, original stays put. |
+| `symlink` | Links it into the folder; the original stays put. |
 
 ```bash
 cratewise apply 3 --mode move --dry-run   # show the plan and stop
@@ -286,12 +291,11 @@ cratewise apply 3 --mode move             # confirm, then do it
 cratewise undo 3                          # put everything back
 ```
 
-Name collisions are skipped by default (`--on-conflict rename|overwrite`).
-
-A group whose tracks live somewhere else (one made by discovery, or from a
-playlist) can be gathered into its folder the same way, from the group's page
-or with `cratewise groups file "Minimal" --mode copy`. Tracks already in the
-folder are left alone, and `undo` reverses it.
+A group whose tracks live elsewhere (one made by discovery, or from a playlist)
+can be gathered into its folder the same way: give it a folder with
+`cratewise groups set-destination`, then run
+`cratewise groups file "Minimal" --mode copy`. Tracks already there are left
+alone, and `undo` reverses it.
 
 ## Exporting to DJ software
 
@@ -302,76 +306,32 @@ your music stays where it is. Run it again whenever your groups change.
 | --- | --- | --- |
 | `rekordbox` | Rekordbox | Preferences → Advanced → rekordbox xml, then the "rekordbox xml" tree in the sidebar |
 | `traktor` | Traktor | Right-click Playlists → Import Playlist |
-| `cratewise groups serato` | Serato | Writes crates straight into your `_Serato_` folder, under a "Cratewise" crate |
 | `m3u8` / `m3u` | Engine DJ, VirtualDJ, others | Drag the playlists in, or the app's playlist import |
 
 ```bash
 cratewise groups export --format rekordbox --output ~/Music/exports
+cratewise groups serato --dry-run          # Serato: crates straight into _Serato_
 ```
 
-Serato crates are written into Serato's own folder, so they work like filing:
-`--dry-run` shows the crates first, a crate you made yourself is never
-replaced, and `--remove` deletes exactly the crates cratewise wrote.
-
-Rekordbox and Traktor exports carry BPM, key and genre. Tags already in your
-files win; music-cluster's own measurements only fill the gaps. The app has the
-same export behind "Export to DJ app" on the Groups page.
-
-If a DJ app already manages a track, prefer `playlist` or `copy` filing: moving
-the file breaks the app's link to it.
-
-## Commands
-
-| | |
-| --- | --- |
-| `init` | Create the database and config |
-| `analyze PATH` | Extract features without sorting |
-| `groups import-tree PARENT` | Import every subfolder as a group |
-| `groups add NAME --folder/--playlist/--track` | Build a group from a folder, playlist, or seed tracks |
-| `groups list` / `show` / `rename` / `set-destination` / `remove` | Manage groups |
-| `groups export` | Playlists for DJ apps (M3U, Rekordbox XML, Traktor NML) |
-| `fit` | Learn the groups |
-| `check` | Per-group accuracy and overlap |
-| `sort PATH` | Score new music, then review |
-| `review ID` / `sessions` | Resume or list review sessions |
-| `apply ID` / `undo ID` | Write decisions to disk, or reverse them |
-| `discover PATH` / `candidates ID` | Propose and review candidate groups |
-| `similar QUERY` | Find tracks that sound like one you name |
-| `search QUERY` | Search the library and show group membership |
-| `tags run [PATH]` | Tag music (genre, beat type, mood, energy, danceability, key) |
-| `tags find` / `show` / `summary` / `vocabulary` | Browse the library by tag |
-| `samples classify PATH` | Report what a folder of one-shots looks like |
-| `samples categories` | List the sample categories used for naming |
-| `config --set KEY=VALUE` | Read or change settings |
-
-Every option of every command, with examples: [docs/cli.md](docs/cli.md).
-
-Add `--collection NAME` to work with more than one sorting scheme, and
-`--profile sample` when creating or analysing one that holds one-shots.
+Serato crates are written into Serato's own folder, under a "Cratewise" crate,
+so they work like filing: `--dry-run` shows them first, a crate you made is
+never replaced, and `--remove` deletes exactly the crates cratewise wrote.
+Rekordbox and Traktor exports carry BPM, key and genre; tags already in your
+files win, and measured values only fill the gaps.
 
 ## Configuration
 
-`~/.music-cluster/config.yaml`, or the Settings screen. Everything is
-adjustable; the settings that matter most:
-
-Settings under `feature_extraction`, `sorting` and `discovery` also take a
-`profiles:` block, which is how a profile's own defaults get overridden:
+`~/.music-cluster/config.yaml`, changed by hand, with
+`cratewise config --set KEY=VALUE`, or in the desktop app's Settings. The
+settings that matter most:
 
 ```yaml
 sorting:
-  neighbors: 5
-  profiles:
-    sample:
-      neighbors: 9              # only for sample collections
-```
-
-```yaml
-sorting:
-  auto_accept_confidence: 0.7   # how sure before a track can be auto-filed
+  auto_accept_confidence: 0.7   # how sure before a track can be auto-accepted
   min_margin: 0.08              # how far ahead of the runner-up
   novelty_factor: 3.0           # group-widths from every group before "matches nothing"
-  neighbors: 5                  # references compared against per group
-  knn_weight: 0.3               # 1.0 = nearest tracks only, 0 = centroid only
+  neighbors: 5                  # nearest tracks compared against, per group
+  knn_weight: 0.3               # 1.0 = nearest tracks only, 0 = group centre only
   discriminant_weight: 0.7      # focus on your boundaries vs general character
   feature_weights:              # what "similar" means to you
     timbre: 1.0
@@ -388,87 +348,104 @@ tagging:
   on_analyze: true              # tag music while analysing it
 
 feature_extraction:
-  excerpt_seconds: 90           # analyse the middle 90s; 0 for the whole file
-  profiles:
-    sample:
-      hop_size: 256             # analysis resolution for one-shots
-      max_seconds: 30           # cap on how much of a long loop is read
+  excerpt_seconds: 90           # analyse the middle 90 s; 0 for the whole file
 ```
 
-Changing anything under `sorting` or `feature_extraction` means re-running
-`fit` (and re-analysing, for the latter).
+Settings under `feature_extraction`, `sorting` and `discovery` also take a
+`profiles:` block, to change a value for sample collections only:
+
+```yaml
+sorting:
+  profiles:
+    sample:
+      neighbors: 9
+```
+
+After changing anything under `sorting`, run `fit` again; after
+`feature_extraction`, re-analyse (`analyze --update`) and then fit.
 
 ### Optional: LLM naming
 
 Discovery can ask an LLM to name candidate groups. It is off by default, and
-only metadata — artist, title, genre tag, tempo, or for samples the filenames
-and measured shape — is ever sent; never audio.
+only metadata is sent (artist, title, genre tag, tempo; for samples, filenames
+and measured shape), never audio.
 
 ```bash
-pip install anthropic
+pipx inject cratewise anthropic   # or install with the extra: 'cratewise[llm] @ git+https://...'
 export ANTHROPIC_API_KEY=...
 cratewise config --set labeling.llm_enabled=true
 cratewise discover ~/Music/Unsorted --llm
 ```
 
-Without it, names come from genre tags, tempo, and measured audio character.
+Without it, names come from genre tags, tempo and measured character.
 
-## Installation
+## Desktop app
 
-Download an installer for macOS, Windows or Linux from the
-[releases page](https://github.com/julesyoungberg/music-cluster/releases) — those
-bundle the analysis server, so only FFmpeg is needed alongside them.
-
-From source, Python 3.10+ and FFmpeg. See [INSTALL.md](INSTALL.md) for details.
+The same steps with audio previews and waveforms, for when you need to hear a
+track to decide between deep house and tech house. Installers for macOS,
+Windows and Linux are on the
+[releases page](https://github.com/julesyoungberg/music-cluster/releases); they
+bundle the analysis server, so only FFmpeg is needed alongside. From a checkout:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+python start-dev.py          # API + UI at http://localhost:1420
+python start-dev.py --tauri  # as a desktop window
 ```
+
+The [tutorial](docs/tutorial.md) walks through a first sort in the app, screen
+by screen. It shares the library and config with the command line.
 
 ## Performance
 
-- Analysis: roughly a second per track with the default 90-second excerpt,
-  across all CPU cores. A 10,000-track library takes well under an hour.
-  Auto-tagging runs on the same decoded audio and adds about 60% to that;
-  `tagging.on_analyze: false` turns it off, and `tags run` catches up later.
-  One-shots are quicker — around a tenth of a second each for typical drum
-  hits, longer for multi-second loops.
-- Fitting: seconds.
-- Sorting an already-analysed track: instant. The cost is analysis, once.
-- Storage: about 1 KB per track, per profile.
+- **Analysis:** about a second per track with the default 90-second excerpt,
+  across all CPU cores, so a 10,000-track library takes well under an hour.
+  Tagging adds about 60%; `tagging.on_analyze: false` turns it off and
+  `tags run` catches up later. One-shots take about a tenth of a second each.
+- **Fitting:** seconds. **Sorting an analysed track:** instant.
+- **Storage:** about 1 KB per track, per profile.
 
-Formats: anything FFmpeg decodes — MP3, FLAC, WAV, AIFF, M4A/ALAC, OGG, Opus,
-AAC, WMA, APE, WavPack. See [FORMATS.md](FORMATS.md).
+Formats: anything FFmpeg decodes, including MP3, FLAC, WAV, AIFF, M4A/ALAC, OGG,
+Opus and AAC. See [FORMATS.md](FORMATS.md).
+
+## Repository layout
+
+```
+music_cluster/   the package: cli.py, api.py (the app's server), sorting, tagging, filing
+ui/              the desktop app's interface (SvelteKit)
+src-tauri/       the desktop shell (Tauri)
+tests/           pytest: unit tests on synthetic data, end-to-end on generated audio
+eval/            committed eval baselines; see EVALUATION.md
+docs/            the command-line reference and the app tutorial
+scripts/         build, screenshot and landing-page scripts
+site/            the landing page
+```
 
 ## Development
 
 ```bash
-pip install -r requirements-dev.txt
+uv venv --python 3.12 .venv && source .venv/bin/activate
+uv pip install -r requirements-dev.txt && uv pip install -e .
 
 ruff format . && ruff check --fix . && mypy   # format, lint, type check
 pytest tests/unit                             # fast, no audio decoding
-pytest tests/e2e tests/integration            # the whole app, real audio
+pytest tests/e2e tests/integration            # the whole tool, real audio
 
-cd ui
-npm install
+cd ui && npm ci
 npm run format:check && npm run lint && npm run check
 npm test                                      # vitest
 npx playwright test                           # the UI against a real API
-npm run ui:snapshot                           # screenshots of every screen, for looking at
 ```
 
-CI runs exactly these, plus a packaging job that produces installers for macOS,
-Windows and Linux. See [INSTALL.md](INSTALL.md#continuous-integration).
+CI runs these, plus a job that builds installers for macOS, Windows and Linux.
+See [INSTALL.md](INSTALL.md#continuous-integration).
 
 ### Evaluation
 
-Tests say the code does what it was written to do; `cratewise eval` says
-how well that works on music. It scores beat type, tempo and key on audio
-whose answers are known, sorting on simulated libraries built from public
-datasets (FMA, GiantSteps), and each against simple baselines, then diffs the
-numbers against a committed baseline:
+Tests say the code does what it was written to do; `cratewise eval` says how
+well that works on music. It scores beat type, tempo and key on audio whose
+answers are known, and sorting on simulated libraries built from public
+datasets (FMA, GiantSteps), each against simple baselines, and compares the
+numbers with a committed baseline:
 
 ```bash
 cratewise eval run --baseline eval/baselines/synthetic.json

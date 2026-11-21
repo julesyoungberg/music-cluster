@@ -675,7 +675,7 @@ cratewise discover ~/Music/Unsorted --llm
 | `--groups N` | With `kmeans` or `hierarchical`, aim for N piles. Left out, the count is estimated. |
 | `--granularity` | With `kmeans` or `hierarchical`, when the count is estimated: `coarse` (half as many piles), `broad`, `normal` (default), `fine`, or `finest` (twice as many). |
 | `--min-size N` | Smallest pile to report. Default `discovery.min_group_size`: 8 for music, 5 for samples. |
-| `--llm` / `--no-llm` | Ask an LLM to name the piles. Default `labeling.llm_enabled` (off). Only metadata is sent, never audio; see [LLM naming](../README.md#optional-llm-naming). |
+| `--llm` / `--no-llm` | Ask an LLM to name the piles. Default `labeling.llm_enabled` (off). `--llm` only takes effect once `labeling.llm_enabled` is true. Only metadata is sent, never audio; see [LLM naming](../README.md#optional-llm-naming). |
 | `--workers N` | Parallel workers for analysis. |
 | `--profile music\|sample` | `sample` names piles as Kicks, Closed Hats, Basses and so on instead of by genre and tempo. |
 
