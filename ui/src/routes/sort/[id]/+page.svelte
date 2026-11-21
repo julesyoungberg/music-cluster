@@ -492,8 +492,18 @@
           aria-pressed={mode === value}
           onclick={async () => {
             mode = value as OrganizeMode;
-            const result = await api.commit(sessionId, { mode, dry_run: true });
-            plan = result.plan;
+            // Clearing the plan disables Commit until the plan on screen matches the mode.
+            plan = null;
+            try {
+              const result = await api.commit(sessionId, { mode, dry_run: true });
+              // A slower reply for an earlier click must not replace the current plan.
+              if (result.plan.mode === mode) plan = result.plan;
+            } catch (err) {
+              notifyError(
+                'Could not build plan',
+                err instanceof ApiError ? err.message : String(err)
+              );
+            }
           }}
         >
           {label}
