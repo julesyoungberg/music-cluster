@@ -10,6 +10,7 @@
     />
     <meta property="og:title" content="${name}" />
     <meta property="og:description" content="${tagline}" />
+    <meta property="og:url" content="${site_url}" />
     <meta name="color-scheme" content="light dark" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -153,7 +154,7 @@
           <article>
             <h3>Check your folders</h3>
             <pre><code>${cli_command} check</code></pre>
-            <p>How many of each group's tracks sort back into it, and which two groups get mixed up most.</p>
+            <p>How many of each group's tracks sort back into it, and which groups get mixed up.</p>
           </article>
           <article>
             <h3>Accept the sure ones</h3>
@@ -163,7 +164,7 @@
           <article>
             <h3>Undo a session</h3>
             <pre><code>${cli_command} undo 1</code></pre>
-            <p>Moves, copies and links are reversed. Files an overwrite replaced come back from their backup.</p>
+            <p>Moves, copies and links are reversed, and files an overwrite replaced come back from their backup. Playlists stay unless you add --remove-playlists.</p>
           </article>
           <article>
             <h3>No folders yet?</h3>
