@@ -489,6 +489,8 @@ class TestPretrainedFeatureSet:
         track_id = next(iter(membership.values()))[0]
         db.add_embedding(track_id, "ast", np.ones(16))
 
-        db.add_features(track_id, np.zeros(FEATURE_DIM))
+        db.add_features(track_id, np.zeros(FEATURE_DIM), "sample")
+        assert db.get_embedding_matrix([track_id], "ast")[1] == [track_id]
 
+        db.add_features(track_id, np.zeros(FEATURE_DIM))
         assert db.get_embedding_matrix([track_id], "ast")[1] == []

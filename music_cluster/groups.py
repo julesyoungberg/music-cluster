@@ -18,7 +18,7 @@ import numpy as np
 from . import pretrained, profiles
 from .config import Config
 from .database import Database
-from .library import AnalysisResult, analyze_files, collect_files
+from .library import AnalysisResult, analyze_files, collect_files, embed_tracks
 from .sorter import GroupSorter, SorterConfig
 from .utils import DEFAULT_AUDIO_EXTENSIONS
 
@@ -362,8 +362,8 @@ def track_vectors(
 ) -> Tuple[np.ndarray, List[int]]:
     """The vectors the collection's sorter works on, for the given tracks.
 
-    With a pretrained feature set, tracks without a stored embedding are
-    embedded now and stored, so only the first fit or sort pays for them.
+    With a pretrained feature set, tracks without a stored embedding (ones
+    analysed before the setting changed) are embedded now and stored.
     """
     feature_set = sorter_config_for(collection, config).feature_set
     if feature_set == "hand":
@@ -372,17 +372,7 @@ def track_vectors(
     if profile_of(collection) != profiles.MUSIC:
         raise ValueError(f"The {model.name} feature set is for music collections only")
 
-    _, stored = db.get_embedding_matrix(track_ids, model.name)
-    have = set(stored)
-    missing = [tid for tid in track_ids if tid not in have]
-    if missing:
-        pretrained.require()
-        tracks = db.get_tracks(missing)
-        todo = [tid for tid in missing if tid in tracks]
-        vectors = pretrained.embed_files([tracks[tid]["filepath"] for tid in todo], model.name)
-        for tid, vector in zip(todo, vectors, strict=True):
-            if vector is not None:
-                db.add_embedding(tid, model.name, vector)
+    embed_tracks(db, track_ids, model.name)
     return db.get_embedding_matrix(track_ids, model.name)
 
 

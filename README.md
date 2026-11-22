@@ -381,7 +381,8 @@ cratewise config --set sorting.feature_set=ast
 cratewise fit                               # embeds every reference track once, then stores it
 ```
 
-New tracks are embedded when you sort them. Music collections only; sample
+From then on `analyze` embeds each new track right after measuring it, and
+`sort` embeds any track that still has none. Music collections only; sample
 collections keep the hand features. The desktop app does not bundle it yet.
 
 ### Optional: LLM naming

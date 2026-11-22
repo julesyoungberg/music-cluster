@@ -658,6 +658,8 @@ async def analyze(request: AnalyzeRequest):
             workers=request.workers,
             progress=progress_updater(update, "Analysing"),
             profile=request.profile,
+            embed=True,
+            embed_progress=progress_updater(update, "Embedding"),
         )
         return result.to_dict()
 

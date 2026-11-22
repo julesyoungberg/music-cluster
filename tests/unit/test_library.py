@@ -198,6 +198,121 @@ class TestAnalyzePaths:
         assert not any(path.endswith(".jpg") for path in seen)
 
 
+class TestEmbedOnAnalyze:
+    """With sorting.feature_set set to a pretrained model, analyze can embed too."""
+
+    @pytest.fixture
+    def fake_ast(self, monkeypatch):
+        from music_cluster import pretrained
+
+        embedded: list = []
+
+        def embed_files(paths, model_name, embedder=None):
+            embedded.extend(paths)
+            return [None if "broken" in path else np.ones(16) for path in paths]
+
+        monkeypatch.setattr(pretrained, "require", lambda: None)
+        monkeypatch.setattr(pretrained, "check", lambda name: None)
+        monkeypatch.setattr(pretrained, "embed_files", embed_files)
+        return embedded
+
+    def test_embeds_each_analysed_track_once(
+        self, db, config, audio_tree, fake_extraction, fake_ast
+    ):
+        _, paths = audio_tree
+        config.set(["sorting", "feature_set"], "ast")
+        progress: list = []
+
+        result = library.analyze_files(
+            db,
+            config,
+            paths,
+            workers=1,
+            embed=True,
+            embed_progress=lambda *args: progress.append(args),
+        )
+        again = library.analyze_files(db, config, paths, workers=1, embed=True)
+
+        _, stored = db.get_embedding_matrix(result.track_ids, "ast")
+        assert sorted(stored) == sorted(result.track_ids)
+        assert result.embedded == 3 and again.embedded == 0
+        assert len(fake_ast) == 3  # stored, not embedded again
+        assert progress[-1][:2] == (3, 3)
+
+    def test_embeds_known_tracks_that_have_no_embedding_yet(
+        self, db, config, audio_tree, fake_extraction, fake_ast
+    ):
+        _, paths = audio_tree
+        library.analyze_files(db, config, paths, workers=1, embed=True)
+        assert fake_ast == []  # hand features: no embedding
+
+        config.set(["sorting", "feature_set"], "ast")
+        result = library.analyze_files(db, config, paths, workers=1, embed=True)
+
+        assert result.skipped == 3 and result.embedded == 3
+
+    def test_a_file_that_cannot_be_embedded_still_counts_as_analysed(
+        self, db, config, temp_dir, fake_extraction, fake_ast
+    ):
+        path = temp_dir / "broken.mp3"
+        path.write_bytes(b"pretend audio")
+        config.set(["sorting", "feature_set"], "ast")
+
+        result = library.analyze_files(db, config, [str(path)], workers=1, embed=True)
+
+        assert result.analyzed == 1 and result.embedded == 0
+
+    def test_samples_are_not_embedded(self, db, config, audio_tree, fake_extraction, fake_ast):
+        _, paths = audio_tree
+        config.set(["sorting", "feature_set"], "ast")
+
+        result = library.analyze_files(db, config, paths, workers=1, profile="sample", embed=True)
+
+        assert result.analyzed == 3 and fake_ast == []
+
+    def test_a_broken_model_setup_fails_before_any_analysis(
+        self, db, config, audio_tree, fake_extraction, monkeypatch
+    ):
+        from music_cluster import pretrained
+
+        def missing(name):
+            raise pretrained.MissingDependency("no torch")
+
+        monkeypatch.setattr(pretrained, "check", missing)
+        _, paths = audio_tree
+        seen, _ = fake_extraction
+        config.set(["sorting", "feature_set"], "ast")
+
+        with pytest.raises(pretrained.MissingDependency):
+            library.analyze_files(db, config, paths, workers=1, embed=True)
+        assert seen == []
+
+    def test_an_embedding_failure_keeps_the_analysis_summary(
+        self, db, config, audio_tree, fake_extraction, fake_ast, monkeypatch
+    ):
+        from music_cluster import pretrained
+
+        def fail(paths, model_name, embedder=None):
+            raise RuntimeError("model returned 1 rows for 8 clips")
+
+        monkeypatch.setattr(pretrained, "embed_files", fail)
+        _, paths = audio_tree
+        config.set(["sorting", "feature_set"], "ast")
+
+        result = library.analyze_files(db, config, paths, workers=1, embed=True)
+
+        assert result.analyzed == 3 and result.embedded == 0
+        assert result.errors[-1]["filepath"] == "(embedding)"
+
+    def test_only_callers_that_ask_embed(self, db, config, audio_tree, fake_extraction, fake_ast):
+        _, paths = audio_tree
+        config.set(["sorting", "feature_set"], "ast")
+
+        result = library.analyze_files(db, config, paths, workers=1)
+
+        assert result.analyzed == 3 and fake_ast == []
+
+
 class TestAnalysisResult:
     def test_total_counts_every_outcome(self):
         result = AnalysisResult(analyzed=2, skipped=3, failed=1)
@@ -210,6 +325,7 @@ class TestAnalysisResult:
         assert payload["analyzed"] == 1
         assert payload["track_ids"] == [7]
         assert payload["total"] == 1
+        assert payload["embedded"] == 0
 
     def test_caps_the_error_list_so_a_bad_folder_cannot_flood_a_response(self):
         result = AnalysisResult(

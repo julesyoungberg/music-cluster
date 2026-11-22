@@ -193,7 +193,7 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 
 - Minutes: ~25 of 60 active. Subagents: 1 (independent review of the PR).
 - State: main green. No open issues or PRs.
-- Item 1 from the Nov 18 list: run 44399750712 put every novelty candidate at 0.50-0.52 (numbers on PR #48). Wrote the result into EVALUATION.md ("Belongs nowhere") and stopped, as planned. Shipped in the PR for this run.
+- Item 1 from the Nov 18 list: run 44399750712 put every novelty candidate at 0.50-0.52 (numbers on PR #48). Wrote the result into EVALUATION.md ("Belongs nowhere") and stopped, as planned. Shipped in PR #56 (https://github.com/julesyoungberg/music-cluster/pull/56). Review also caught a #55 bug: analysing a music file as a sample dropped its AST embedding; fixed there.
 - Looked at item 2 (dubstep at about 140) in run 43765955305's misses: 45 dubstep rows, losing mostly to breakbeat (snare band busy on most sixteenths) and to four-to-the-floor (one kick a bar). No single bar cue separates them, and the misses table lists no correct reads, so a rule change can't be checked for harm before a GiantSteps run. Not tried.
 - Next: beat-type tuning and the novelty check have both stopped paying off. The bigger levers need Jules: shipping AST (top-1 0.646 vs 0.447 on FMA, needs torch + transformers), or a direction for new work.
 - Budget: last 3 runs used about 35, 40 and 25 of 60; not all under half, so budget_minutes stays 60.
@@ -221,3 +221,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Embed during `analyze` instead of at the first fit, so the wait comes with the analysis the user already expects.
 - Budget: last 3 runs used about 25, 15 and 45 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: OK to merge PR #55 (adds torch + transformers as an optional extra)? Still open: deleting the merged branches (script in project files).
+
+### 2026-11-22
+
+- Minutes: ~45 of 60 active. Subagents: 1 (independent review of PR #56: 6 findings, 4 fixed, 2 answered).
+- State: main green. No open issues or PRs. PR #55 (AST feature set) merged Nov 21.
+- Took item 3 from the Nov 21 list. `analyze` (CLI and API) now embeds music with AST right after measuring it when `sorting.feature_set` is ast, with its own "Embedding" progress, so the first fit or sort no longer waits. Missing torch fails before analysis starts. Other callers of `analyze_files` (discover, tags, group import, sort) don't embed: discover and tags never use it, and fit/sort embed lazily as before through the shared `library.embed_tracks`. Shipped in PR #56 (https://github.com/julesyoungberg/music-cluster/pull/56). Review also caught a #55 bug: analysing a music file as a sample dropped its AST embedding; fixed there.
+- graphify isn't installed in the cloud session, so `graphify update .` was not run.
+- Next:
+  1. Desktop app: bundle torch in the PyInstaller sidecar and add a Settings toggle. Plan first; large build change and size question for Jules.
+  2. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+- Budget: last 3 runs used about 15, 45 and 45 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: is a much larger desktop app (torch alone is several hundred MB) acceptable to ship AST in it, or keep AST CLI-only? Still open: deleting the merged branches (script in project files).

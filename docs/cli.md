@@ -127,7 +127,9 @@ result.
 
 Extract audio features (and, for music, auto-tags) without sorting anything.
 `groups import-tree`, `sort` and `discover` analyse what they need on their
-own, so you only need this to prepare a large library ahead of time.
+own, so you only need this to prepare a large library ahead of time. With
+`sorting.feature_set: ast`, music is also embedded with AST here, so the first
+fit or sort doesn't have to.
 
 ```bash
 cratewise analyze ~/Music/DJ
