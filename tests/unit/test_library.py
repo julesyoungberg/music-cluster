@@ -212,6 +212,7 @@ class TestEmbedOnAnalyze:
             return [None if "broken" in path else np.ones(16) for path in paths]
 
         monkeypatch.setattr(pretrained, "require", lambda: None)
+        monkeypatch.setattr(pretrained, "check", lambda name: None)
         monkeypatch.setattr(pretrained, "embed_files", embed_files)
         return embedded
 
@@ -269,15 +270,15 @@ class TestEmbedOnAnalyze:
 
         assert result.analyzed == 3 and fake_ast == []
 
-    def test_missing_torch_fails_before_any_analysis(
+    def test_a_broken_model_setup_fails_before_any_analysis(
         self, db, config, audio_tree, fake_extraction, monkeypatch
     ):
         from music_cluster import pretrained
 
-        def missing():
+        def missing(name):
             raise pretrained.MissingDependency("no torch")
 
-        monkeypatch.setattr(pretrained, "require", missing)
+        monkeypatch.setattr(pretrained, "check", missing)
         _, paths = audio_tree
         seen, _ = fake_extraction
         config.set(["sorting", "feature_set"], "ast")
@@ -285,6 +286,23 @@ class TestEmbedOnAnalyze:
         with pytest.raises(pretrained.MissingDependency):
             library.analyze_files(db, config, paths, workers=1, embed=True)
         assert seen == []
+
+    def test_an_embedding_failure_keeps_the_analysis_summary(
+        self, db, config, audio_tree, fake_extraction, fake_ast, monkeypatch
+    ):
+        from music_cluster import pretrained
+
+        def fail(paths, model_name, embedder=None):
+            raise RuntimeError("model returned 1 rows for 8 clips")
+
+        monkeypatch.setattr(pretrained, "embed_files", fail)
+        _, paths = audio_tree
+        config.set(["sorting", "feature_set"], "ast")
+
+        result = library.analyze_files(db, config, paths, workers=1, embed=True)
+
+        assert result.analyzed == 3 and result.embedded == 0
+        assert result.errors[-1]["filepath"] == "(embedding)"
 
     def test_only_callers_that_ask_embed(self, db, config, audio_tree, fake_extraction, fake_ast):
         _, paths = audio_tree

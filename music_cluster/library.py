@@ -129,15 +129,22 @@ def analyze_files(
     """
     result = AnalysisResult()
     profile = profiles.normalize(profile)
+    # shortcut: reads the global and profile setting, not a collection's own
+    # sorting.feature_set (analysis has no collection); fit and sort embed
+    # whatever is still missing for those.
     feature_set = config.section("sorting", profile).get("feature_set", "hand")
     model = None if not embed or feature_set == "hand" else pretrained.spec(feature_set)
     if model:
-        # Fail before the analysis, not after it.
-        pretrained.require()
+        # Load the model now, so a broken setup fails before the analysis.
+        pretrained.check(model.name)
 
     def finish() -> AnalysisResult:
         if model:
-            result.embedded = embed_tracks(db, result.track_ids, model.name, embed_progress)
+            try:
+                result.embedded = embed_tracks(db, result.track_ids, model.name, embed_progress)
+            except Exception as exc:
+                # The features are stored; keep the summary and let fit or sort retry.
+                result.errors.append({"filepath": "(embedding)", "error": str(exc)})
         return result
 
     extractor_config = config.extractor_config(profile)
