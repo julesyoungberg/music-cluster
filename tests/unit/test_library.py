@@ -325,6 +325,7 @@ class TestAnalysisResult:
         assert payload["analyzed"] == 1
         assert payload["track_ids"] == [7]
         assert payload["total"] == 1
+        assert payload["embedded"] == 0
 
     def test_caps_the_error_list_so_a_bad_folder_cannot_flood_a_response(self):
         result = AnalysisResult(

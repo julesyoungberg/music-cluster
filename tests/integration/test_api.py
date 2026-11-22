@@ -419,7 +419,6 @@ def test_tagging_runs_as_a_task(client, seeded):
     task = wait_for(client, client.post("/api/tags", json={}).json()["task_id"])
     assert task["status"] == "completed"
     assert task["result"]["tagged"] == 0
-    assert task["result"]["embedded"] == 0
     assert task["result"]["failed"] == 24
 
 
