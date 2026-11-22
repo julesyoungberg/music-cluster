@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Set
 
-from . import profiles, tagging
+from . import pretrained, profiles, tagging
 from .config import Config
 from .database import Database
 from .extractor import FeatureExtractor
@@ -29,6 +29,7 @@ class AnalysisResult:
     skipped: int = 0
     failed: int = 0
     tagged: int = 0
+    embedded: int = 0
     track_ids: List[int] = field(default_factory=list)
     errors: List[Dict[str, str]] = field(default_factory=list)
 
@@ -42,6 +43,7 @@ class AnalysisResult:
             "skipped": self.skipped,
             "failed": self.failed,
             "tagged": self.tagged,
+            "embedded": self.embedded,
             "total": self.total,
             "track_ids": self.track_ids,
             "errors": self.errors[:50],
@@ -106,6 +108,8 @@ def analyze_files(
     workers: Optional[int] = None,
     progress: Optional[ProgressCallback] = None,
     profile: Optional[str] = None,
+    embed: bool = False,
+    embed_progress: Optional[ProgressCallback] = None,
 ) -> AnalysisResult:
     """Analyse the given files, skipping ones already in the database.
 
@@ -117,9 +121,25 @@ def analyze_files(
         profile: Which audio profile to analyse under. A file already analysed
             as music is still re-analysed for the sample profile — the two
             produce different vectors and both are kept.
+        embed: If the profile sorts on a pretrained embedding
+            (``sorting.feature_set``), also embed and store every returned
+            track that has none, so the wait comes with analysis rather than
+            at the first fit or sort. Off for callers that never sort on it.
+        embed_progress: Progress of that second pass.
     """
     result = AnalysisResult()
     profile = profiles.normalize(profile)
+    feature_set = config.section("sorting", profile).get("feature_set", "hand")
+    model = None if not embed or feature_set == "hand" else pretrained.spec(feature_set)
+    if model:
+        # Fail before the analysis, not after it.
+        pretrained.require()
+
+    def finish() -> AnalysisResult:
+        if model:
+            result.embedded = embed_tracks(db, result.track_ids, model.name, embed_progress)
+        return result
+
     extractor_config = config.extractor_config(profile)
     # Tags describe songs — a beat type or a mood means nothing for a kick —
     # so only music is tagged.
@@ -138,7 +158,7 @@ def analyze_files(
     if not pending:
         if progress:
             progress(0, 0, "")
-        return result
+        return finish()
 
     worker_count = resolve_worker_count(
         workers if workers is not None else config.get("performance", "num_workers", default=-1)
@@ -190,7 +210,37 @@ def analyze_files(
                     if progress:
                         progress(done, total, futures[future])
 
-    return result
+    return finish()
+
+
+def embed_tracks(
+    db: Database,
+    track_ids: Sequence[int],
+    model_name: str,
+    progress: Optional[ProgressCallback] = None,
+) -> int:
+    """Embed and store the tracks that have no embedding from this model yet.
+
+    Returns how many were stored; a file that can't be decoded gets none.
+    """
+    _, stored = db.get_embedding_matrix(track_ids, model_name)
+    have = set(stored)
+    tracks = db.get_tracks([tid for tid in track_ids if tid not in have])
+    todo = list(dict.fromkeys(tid for tid in track_ids if tid in tracks))
+    if not todo:
+        return 0
+    pretrained.require()
+    count = 0
+    for start in range(0, len(todo), pretrained.BATCH):
+        chunk = todo[start : start + pretrained.BATCH]
+        paths = [tracks[tid]["filepath"] for tid in chunk]
+        for tid, vector in zip(chunk, pretrained.embed_files(paths, model_name), strict=True):
+            if vector is not None:
+                db.add_embedding(tid, model_name, vector)
+                count += 1
+        if progress:
+            progress(start + len(chunk), len(todo), paths[-1])
+    return count
 
 
 def analyze_paths(
@@ -203,6 +253,8 @@ def analyze_paths(
     workers: Optional[int] = None,
     progress: Optional[ProgressCallback] = None,
     profile: Optional[str] = None,
+    embed: bool = False,
+    embed_progress: Optional[ProgressCallback] = None,
 ) -> AnalysisResult:
     """Analyse every audio file under the given paths."""
     files = collect_files(paths, recursive=recursive, extensions=extensions)
@@ -214,6 +266,8 @@ def analyze_paths(
         workers=workers,
         progress=progress,
         profile=profile,
+        embed=embed,
+        embed_progress=embed_progress,
     )
 
 

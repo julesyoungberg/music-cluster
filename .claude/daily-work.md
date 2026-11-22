@@ -221,3 +221,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Embed during `analyze` instead of at the first fit, so the wait comes with the analysis the user already expects.
 - Budget: last 3 runs used about 25, 15 and 45 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: OK to merge PR #55 (adds torch + transformers as an optional extra)? Still open: deleting the merged branches (script in project files).
+
+### 2026-11-22
+
+- Minutes: ~35 of 60 active. Subagents: 1 (independent review of the PR).
+- State: main green. No open issues or PRs. PR #55 (AST feature set) merged Nov 21.
+- Took item 3 from the Nov 21 list. `analyze` (CLI and API) now embeds music with AST right after measuring it when `sorting.feature_set` is ast, with its own "Embedding" progress, so the first fit or sort no longer waits. Missing torch fails before analysis starts. Other callers of `analyze_files` (discover, tags, group import, sort) don't embed: discover and tags never use it, and fit/sort embed lazily as before through the shared `library.embed_tracks`. Shipped in the PR for this run.
+- graphify isn't installed in the cloud session, so `graphify update .` was not run.
+- Next:
+  1. Desktop app: bundle torch in the PyInstaller sidecar and add a Settings toggle. Plan first; large build change and size question for Jules.
+  2. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+- Budget: last 3 runs used about 15, 45 and 35 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: is a ~1 GB larger desktop app acceptable to ship AST in it, or keep AST CLI-only? Still open: deleting the merged branches (script in project files).

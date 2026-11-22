@@ -188,21 +188,28 @@ def info():
 def analyze(paths, recursive, update, extensions, workers, profile):
     """Extract audio features for files, without sorting them."""
     config, db = get_context()
-    result = analyze_paths(
-        db,
-        config,
-        list(paths),
-        recursive=recursive,
-        update=update,
-        extensions=parse_extensions(extensions) if extensions else None,
-        workers=workers,
-        progress=progress_bar("Analysing"),
-        profile=profile,
-    )
+    try:
+        result = analyze_paths(
+            db,
+            config,
+            list(paths),
+            recursive=recursive,
+            update=update,
+            extensions=parse_extensions(extensions) if extensions else None,
+            workers=workers,
+            progress=progress_bar("Analysing"),
+            profile=profile,
+            embed=True,
+            embed_progress=progress_bar("Embedding"),
+        )
+    except (ValueError, MissingDependency) as exc:
+        raise click.ClickException(str(exc)) from exc
     click.echo(
         f"\nAnalysed {result.analyzed}, skipped {result.skipped} (already known), "
         f"failed {result.failed}."
     )
+    if result.embedded:
+        click.echo(f"Embedded {result.embedded} for sorting.")
     if result.tagged:
         click.echo(f"Tagged {result.tagged}. See them with: cratewise tags find")
     for error in result.errors[:5]:
