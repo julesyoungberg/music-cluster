@@ -36,10 +36,13 @@ def create_session(
     workers: Optional[int] = None,
     progress: Optional[Callable[[int, int, str], None]] = None,
     auto_accept: bool = False,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Dict[str, Any]:
     """Create a sort session for the audio under ``paths`` and score it.
 
     Args:
+        embed_progress: Progress of embedding new tracks, when the collection
+            sorts on a pretrained feature set.
         auto_accept: Pre-accept high-confidence suggestions so the human only
             reviews what the sorter is unsure about. Off by default: the human
             stays in the loop unless they opt out of it.
@@ -62,7 +65,14 @@ def create_session(
         settings={"auto_accept": auto_accept},
     )
 
-    score_session(db, config, session_id, track_ids=analysis.track_ids, auto_accept=auto_accept)
+    score_session(
+        db,
+        config,
+        session_id,
+        track_ids=analysis.track_ids,
+        auto_accept=auto_accept,
+        embed_progress=embed_progress,
+    )
     return {
         "session": db.get_sort_session(session_id),
         "analysis": analysis.to_dict(),
@@ -76,6 +86,7 @@ def score_session(
     session_id: int,
     track_ids: Optional[Sequence[int]] = None,
     auto_accept: bool = False,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Dict[str, int]:
     """(Re-)score a session's tracks against its collection's current groups.
 
@@ -94,7 +105,7 @@ def score_session(
     if not track_ids:
         return {}
 
-    matrix, found_ids = track_vectors(db, collection, config, track_ids)
+    matrix, found_ids = track_vectors(db, collection, config, track_ids, embed_progress)
     if len(found_ids) == 0:
         raise ValueError(
             "None of the session's tracks could be described for sorting: not analysed for "

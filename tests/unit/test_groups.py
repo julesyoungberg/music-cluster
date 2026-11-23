@@ -468,11 +468,19 @@ class TestPretrainedFeatureSet:
             collection_id=collection_id, name="Incoming", source_path=None
         )
 
-        sorting.score_session(db, config, session_id, track_ids=[new, broken])
+        steps: list = []
+        sorting.score_session(
+            db,
+            config,
+            session_id,
+            track_ids=[new, broken],
+            embed_progress=lambda done, total, _path: steps.append((done, total)),
+        )
         items = {item["track_id"]: item for item in db.list_sort_items(session_id)}
 
         assert items[new]["suggested_group_id"] == next(iter(membership))
         assert items[broken]["status"] == "unmatched"
+        assert steps[-1] == (2, 2)  # embedding the two new tracks is reported
 
     def test_a_global_ast_setting_leaves_sample_collections_on_hand_features(self, db, config):
         config.set(["sorting", "feature_set"], "ast")

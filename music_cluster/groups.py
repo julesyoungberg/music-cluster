@@ -358,12 +358,17 @@ def looks_like_playlist(path: str) -> bool:
 
 
 def track_vectors(
-    db: Database, collection: Dict, config: Config, track_ids: Sequence[int]
+    db: Database,
+    collection: Dict,
+    config: Config,
+    track_ids: Sequence[int],
+    progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Tuple[np.ndarray, List[int]]:
     """The vectors the collection's sorter works on, for the given tracks.
 
     With a pretrained feature set, tracks without a stored embedding (ones
-    analysed before the setting changed) are embedded now and stored.
+    analysed before the setting changed) are embedded now and stored, and
+    *progress* reports that pass.
     """
     feature_set = sorter_config_for(collection, config).feature_set
     if feature_set == "hand":
@@ -372,7 +377,7 @@ def track_vectors(
     if profile_of(collection) != profiles.MUSIC:
         raise ValueError(f"The {model.name} feature set is for music collections only")
 
-    embed_tracks(db, track_ids, model.name)
+    embed_tracks(db, track_ids, model.name, progress)
     return db.get_embedding_matrix(track_ids, model.name)
 
 

@@ -233,3 +233,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   2. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
 - Budget: last 3 runs used about 15, 45 and 45 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: is a much larger desktop app (torch alone is several hundred MB) acceptable to ship AST in it, or keep AST CLI-only? Still open: deleting the merged branches (script in project files).
+
+### 2026-11-23
+
+- Minutes: ~30 of 60 active. Subagents: 1 (independent review of the PR).
+- State: no open issues or PRs. Main's desktop build had one red job (macos-x86_64 on a4fce40 and cd6010a): the runner couldn't resolve static.rust-lang.org (DNS), not a code fault. Re-ran the failed job.
+- No answer yet on the Nov 22 question (AST in the desktop app), so item 1 stays parked. Item 2 (AST on Jules's crates) needs the Mac; not started unattended.
+- Shipped the leftover from PR #56: `sort` (CLI and app) shows an "Embedding" progress bar while it embeds new tracks with AST, instead of a silent wait. Same callback as `analyze`.
+- Next:
+  1. Desktop app: bundle torch in the sidecar, if Jules says yes to the larger app.
+  2. Try AST on Jules's own crates (Mac via Remote Control).
+- Budget: last 3 runs used about 45, 45 and 30 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: AST in the desktop app (several hundred MB larger) or CLI only? Still open: deleting the merged branches (script in project files).

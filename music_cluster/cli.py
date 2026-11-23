@@ -780,6 +780,7 @@ def sort(paths, collection_name, name, recursive, auto_accept, workers, review):
             workers=workers,
             progress=progress_bar("Analysing"),
             auto_accept=auto_accept,
+            embed_progress=progress_bar("Embedding"),
         )
     except (ValueError, LookupError, MissingDependency) as exc:
         raise click.ClickException(str(exc)) from exc
