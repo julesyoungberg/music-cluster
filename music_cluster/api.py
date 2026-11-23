@@ -1018,6 +1018,7 @@ async def create_session(request: SortRequest):
             workers=request.workers,
             progress=progress_updater(update, "Analysing"),
             auto_accept=request.auto_accept,
+            embed_progress=progress_updater(update, "Embedding"),
         )
         return outcome
 
