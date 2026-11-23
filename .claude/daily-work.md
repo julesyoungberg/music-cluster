@@ -240,8 +240,10 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
 - State: no open issues or PRs. Main's desktop build had one red job (macos-x86_64 on a4fce40 and cd6010a): the runner couldn't resolve static.rust-lang.org (DNS), not a code fault. Re-ran the failed job.
 - No answer yet on the Nov 22 question (AST in the desktop app), so item 1 stays parked. Item 2 (AST on Jules's crates) needs the Mac; not started unattended.
 - Shipped the leftover from PR #56: `sort` (CLI and app) shows an "Embedding" progress bar while it embeds new tracks with AST, instead of a silent wait. Same callback as `analyze`.
+- Review found the refit path is still silent: switching a collection to AST makes the next `sort` or `fit` embed every reference track (the long wait) with no progress. Left for a follow-up (needs one embed pass over all group tracks in `fit_collection`, so the bar doesn't restart per group).
 - Next:
-  1. Desktop app: bundle torch in the sidecar, if Jules says yes to the larger app.
-  2. Try AST on Jules's own crates (Mac via Remote Control).
+  1. Progress for the refit embedding in `fit_collection` (`fit`, and `sort` when the sorter is stale). No Jules input needed.
+  2. Desktop app: bundle torch in the sidecar, if Jules says yes to the larger app.
+  3. Try AST on Jules's own crates (Mac via Remote Control).
 - Budget: last 3 runs used about 45, 45 and 30 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: AST in the desktop app (several hundred MB larger) or CLI only? Still open: deleting the merged branches (script in project files).

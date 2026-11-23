@@ -480,7 +480,7 @@ class TestPretrainedFeatureSet:
 
         assert items[new]["suggested_group_id"] == next(iter(membership))
         assert items[broken]["status"] == "unmatched"
-        assert steps[-1] == (2, 2)  # embedding the two new tracks is reported
+        assert steps == [(2, 2)]  # one batch: both new tracks embedded and reported
 
     def test_a_global_ast_setting_leaves_sample_collections_on_hand_features(self, db, config):
         config.set(["sorting", "feature_set"], "ast")
