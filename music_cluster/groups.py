@@ -440,13 +440,28 @@ def load_group_features(
 
 
 def fit_collection(
-    db: Database, collection: Dict, config: Config, evaluate: bool = True
+    db: Database,
+    collection: Dict,
+    config: Config,
+    evaluate: bool = True,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Dict[str, Any]:
     """Fit and persist the sorter for a collection.
 
     Returns the evaluation report, which doubles as feedback on whether the
     DJ's folders are actually distinguishable from each other.
+
+    Args:
+        embed_progress: Progress of embedding reference tracks that have no
+            embedding yet, when the collection sorts on a pretrained feature set.
     """
+    if sorter_config_for(collection, config).feature_set != "hand":
+        # One pass over every group, so the progress covers the whole wait
+        # instead of restarting per group.
+        membership = db.get_collection_membership(collection["id"])
+        reference_ids = list(dict.fromkeys(tid for ids in membership.values() for tid in ids))
+        track_vectors(db, collection, config, reference_ids, embed_progress)
+
     features, names, track_ids, problems = load_group_features(
         db,
         collection["id"],
@@ -478,10 +493,17 @@ def fit_collection(
     return metrics
 
 
-def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = True):
+def load_sorter(
+    db: Database,
+    collection: Dict,
+    config: Config,
+    autofit: bool = True,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
+):
     """Load the fitted sorter for a collection, fitting on demand if stale.
 
-    Returns ``(sorter, model_row)``.
+    Returns ``(sorter, model_row)``. *embed_progress* reports the embedding
+    pass of a refit (see :func:`fit_collection`).
     """
     model = db.load_model(collection["id"])
     stale = (
@@ -501,7 +523,7 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
             raise LookupError(
                 "No up-to-date sorter for this collection. Run `cratewise fit` first."
             )
-        fit_collection(db, collection, config)
+        fit_collection(db, collection, config, embed_progress=embed_progress)
         model = db.load_model(collection["id"])
 
     if model is None:  # pragma: no cover - fit_collection either saves or raises

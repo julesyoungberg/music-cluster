@@ -67,6 +67,9 @@ def progress_bar(desc: str):
         bar.refresh()
         if done >= total:
             bar.close()
+            # The same callback can report a second pass (sort embeds the
+            # reference tracks for a refit, then the new ones).
+            state["bar"] = None
 
     return callback
 
@@ -687,7 +690,9 @@ def fit(collection_name):
 
     click.echo(f"Fitting {target['name']!r}...")
     try:
-        metrics = groups_mod.fit_collection(db, target, config)
+        metrics = groups_mod.fit_collection(
+            db, target, config, embed_progress=progress_bar("Embedding")
+        )
     except (ValueError, MissingDependency) as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -712,7 +717,7 @@ def check(collection_name, refit):
 
     if refit:
         try:
-            groups_mod.fit_collection(db, target, config)
+            groups_mod.fit_collection(db, target, config, embed_progress=progress_bar("Embedding"))
         except (ValueError, MissingDependency) as exc:
             raise click.ClickException(str(exc)) from exc
 

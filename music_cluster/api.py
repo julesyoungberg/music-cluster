@@ -733,7 +733,9 @@ async def fit_collection(collection_id: int):
 
     def worker(update, **_):
         update(message="Fitting reference groups...")
-        return groups_mod.fit_collection(db, collection, config)
+        return groups_mod.fit_collection(
+            db, collection, config, embed_progress=progress_updater(update, "Embedding")
+        )
 
     return {"task_id": start_task("fit", worker)}
 
@@ -1077,7 +1079,13 @@ async def rescore_session(session_id: int, auto_accept: bool = False):
 
     def worker(update, **_):
         update(message="Re-scoring...")
-        return sorting.score_session(db, config, session_id, auto_accept=auto_accept)
+        return sorting.score_session(
+            db,
+            config,
+            session_id,
+            auto_accept=auto_accept,
+            embed_progress=progress_updater(update, "Embedding"),
+        )
 
     return {"task_id": start_task("rescore", worker)}
 

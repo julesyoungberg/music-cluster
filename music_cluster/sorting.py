@@ -98,7 +98,7 @@ def score_session(
         raise LookupError(f"No sort session with ID {session_id}")
 
     collection = resolve_collection(db, session["collection_id"])
-    sorter, _ = load_sorter(db, collection, config)
+    sorter, _ = load_sorter(db, collection, config, embed_progress=embed_progress)
 
     if track_ids is None:
         track_ids = [item["track_id"] for item in db.list_sort_items(session_id, limit=10**6)]

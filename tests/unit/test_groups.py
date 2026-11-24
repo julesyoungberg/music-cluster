@@ -480,7 +480,9 @@ class TestPretrainedFeatureSet:
 
         assert items[new]["suggested_group_id"] == next(iter(membership))
         assert items[broken]["status"] == "unmatched"
-        assert steps == [(2, 2)]  # one batch: both new tracks embedded and reported
+        # The stale sorter refits first, embedding all 36 reference tracks in one
+        # pass (not one per group), then the two new tracks.
+        assert steps == [(8, 36), (16, 36), (24, 36), (32, 36), (36, 36), (2, 2)]
 
     def test_a_global_ast_setting_leaves_sample_collections_on_hand_features(self, db, config):
         config.set(["sorting", "feature_set"], "ast")
