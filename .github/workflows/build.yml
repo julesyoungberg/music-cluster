@@ -93,21 +93,27 @@ jobs:
       # numba 0.63+ and llvmlite 0.46+ publish no Intel macOS wheels, so pip
       # falls back to building llvmlite from source, which needs a full LLVM
       # install. Hold the Intel build on the last releases that ship wheels.
-      - name: Pin numba to releases with Intel macOS wheels
+      - name: Pin numba and torch to releases with Intel macOS wheels
         if: matrix.name == 'macos-x86_64'
         shell: bash
         run: |
-          printf 'numba<0.63\nllvmlite<0.46\n' > "$RUNNER_TEMP/intel-mac-constraints.txt"
+          # torch has no Intel macOS wheels after 2.2, which predates NumPy 2;
+          # transformers 4.50+ refuses to load weights with a torch that old.
+          printf 'numba<0.63\nllvmlite<0.46\ntorch<2.3\nnumpy<2\ntransformers<4.50\n' > "$RUNNER_TEMP/intel-mac-constraints.txt"
           echo "PIP_CONSTRAINT=$RUNNER_TEMP/intel-mac-constraints.txt" >> "$GITHUB_ENV"
 
       - name: Install Python build dependencies
         run: |
           python -m pip install --upgrade pip
+          # CPU-only torch: the CUDA build PyPI serves on Linux is gigabytes,
+          # and the app never uses a GPU there.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-build.txt
           pip install -e .
 
       # The app ships its own Python: without this, a user would have to
       # install Python and the whole scientific stack before it would run.
+      # The smoke test downloads the AST model from Hugging Face.
       - name: Freeze the API into a sidecar binary
         run: python scripts/build_sidecar.py
 

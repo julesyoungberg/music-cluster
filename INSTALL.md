@@ -75,8 +75,9 @@ sidecar. The desktop shell starts it on a free port and shuts it down with the
 window.
 
 ```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU-only, for AST sorting
 pip install -r requirements-build.txt
-python scripts/build_sidecar.py      # freezes the API (a few minutes, ~150 MB)
+python scripts/build_sidecar.py      # freezes the API and smoke-tests it with AST (downloads the model)
 python scripts/make_icons.py         # only needed if the icons are missing
 
 npm install --prefix ui              # the web UI

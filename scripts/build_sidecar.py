@@ -45,6 +45,10 @@ HIDDEN_IMPORTS = [
     "sklearn.neighbors._partition_nodes",
     "scipy._lib.messagestream",
     "scipy.special._cdflib",
+    # transformers imports its model classes lazily, out of PyInstaller's sight.
+    "transformers.models.audio_spectrogram_transformer.configuration_audio_spectrogram_transformer",
+    "transformers.models.audio_spectrogram_transformer.feature_extraction_audio_spectrogram_transformer",
+    "transformers.models.audio_spectrogram_transformer.modeling_audio_spectrogram_transformer",
 ]
 # Nothing in the server draws anything; excluding these saves a lot of weight.
 EXCLUDES = ["tkinter", "matplotlib", "IPython", "pytest", "PyQt5", "PySide6", "notebook"]
@@ -118,10 +122,34 @@ def build(triple: str, clean: bool) -> Path:
     return target
 
 
+def write_test_tone(path: Path, seconds: int = 12, rate: int = 22050) -> None:
+    """A short chord with a pulse, enough for analysis and one AST window."""
+    import wave
+
+    import numpy as np
+
+    t = np.arange(seconds * rate) / rate
+    chord = sum(np.sin(2 * np.pi * f * t) for f in (220.0, 277.2, 329.6)) / 3
+    pulse = (np.sin(2 * np.pi * 2.0 * t) > 0.95).astype(float) * np.sin(2 * np.pi * 60.0 * t)
+    samples = np.int16(np.clip(0.5 * chord + 0.4 * pulse, -1, 1) * 32767)
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        out.writeframes(samples.tobytes())
+
+
 def smoke_test(binary: Path) -> None:
-    """Start the frozen server and make sure it answers before shipping it."""
+    """Start the frozen server and make sure it answers before shipping it.
+
+    It runs against a throwaway library set to sort on AST, and analyses one
+    generated file, so a frozen torch or transformers that cannot load the
+    model fails the build instead of a user's first sort. That downloads the
+    model weights (about 350 MB).
+    """
     import json
     import socket
+    import tempfile
     import time
     import urllib.error
     import urllib.request
@@ -132,35 +160,84 @@ def smoke_test(binary: Path) -> None:
 
     # A proxy in the environment must not be consulted for loopback.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    base = f"http://127.0.0.1:{port}"
 
-    process = subprocess.Popen(
-        [str(binary), "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    def call(path: str, body: Optional[dict] = None) -> dict:
+        request = urllib.request.Request(
+            base + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Content-Type": "application/json"},
+        )
+        with opener.open(request, timeout=10) as response:
+            return json.load(response)
+
+    workspace = Path(tempfile.mkdtemp(prefix="sidecar-smoke-"))
+    (workspace / "config.yaml").write_text("sorting:\n  feature_set: ast\n")
+    tone = workspace / "tone.wav"
+    write_test_tone(tone)
+    env = {
+        **os.environ,
+        "MUSIC_CLUSTER_DB": str(workspace / "library.db"),
+        "MUSIC_CLUSTER_CONFIG": str(workspace / "config.yaml"),
+        "MUSIC_CLUSTER_CACHE": str(workspace / "cache"),
+    }
+
+    # To a file, not a pipe: the model download's progress bars would fill an
+    # unread pipe and stall the server.
+    log = workspace / "server.log"
+    started = time.time()
+    with log.open("w") as output:
+        process = subprocess.Popen(
+            [str(binary), "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+
+    def fail(message: str) -> SystemExit:
+        process.kill()
+        process.wait()
+        return SystemExit(f"{message}\n{log.read_text(errors='replace')}")
+
     try:
         deadline = time.time() + 180
         last_error: Optional[BaseException] = None
-        while time.time() < deadline:
+        while True:
             if process.poll() is not None:
-                output = process.stdout.read() if process.stdout else ""
-                raise SystemExit(f"The frozen server exited early:\n{output}")
+                raise fail("The frozen server exited early:")
+            if time.time() > deadline:
+                raise fail(f"The frozen server never answered /api/info: {last_error}")
             try:
-                with opener.open(f"http://127.0.0.1:{port}/api/info", timeout=2) as response:
-                    payload = json.load(response)
-                print(f"Smoke test passed: /api/info reported {payload['track_count']} tracks")
-                return
+                payload = call("/api/info")
+                break
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last_error = exc
                 time.sleep(1)
-        raise SystemExit(f"The frozen server never answered /api/info: {last_error}")
+        print(
+            f"Smoke test: /api/info reported {payload['track_count']} tracks "
+            f"after {time.time() - started:.0f} s"
+        )
+
+        task_id = call("/api/analyze", {"paths": [str(tone)]})["task_id"]
+        deadline = time.time() + 900
+        while True:
+            task = call(f"/api/tasks/{task_id}")
+            if task["status"] != "running":
+                break
+            if time.time() > deadline:
+                raise fail("Analysing with AST did not finish in 15 minutes:")
+            time.sleep(2)
+        if task["status"] != "completed" or task["result"]["embedded"] != 1:
+            raise fail(f"Analysing with AST failed: {json.dumps(task)}")
+        print("Smoke test passed: analysed and embedded a track with AST")
     finally:
-        process.terminate()
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 def main() -> int:

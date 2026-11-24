@@ -157,6 +157,30 @@
         These govern how confident the sorter has to be before it will decide anything for you.
       </p>
       <div class="space-y-4 rounded-lg border border-border p-4">
+        <div>
+          <span class="text-sm font-medium">What the sorter listens with</span>
+          <div class="mt-1 flex flex-wrap gap-2">
+            {#each [['hand', 'Hand-made features'], ['ast', 'AST network']] as [value, label]}
+              <button
+                class="rounded-md border px-3 py-1.5 text-sm transition-colors {read(
+                  'sorting.feature_set'
+                ) === value
+                  ? 'border-primary bg-primary/10'
+                  : 'border-input hover:bg-secondary'}"
+                aria-pressed={read('sorting.feature_set') === value}
+                onclick={() => save({ 'sorting.feature_set': value })}
+              >
+                {label}
+              </button>
+            {/each}
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">
+            AST, a network trained on AudioSet, put 65% of test tracks in the right genre against
+            45% for the hand-made features. It downloads a 350 MB model the first time and takes a
+            few seconds per track. Music collections only; fit again after switching.
+          </p>
+        </div>
+
         {#each sortingFields as field}
           <div>
             <div class="flex items-baseline justify-between gap-4">

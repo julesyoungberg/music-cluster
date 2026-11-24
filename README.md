@@ -383,7 +383,8 @@ cratewise fit                               # embeds every reference track once,
 
 From then on `analyze` embeds each new track right after measuring it, and
 `sort` embeds any track that still has none. Music collections only; sample
-collections keep the hand features. The desktop app does not bundle it yet.
+collections keep the hand features. The desktop app includes it: choose AST
+under Settings, Sorting, then fit again.
 
 ### Optional: LLM naming
 

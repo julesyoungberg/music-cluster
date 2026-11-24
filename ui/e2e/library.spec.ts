@@ -139,6 +139,22 @@ test.describe('settings', () => {
     await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
     await expect(page.getByText(/confiden/i).first()).toBeVisible();
   });
+
+  test('switches the sorter to AST and back', async ({ page }) => {
+    await page.goto('/settings');
+    const ast = page.getByRole('button', { name: 'AST network' });
+    const measured = page.getByRole('button', { name: 'Hand-made features' });
+    await expect(measured).toHaveAttribute('aria-pressed', 'true');
+
+    await ast.click();
+    await expect(page.getByText('Settings saved')).toBeVisible();
+    await page.reload();
+    await expect(ast).toHaveAttribute('aria-pressed', 'true');
+
+    // Later specs sort on the seeded library, which has no AST embeddings.
+    await measured.click();
+    await expect(measured).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 test.describe('when the API is unreachable', () => {
