@@ -440,18 +440,36 @@ def load_group_features(
 
 
 def fit_collection(
-    db: Database, collection: Dict, config: Config, evaluate: bool = True
+    db: Database,
+    collection: Dict,
+    config: Config,
+    evaluate: bool = True,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Dict[str, Any]:
     """Fit and persist the sorter for a collection.
 
     Returns the evaluation report, which doubles as feedback on whether the
     DJ's folders are actually distinguishable from each other.
+
+    Args:
+        embed_progress: Progress of embedding reference tracks that have no
+            embedding yet, when the collection sorts on a pretrained feature set.
     """
+    feature_set = sorter_config_for(collection, config).feature_set
+    matrix_for = None  # the profile's stored hand features
+    if feature_set != "hand":
+        # One pass over every group, so the progress covers the whole wait
+        # instead of restarting per group.
+        membership = db.get_collection_membership(collection["id"])
+        reference_ids = [tid for ids in membership.values() for tid in ids]
+        track_vectors(db, collection, config, reference_ids, embed_progress)
+        # Read back what the pass stored, so a file that failed to decode is
+        # not decoded again group by group.
+        model_name = pretrained.spec(feature_set).name
+        matrix_for = lambda ids: db.get_embedding_matrix(ids, model_name)  # noqa: E731
+
     features, names, track_ids, problems = load_group_features(
-        db,
-        collection["id"],
-        profile_of(collection),
-        matrix_for=lambda ids: track_vectors(db, collection, config, ids),
+        db, collection["id"], profile_of(collection), matrix_for=matrix_for
     )
     if len(features) < 2:
         raise ValueError(
@@ -478,10 +496,17 @@ def fit_collection(
     return metrics
 
 
-def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = True):
+def load_sorter(
+    db: Database,
+    collection: Dict,
+    config: Config,
+    autofit: bool = True,
+    embed_progress: Optional[Callable[[int, int, str], None]] = None,
+):
     """Load the fitted sorter for a collection, fitting on demand if stale.
 
-    Returns ``(sorter, model_row)``.
+    Returns ``(sorter, model_row)``. *embed_progress* reports the embedding
+    pass of a refit (see :func:`fit_collection`).
     """
     model = db.load_model(collection["id"])
     stale = (
@@ -501,7 +526,7 @@ def load_sorter(db: Database, collection: Dict, config: Config, autofit: bool = 
             raise LookupError(
                 "No up-to-date sorter for this collection. Run `cratewise fit` first."
             )
-        fit_collection(db, collection, config)
+        fit_collection(db, collection, config, embed_progress=embed_progress)
         model = db.load_model(collection["id"])
 
     if model is None:  # pragma: no cover - fit_collection either saves or raises

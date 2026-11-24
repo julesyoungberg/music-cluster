@@ -247,3 +247,17 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Try AST on Jules's own crates (Mac via Remote Control).
 - Budget: last 3 runs used about 45, 45 and 30 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: AST in the desktop app (several hundred MB larger) or CLI only? Still open: deleting the merged branches (script in project files).
+
+### 2026-11-24
+
+- Minutes: ~35 of 60 active. Subagents: 1 (independent review of the PR).
+- State: main green (all four workflows on 6344cb0). No open issues or PRs. PR #58 (AST in the desktop app) merged earlier today from its own thread.
+- Took item 1 from the Nov 23 list: the refit embedding now has progress. `fit_collection` embeds every reference track in one pass before loading groups, so the bar covers the whole wait instead of restarting per group. Wired into `fit`, `check --refit`, `sort` (a stale sorter refits first) and the API's fit and re-score tasks. The CLI progress bar now starts a fresh bar for a second pass. Review also caught that a reference file that can't be decoded was decoded twice per fit; fixed.
+- graphify isn't installed in the cloud session, so `graphify update .` was not run.
+- Next:
+  1. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+  2. Try the AST desktop build on Jules's Mac (size, startup time, Settings switch).
+  3. App: the Overview "Fit now" button shows no task progress, and the Groups page panel is titled "Analysing tracks" during a fit. Small UI fix with a browser test and a shot.
+  4. Idea, not requested: the onefile sidecar leaves a temp folder behind each time it is killed; a onedir build would fix it.
+- Budget: last 3 runs used about 45, 30 and 35 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: deleting the merged branches (script in project files).

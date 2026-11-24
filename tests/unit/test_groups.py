@@ -416,6 +416,8 @@ class TestPretrainedFeatureSet:
     ):
         collection_id, membership, _ = populated
         collection = self._with_ast(db, collection_id)
+        broken = db.upsert_track(filepath="/fake/broken.mp3", filename="broken.mp3")
+        db.add_group_members(next(iter(membership)), [broken])
 
         metrics = groups_mod.fit_collection(db, collection, config)
         all_ids = [tid for ids in membership.values() for tid in ids]
@@ -423,10 +425,10 @@ class TestPretrainedFeatureSet:
 
         assert matrix.shape == (36, 16) and sorted(found) == sorted(all_ids)
         assert metrics["accuracy"] > 0.8
-        assert len(fake_ast) == 36
+        assert len(fake_ast) == 37  # each reference decoded once, the broken one too
 
         groups_mod.fit_collection(db, collection, config)
-        assert len(fake_ast) == 36  # stored, not embedded again
+        assert len(fake_ast) == 38  # stored ones not embedded again; broken retried once
 
     def test_switching_feature_set_refits_the_sorter(self, db, config, populated, fake_ast):
         collection_id, _, _ = populated
@@ -480,7 +482,9 @@ class TestPretrainedFeatureSet:
 
         assert items[new]["suggested_group_id"] == next(iter(membership))
         assert items[broken]["status"] == "unmatched"
-        assert steps == [(2, 2)]  # one batch: both new tracks embedded and reported
+        # The stale sorter refits first, embedding all 36 reference tracks in one
+        # pass (not one per group), then the two new tracks.
+        assert steps == [(8, 36), (16, 36), (24, 36), (32, 36), (36, 36), (2, 2)]
 
     def test_a_global_ast_setting_leaves_sample_collections_on_hand_features(self, db, config):
         config.set(["sorting", "feature_set"], "ast")
