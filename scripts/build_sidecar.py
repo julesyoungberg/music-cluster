@@ -218,15 +218,21 @@ def smoke_test(binary: Path) -> None:
             f"after {time.time() - started:.0f} s"
         )
 
-        task_id = call("/api/analyze", {"paths": [str(tone)]})["task_id"]
         deadline = time.time() + 900
-        while True:
-            task = call(f"/api/tasks/{task_id}")
-            if task["status"] != "running":
-                break
-            if time.time() > deadline:
-                raise fail("Analysing with AST did not finish in 15 minutes:")
-            time.sleep(2)
+        try:
+            task_id = call("/api/analyze", {"paths": [str(tone)]})["task_id"]
+            while True:
+                if process.poll() is not None:
+                    raise fail("The frozen server died while analysing with AST:")
+                task = call(f"/api/tasks/{task_id}")
+                if task["status"] != "running":
+                    break
+                if time.time() > deadline:
+                    raise fail("Analysing with AST did not finish in 15 minutes:")
+                time.sleep(2)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            # Usually the server crashed in native torch code: its log says why.
+            raise fail(f"Lost the frozen server while analysing with AST: {exc}") from exc
         if task["status"] != "completed" or task["result"]["embedded"] != 1:
             raise fail(f"Analysing with AST failed: {json.dumps(task)}")
         print("Smoke test passed: analysed and embedded a track with AST")

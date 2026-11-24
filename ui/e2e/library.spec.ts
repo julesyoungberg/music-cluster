@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const apiBase = process.env.E2E_API_BASE ?? 'http://127.0.0.1:8123';
+
 /**
  * Read-only journeys through the app: the pages a user lands on before they
  * change anything. These run against the seeded library — three genre folders
@@ -146,13 +148,18 @@ test.describe('settings', () => {
     const measured = page.getByRole('button', { name: 'Hand-made features' });
     await expect(measured).toHaveAttribute('aria-pressed', 'true');
 
-    await ast.click();
-    await expect(page.getByText('Settings saved')).toBeVisible();
+    try {
+      await ast.click();
+      await expect(page.getByText('Settings saved')).toBeVisible();
+      await page.reload();
+      await expect(ast).toHaveAttribute('aria-pressed', 'true');
+    } finally {
+      // Later specs sort on the seeded library, which has no AST embeddings.
+      await page.request.put(`${apiBase}/api/config`, {
+        data: { values: { 'sorting.feature_set': 'hand' } }
+      });
+    }
     await page.reload();
-    await expect(ast).toHaveAttribute('aria-pressed', 'true');
-
-    // Later specs sort on the seeded library, which has no AST embeddings.
-    await measured.click();
     await expect(measured).toHaveAttribute('aria-pressed', 'true');
   });
 });

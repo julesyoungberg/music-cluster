@@ -85,6 +85,9 @@ npm install                          # the Tauri CLI, which must live at the roo
 npm run tauri:build
 ```
 
+On an Intel Mac, use the version pins in `.github/workflows/build.yml` (torch 2.2
+is the last with Intel Mac wheels, and it needs NumPy 1).
+
 The Tauri CLI finds `src-tauri` by searching downwards, so it has to be run
 from the repository root — that is the only reason there is a `package.json`
 there as well as in `ui/`.
