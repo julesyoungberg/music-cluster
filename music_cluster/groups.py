@@ -455,18 +455,21 @@ def fit_collection(
         embed_progress: Progress of embedding reference tracks that have no
             embedding yet, when the collection sorts on a pretrained feature set.
     """
-    if sorter_config_for(collection, config).feature_set != "hand":
+    feature_set = sorter_config_for(collection, config).feature_set
+    matrix_for = None  # the profile's stored hand features
+    if feature_set != "hand":
         # One pass over every group, so the progress covers the whole wait
         # instead of restarting per group.
         membership = db.get_collection_membership(collection["id"])
-        reference_ids = list(dict.fromkeys(tid for ids in membership.values() for tid in ids))
+        reference_ids = [tid for ids in membership.values() for tid in ids]
         track_vectors(db, collection, config, reference_ids, embed_progress)
+        # Read back what the pass stored, so a file that failed to decode is
+        # not decoded again group by group.
+        model_name = pretrained.spec(feature_set).name
+        matrix_for = lambda ids: db.get_embedding_matrix(ids, model_name)  # noqa: E731
 
     features, names, track_ids, problems = load_group_features(
-        db,
-        collection["id"],
-        profile_of(collection),
-        matrix_for=lambda ids: track_vectors(db, collection, config, ids),
+        db, collection["id"], profile_of(collection), matrix_for=matrix_for
     )
     if len(features) < 2:
         raise ValueError(
