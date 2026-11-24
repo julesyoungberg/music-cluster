@@ -1,3 +1,8 @@
 # Packaging the desktop app: freezes the API server into the Tauri sidecar.
 -r requirements.txt
 pyinstaller>=6.11.0
+# The app can sort on AST (sorting.feature_set: ast). On Linux, install the
+# CPU-only torch first, as build.yml does, or pip pulls the CUDA build (GBs):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
+transformers>=4.30.0
