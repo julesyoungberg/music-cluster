@@ -261,3 +261,17 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   4. Idea, not requested: the onefile sidecar leaves a temp folder behind each time it is killed; a onedir build would fix it.
 - Budget: last 3 runs used about 45, 30 and 35 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: deleting the merged branches (script in project files).
+
+### 2026-11-25
+
+- Minutes: ~30 of 60 active. Subagents: 1 (independent review of the PR).
+- State: main green. No open issues or PRs.
+- Took item 3 from the Nov 24 list: Overview "Fit now" now shows the fit's progress panel ("Fitting groups", with the embedding count when AST embeds), and the Groups page names a fit "Fitting groups" instead of "Analysing tracks". Browser test in `ui/e2e/library.spec.ts` (fails without the fix) and a new `overview-fitting` shot.
+- Playwright in the cloud session: set `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium`; the project's Playwright doesn't find the preinstalled browser otherwise.
+- graphify isn't installed in the cloud session, so `graphify update .` was not run.
+- Next (all need the Mac or Jules):
+  1. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+  2. Try the AST desktop build on Jules's Mac (size, startup time, Settings switch).
+  3. Idea, not requested: the onefile sidecar leaves a temp folder behind each time it is killed; a onedir build would fix it.
+- Budget: last 3 runs used about 30, 35 and 30 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: deleting the merged branches (script in project files).

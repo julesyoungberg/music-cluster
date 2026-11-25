@@ -40,6 +40,54 @@ test.describe('overview', () => {
     await expect(page.getByRole('link', { name: /Break down a pile/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Manage groups/ })).toBeVisible();
   });
+
+  test('Fit now shows the fit progress until the groups are re-learned', async ({ page }) => {
+    // The seeded collection is fitted, so report it as unfitted to get the banner.
+    await page.route('**/api/info', async (route) => {
+      const info = await (await route.fetch()).json();
+      for (const collection of info.collections) collection.fitted = false;
+      await route.fulfill({ json: info });
+    });
+    // Stand in for the fit so this file stays read-only (the fit route has its
+    // own closed-loop test): one poll while running, then done.
+    let fitStarted = false;
+    await page.route('**/api/collections/*/fit', (route) => {
+      fitStarted = true;
+      return route.fulfill({ json: { task_id: 'fit-test' } });
+    });
+    const task = { id: 'fit-test', kind: 'fit', total: 24, error: null };
+    let polls = 0;
+    await page.route('**/api/tasks/fit-test', (route) =>
+      route.fulfill({
+        json:
+          polls++ === 0
+            ? {
+                ...task,
+                status: 'running',
+                progress: 0.125,
+                current: 3,
+                message: 'Embedding',
+                result: null
+              }
+            : {
+                ...task,
+                status: 'completed',
+                progress: 1,
+                current: 24,
+                message: '',
+                result: { accuracy: 0.9 }
+              }
+      })
+    );
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Fit now' }).click();
+
+    await expect(page.getByText('Fitting groups')).toBeVisible();
+    await expect(page.getByText('Groups re-learned')).toBeVisible();
+    await expect(page.getByText('Fitting groups')).toHaveCount(0);
+    expect(fitStarted).toBe(true);
+  });
 });
 
 test.describe('navigation', () => {

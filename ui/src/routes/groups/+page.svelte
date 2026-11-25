@@ -287,7 +287,7 @@
     </div>
   </div>
 
-  <TaskProgress {task} label="Analysing tracks" />
+  <TaskProgress {task} label={task?.kind === 'fit' ? 'Fitting groups' : 'Analysing tracks'} />
 
   {#if !collection}
     <EmptyState

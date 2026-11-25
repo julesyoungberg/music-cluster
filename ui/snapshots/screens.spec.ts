@@ -21,6 +21,37 @@ test.describe('browsing', () => {
     await shot('overview', { note: 'Library totals, the fitted collection, the three ways in' });
   });
 
+  test('overview fitting', async ({ page, shot }) => {
+    await page.route('**/api/info', async (route) => {
+      const info = await (await route.fetch()).json();
+      for (const collection of info.collections) collection.fitted = false;
+      await route.fulfill({ json: info });
+    });
+    // Keep the fit running so the progress panel stays on screen.
+    await page.route('**/api/tasks/*', (route) =>
+      route.fulfill({
+        json: {
+          id: 'shot',
+          kind: 'fit',
+          status: 'running',
+          progress: 0.4,
+          current: 10,
+          total: 24,
+          message: 'Embedding',
+          result: null,
+          error: null
+        }
+      })
+    );
+    await page.route('**/api/collections/*/fit', (route) =>
+      route.fulfill({ json: { task_id: 'shot' } })
+    );
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Fit now' }).click();
+    await expect(page.getByText('Fitting groups')).toBeVisible();
+    await shot('overview-fitting', { note: 'Fit now pressed: the fit progress under the banner' });
+  });
+
   test('groups', async ({ page, shot }) => {
     await page.goto('/groups');
     await expect(page.getByText('Techno', { exact: true }).first()).toBeVisible();
