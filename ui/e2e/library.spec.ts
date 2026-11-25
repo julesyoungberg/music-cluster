@@ -48,16 +48,37 @@ test.describe('overview', () => {
       for (const collection of info.collections) collection.fitted = false;
       await route.fulfill({ json: info });
     });
-    // Hold the first poll as running: a fit of 24 tracks can finish between polls.
-    let firstPoll = true;
-    await page.route('**/api/tasks/*', async (route) => {
-      if (!firstPoll) return route.continue();
-      firstPoll = false;
-      const task = await (await route.fetch()).json();
-      await route.fulfill({
-        json: { ...task, status: 'running', current: 3, total: 24, message: 'Embedding' }
-      });
+    // Stand in for the fit so this file stays read-only (the fit route has its
+    // own closed-loop test): one poll while running, then done.
+    let fitStarted = false;
+    await page.route('**/api/collections/*/fit', (route) => {
+      fitStarted = true;
+      return route.fulfill({ json: { task_id: 'fit-test' } });
     });
+    const task = { id: 'fit-test', kind: 'fit', total: 24, error: null };
+    let polls = 0;
+    await page.route('**/api/tasks/fit-test', (route) =>
+      route.fulfill({
+        json:
+          polls++ === 0
+            ? {
+                ...task,
+                status: 'running',
+                progress: 0.125,
+                current: 3,
+                message: 'Embedding',
+                result: null
+              }
+            : {
+                ...task,
+                status: 'completed',
+                progress: 1,
+                current: 24,
+                message: '',
+                result: { accuracy: 0.9 }
+              }
+      })
+    );
     await page.goto('/');
 
     await page.getByRole('button', { name: 'Fit now' }).click();
@@ -65,6 +86,7 @@ test.describe('overview', () => {
     await expect(page.getByText('Fitting groups')).toBeVisible();
     await expect(page.getByText('Groups re-learned')).toBeVisible();
     await expect(page.getByText('Fitting groups')).toHaveCount(0);
+    expect(fitStarted).toBe(true);
   });
 });
 
