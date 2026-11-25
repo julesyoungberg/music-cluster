@@ -5,6 +5,7 @@
   import LoadingState from '$lib/components/LoadingState.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
+  import TaskProgress from '$lib/components/TaskProgress.svelte';
   import type { Collection, DiscoveryRun, SortSession, TaskStatus } from '$lib/types';
   import { formatDate, formatPercent, pluralize } from '$lib/utils';
   import { Compass, FolderTree, Inbox, Sparkles, TriangleAlert, Wand2 } from 'lucide-svelte';
@@ -17,6 +18,7 @@
   let sessions = $state<SortSession[]>([]);
   let runs = $state<DiscoveryRun[]>([]);
   let fitting = $state(false);
+  let fitTask = $state<TaskStatus | null>(null);
 
   async function load() {
     loading = true;
@@ -47,7 +49,7 @@
     fitting = true;
     try {
       const { task_id } = await api.fitCollection(current.id);
-      const task: TaskStatus = await pollTask(task_id);
+      const task = await pollTask(task_id, (status) => (fitTask = status));
       const metrics = task.result as { accuracy: number } | null;
       notifySuccess(
         'Groups re-learned',
@@ -57,6 +59,7 @@
     } catch (err) {
       notifyError('Could not fit', err instanceof ApiError ? err.message : String(err));
     } finally {
+      fitTask = null;
       fitting = false;
     }
   }
@@ -135,6 +138,8 @@
           </button>
         </div>
       {/if}
+
+      <TaskProgress task={fitTask} label="Fitting groups" />
 
       <section class="grid gap-4 md:grid-cols-3">
         <a

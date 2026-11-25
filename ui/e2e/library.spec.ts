@@ -40,6 +40,32 @@ test.describe('overview', () => {
     await expect(page.getByRole('link', { name: /Break down a pile/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Manage groups/ })).toBeVisible();
   });
+
+  test('Fit now shows the fit progress until the groups are re-learned', async ({ page }) => {
+    // The seeded collection is fitted, so report it as unfitted to get the banner.
+    await page.route('**/api/info', async (route) => {
+      const info = await (await route.fetch()).json();
+      for (const collection of info.collections) collection.fitted = false;
+      await route.fulfill({ json: info });
+    });
+    // Hold the first poll as running: a fit of 24 tracks can finish between polls.
+    let firstPoll = true;
+    await page.route('**/api/tasks/*', async (route) => {
+      if (!firstPoll) return route.continue();
+      firstPoll = false;
+      const task = await (await route.fetch()).json();
+      await route.fulfill({
+        json: { ...task, status: 'running', current: 3, total: 24, message: 'Embedding' }
+      });
+    });
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Fit now' }).click();
+
+    await expect(page.getByText('Fitting groups')).toBeVisible();
+    await expect(page.getByText('Groups re-learned')).toBeVisible();
+    await expect(page.getByText('Fitting groups')).toHaveCount(0);
+  });
 });
 
 test.describe('navigation', () => {
