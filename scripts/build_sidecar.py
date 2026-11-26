@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Freeze the API server into the sidecar binary the desktop app ships.
+"""Freeze the API server into the sidecar the desktop app ships.
 
 The desktop build has to work for someone who does not have Python, so the
-whole server — FastAPI, librosa, scikit-learn and all — is packed into one
-executable and dropped where Tauri expects an `externalBin`:
+whole server (FastAPI, librosa, scikit-learn, torch and all) is frozen into a
+folder holding an executable and its libraries, and copied where Tauri bundles
+it as a resource:
 
-    src-tauri/binaries/music-cluster-api-<rust-target-triple>[.exe]
+    src-tauri/sidecar/music-cluster-api[.exe]
+    src-tauri/sidecar/_internal/...
 
-Tauri appends the target triple itself when it resolves a sidecar, which is
-what makes one repository produce a working bundle on three platforms.
+A folder rather than one self-extracting file: that unpacks hundreds of MB to
+a temp folder on every launch, and leaves it behind whenever the app kills it.
 
     python scripts/build_sidecar.py
-    python scripts/build_sidecar.py --target-triple x86_64-apple-darwin
 """
 
 import argparse
@@ -24,7 +25,7 @@ from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parent.parent
-BINARIES = ROOT / "src-tauri" / "binaries"
+SIDECAR = ROOT / "src-tauri" / "sidecar"
 NAME = "music-cluster-api"
 
 # librosa, numba and scikit-learn all resolve parts of themselves at runtime,
@@ -54,23 +55,7 @@ HIDDEN_IMPORTS = [
 EXCLUDES = ["tkinter", "matplotlib", "IPython", "pytest", "PyQt5", "PySide6", "notebook"]
 
 
-def rust_target_triple() -> str:
-    """The triple Tauri will look for, taken from the local Rust toolchain."""
-    try:
-        output = subprocess.run(["rustc", "-vV"], check=True, capture_output=True, text=True).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise SystemExit(
-            "Could not ask rustc for the target triple. Install Rust, or pass "
-            "--target-triple explicitly."
-        ) from exc
-
-    for line in output.splitlines():
-        if line.startswith("host:"):
-            return line.split(":", 1)[1].strip()
-    raise SystemExit("rustc -vV did not report a host triple")
-
-
-def build(triple: str, clean: bool) -> Path:
+def build(clean: bool) -> Path:
     try:
         import PyInstaller.__main__ as pyinstaller
     except ImportError as exc:
@@ -88,7 +73,7 @@ def build(triple: str, clean: bool) -> Path:
         str(ROOT / "music_cluster" / "server.py"),
         "--name",
         NAME,
-        "--onefile",
+        "--onedir",
         "--console",
         "--noconfirm",
         "--distpath",
@@ -110,16 +95,16 @@ def build(triple: str, clean: bool) -> Path:
     print("Freezing the API server (this takes a few minutes)...")
     pyinstaller.run(arguments)
 
-    produced = dist / (f"{NAME}.exe" if os.name == "nt" else NAME)
-    if not produced.is_file():
-        raise SystemExit(f"PyInstaller did not produce {produced}")
+    produced = dist / NAME
+    executable = f"{NAME}.exe" if os.name == "nt" else NAME
+    if not (produced / executable).is_file():
+        raise SystemExit(f"PyInstaller did not produce {produced / executable}")
 
-    BINARIES.mkdir(parents=True, exist_ok=True)
-    suffix = ".exe" if os.name == "nt" else ""
-    target = BINARIES / f"{NAME}-{triple}{suffix}"
-    shutil.copy2(produced, target)
-    target.chmod(0o755)
-    return target
+    # Tauri copies resources file by file, following symlinks, so copy them
+    # as plain files here and the smoke test runs the same layout that ships.
+    shutil.rmtree(SIDECAR, ignore_errors=True)
+    shutil.copytree(produced, SIDECAR, symlinks=False)
+    return SIDECAR / executable
 
 
 def write_test_tone(path: Path, seconds: int = 12, rate: int = 22050) -> None:
@@ -248,16 +233,14 @@ def smoke_test(binary: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target-triple", default=None, help="Override the Rust target triple")
     parser.add_argument("--no-clean", action="store_true", help="Reuse previous build artefacts")
-    parser.add_argument("--skip-smoke-test", action="store_true", help="Do not run the binary")
+    parser.add_argument("--skip-smoke-test", action="store_true", help="Do not run the sidecar")
     args = parser.parse_args()
 
-    triple = args.target_triple or rust_target_triple()
-    binary = build(triple, clean=not args.no_clean)
+    binary = build(clean=not args.no_clean)
 
-    size_mb = binary.stat().st_size / (1024 * 1024)
-    print(f"Built {binary} ({size_mb:.0f} MB)")
+    size_mb = sum(f.stat().st_size for f in SIDECAR.rglob("*") if f.is_file()) / (1024 * 1024)
+    print(f"Built {binary} ({size_mb:.0f} MB in {SIDECAR})")
 
     if not args.skip_smoke_test:
         smoke_test(binary)

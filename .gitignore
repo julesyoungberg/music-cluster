@@ -68,7 +68,7 @@ src-tauri/target/
 src-tauri/gen/
 
 # Bundled Python sidecar, built by scripts/build_sidecar.py
-src-tauri/binaries/
+src-tauri/sidecar/
 build/
 dist/
 *.spec.bak

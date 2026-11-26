@@ -101,10 +101,8 @@ jobs:
       # needs them to be present, not correct.
       - name: Stub the bundled artefacts
         run: |
-          mkdir -p src-tauri/binaries ui/build
-          triple=$(rustc -vV | sed -n 's/host: //p')
-          printf '#!/bin/sh\n' > "src-tauri/binaries/music-cluster-api-${triple}"
-          chmod +x "src-tauri/binaries/music-cluster-api-${triple}"
+          mkdir -p src-tauri/sidecar ui/build
+          printf '#!/bin/sh\n' > src-tauri/sidecar/music-cluster-api
           echo '<!doctype html><title>stub</title>' > ui/build/index.html
 
       - name: Clippy
