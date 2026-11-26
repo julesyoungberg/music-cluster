@@ -129,6 +129,8 @@ jobs:
       - name: Install the desktop shell's toolchain
         run: npm ci
 
+      # Without --verbose a failing AppImage step only says "error running
+      # appimage.sh", not which library it rejected.
       - name: Build the bundle
         run: npm run tauri:build -- --verbose
 
