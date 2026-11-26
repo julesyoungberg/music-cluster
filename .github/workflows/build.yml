@@ -130,7 +130,7 @@ jobs:
         run: npm ci
 
       - name: Build the bundle
-        run: npm run tauri:build
+        run: npm run tauri:build -- --verbose
 
       # The bundler copies the sidecar again, and the AppImage step can rewrite
       # its libraries, so test the copy that ships. Windows installs the same
