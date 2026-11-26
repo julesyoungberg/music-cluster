@@ -5,7 +5,7 @@
 //!
 //! The application is a Python API plus a web UI. Asking someone to install
 //! Python before they can sort their music would defeat the point of shipping a
-//! desktop build, so the API is bundled as a sidecar binary and this process
+//! desktop build, so the API is bundled as a frozen sidecar and this process
 //! owns its lifetime: pick a free port, start it, tell the page where it is,
 //! and make sure it dies when the window closes.
 
@@ -14,6 +14,14 @@ use std::sync::Mutex;
 
 use tauri::api::process::{Command, CommandChild, CommandEvent};
 use tauri::{Manager, RunEvent, WindowBuilder, WindowUrl};
+
+/// The frozen API server, a folder that `scripts/build_sidecar.py` builds and
+/// tauri.conf.json bundles as a resource.
+const SIDECAR: &str = if cfg!(windows) {
+    "sidecar/music-cluster-api.exe"
+} else {
+    "sidecar/music-cluster-api"
+};
 
 /// The sidecar process, kept so it can be killed on shutdown.
 #[derive(Default)]
@@ -78,7 +86,12 @@ fn main() {
 
 /// Start the bundled API server on `port` and forward its output to our log.
 fn start_api(app: &tauri::App, port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    let (mut rx, child) = Command::new_sidecar("music-cluster-api")?
+    let program = app
+        .path_resolver()
+        .resolve_resource(SIDECAR)
+        .filter(|path| path.is_file())
+        .ok_or("could not find the bundled API server (sidecar/) in the app's resources")?;
+    let (mut rx, child) = Command::new(program.to_string_lossy())
         .args(["--host", "127.0.0.1", "--port", &port.to_string()])
         .spawn()?;
 

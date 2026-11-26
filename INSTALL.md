@@ -70,9 +70,9 @@ for your platform.
 ### Building a distributable app
 
 The packaged app has to work for someone who has never installed Python, so the
-API is frozen into a single binary and shipped inside the bundle as a Tauri
-sidecar. The desktop shell starts it on a free port and shuts it down with the
-window.
+API is frozen into a folder (`src-tauri/sidecar/`: an executable plus its
+libraries) and shipped inside the bundle as a resource. The desktop shell starts
+it on a free port and shuts it down with the window.
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU-only, for AST sorting
