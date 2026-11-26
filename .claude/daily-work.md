@@ -275,3 +275,15 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Idea, not requested: the onefile sidecar leaves a temp folder behind each time it is killed; a onedir build would fix it.
 - Budget: last 3 runs used about 30, 35 and 30 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: deleting the merged branches (script in project files).
+
+### 2026-11-26
+
+- Minutes: ~12 of 60 active. Subagents: 0.
+- State: no open issues. Main's unit, e2e and lint runs are green on 18b154a (PR #61); its desktop build is red, and PR #62 (another thread's "Fix the Linux AppImage build with the folder sidecar") owns that fix, with its linux-x86_64 job still failing at 06:10 UTC. Left alone.
+- Checked for cloud-only work: docs/cli.md covers every CLI command and option; no stale onefile or externalBin references after PR #61; no TODOs. The known eval limits (minor loop, breakbeat half-time, novelty) stay parked per EVALUATION.md and earlier runs.
+- Shipped: nothing. Item 3 from the Nov 25 list (onedir sidecar) was done in PR #61.
+- Next (all need the Mac or Jules):
+  1. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+  2. Try the desktop build on Jules's Mac once PR #62 lands (AST, onedir startup time, no temp folders left behind).
+- Budget: last 3 runs used about 35, 30 and 12 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: OK to run the AST crate test on the Mac via Remote Control unattended? Still open: deleting the merged branches (script in project files).
