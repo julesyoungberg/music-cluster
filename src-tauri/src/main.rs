@@ -89,7 +89,8 @@ fn start_api(app: &tauri::App, port: u16) -> Result<(), Box<dyn std::error::Erro
     let program = app
         .path_resolver()
         .resolve_resource(SIDECAR)
-        .ok_or("could not locate the bundled API server")?;
+        .filter(|path| path.is_file())
+        .ok_or("could not find the bundled API server (sidecar/) in the app's resources")?;
     let (mut rx, child) = Command::new(program.to_string_lossy())
         .args(["--host", "127.0.0.1", "--port", &port.to_string()])
         .spawn()?;

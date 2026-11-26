@@ -102,6 +102,8 @@ def build(clean: bool) -> Path:
 
     # Tauri copies resources file by file, following symlinks, so copy them
     # as plain files here and the smoke test runs the same layout that ships.
+    links = sum(1 for f in produced.rglob("*") if f.is_symlink())
+    print(f"Resolving {links} symlinks into plain copies")
     shutil.rmtree(SIDECAR, ignore_errors=True)
     shutil.copytree(produced, SIDECAR, symlinks=False)
     return SIDECAR / executable
@@ -235,7 +237,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-clean", action="store_true", help="Reuse previous build artefacts")
     parser.add_argument("--skip-smoke-test", action="store_true", help="Do not run the sidecar")
+    parser.add_argument(
+        "--smoke-test",
+        type=Path,
+        metavar="EXECUTABLE",
+        help="Only smoke-test this sidecar executable, such as the copy inside a built bundle",
+    )
     args = parser.parse_args()
+
+    if args.smoke_test:
+        if not args.smoke_test.is_file():
+            raise SystemExit(f"No sidecar executable at {args.smoke_test}")
+        smoke_test(args.smoke_test)
+        return 0
 
     binary = build(clean=not args.no_clean)
 

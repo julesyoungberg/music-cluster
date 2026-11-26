@@ -132,6 +132,23 @@ jobs:
       - name: Build the bundle
         run: npm run tauri:build
 
+      # The bundler copies the sidecar again, and the AppImage step can rewrite
+      # its libraries, so test the copy that ships. Windows installs the same
+      # files tauri-build copies, with nothing rewritten.
+      - name: Smoke-test the sidecar inside the bundle
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle="$PWD/src-tauri/target/release/bundle"
+          if [ "$RUNNER_OS" = Linux ]; then
+            appimage=$(find "$bundle/appimage" -name '*.AppImage' | head -n 1)
+            (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
+            sidecar=$(find "$RUNNER_TEMP/squashfs-root" -path '*/sidecar/music-cluster-api' -type f | head -n 1)
+          else
+            sidecar=$(find "$bundle/macos" -path '*.app/Contents/Resources/sidecar/music-cluster-api' -type f | head -n 1)
+          fi
+          python scripts/build_sidecar.py --smoke-test "$sidecar"
+
       - name: Collect the installers
         id: collect
         shell: bash

@@ -15,7 +15,8 @@ tauri-build = { version = "1.5", features = [] }
 # Only Rust's process API is enabled, to start the bundled API server. The UI
 # talks to the server over HTTP and browses the filesystem through it, so the
 # app needs no filesystem or dialog permissions of its own — and shipping them
-# would widen what it can do for no reason. Keep this list in step with the allowlist in tauri.conf.json.
+# would widen what it can do for no reason. The allowlist in tauri.conf.json
+# stays empty to match.
 tauri = { version = "1.5", features = ["process-command-api"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
