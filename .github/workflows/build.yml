@@ -88,7 +88,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf
+            librsvg2-dev patchelf desktop-file-utils
 
       # numba 0.63+ and llvmlite 0.46+ publish no Intel macOS wheels, so pip
       # falls back to building llvmlite from source, which needs a full LLVM

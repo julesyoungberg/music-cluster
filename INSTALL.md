@@ -86,7 +86,7 @@ npm run tauri:build
 ```
 
 On Linux, then run `scripts/add_sidecar_to_appimage.sh src-tauri/target/release/bundle/appimage/*.AppImage`:
-the AppImage leaves the sidecar out until you do.
+the AppImage leaves the sidecar out until you do. It needs `desktop-file-utils`.
 
 On an Intel Mac, use the version pins in `.github/workflows/build.yml` (torch 2.2
 is the last with Intel Mac wheels, and it needs NumPy 1).
