@@ -149,11 +149,17 @@ jobs:
           if [ "$RUNNER_OS" = Linux ]; then
             appimage=$(find "$bundle/appimage" -name '*.AppImage' | head -n 1)
             (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
-            sidecar=$(find "$RUNNER_TEMP/squashfs-root" -path '*/sidecar/music-cluster-api' -type f | head -n 1)
+            dpkg-deb -x "$(find "$bundle/deb" -name '*.deb' | head -n 1)" "$RUNNER_TEMP/deb"
+            sidecars=(
+              "$RUNNER_TEMP/squashfs-root/usr/libexec/music-cluster/sidecar/music-cluster-api"
+              "$RUNNER_TEMP/deb/usr/libexec/music-cluster/sidecar/music-cluster-api"
+            )
           else
-            sidecar=$(find "$bundle/macos" -path '*.app/Contents/Resources/sidecar/music-cluster-api' -type f | head -n 1)
+            sidecars=("$(find "$bundle/macos" -path '*.app/Contents/Resources/sidecar/music-cluster-api' -type f | head -n 1)")
           fi
-          python scripts/build_sidecar.py --smoke-test "$sidecar"
+          for sidecar in "${sidecars[@]}"; do
+            python scripts/build_sidecar.py --smoke-test "$sidecar"
+          done
 
       - name: Collect the installers
         id: collect
