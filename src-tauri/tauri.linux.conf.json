@@ -1,0 +1,12 @@
+{
+  "tauri": {
+    "bundle": {
+      "resources": [],
+      "deb": {
+        "files": {
+          "/usr/libexec/music-cluster/sidecar": "sidecar"
+        }
+      }
+    }
+  }
+}

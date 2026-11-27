@@ -52,18 +52,7 @@ HIDDEN_IMPORTS = [
     "transformers.models.audio_spectrogram_transformer.modeling_audio_spectrogram_transformer",
 ]
 # Nothing in the server draws anything; excluding these saves a lot of weight.
-EXCLUDES = [
-    "tkinter",
-    "matplotlib",
-    "IPython",
-    "pytest",
-    "PyQt5",
-    "PySide6",
-    "notebook",
-    # Needs Intel TBB, which is not installed, so numba never uses it; and the
-    # AppImage tool refuses to bundle a library whose dependency is missing.
-    "numba.np.ufunc.tbbpool",
-]
+EXCLUDES = ["tkinter", "matplotlib", "IPython", "pytest", "PyQt5", "PySide6", "notebook"]
 
 
 def build(clean: bool) -> Path:
