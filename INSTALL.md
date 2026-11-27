@@ -85,8 +85,13 @@ npm install                          # the Tauri CLI, which must live at the roo
 npm run tauri:build
 ```
 
-On Linux, build the bundle with `LD_LIBRARY_PATH=$PWD/src-tauri/sidecar/_internal npm run tauri:build`.
-The AppImage step needs it to find the sidecar's own libraries.
+On Linux, the AppImage step needs to find the sidecar's own libraries, so build
+the bundle with:
+
+```bash
+LD_LIBRARY_PATH=$(find "$PWD/src-tauri/sidecar/_internal" -name 'lib*.so*' -printf '%h\n' | sort -u | paste -sd: -) \
+  npm run tauri:build
+```
 
 On an Intel Mac, use the version pins in `.github/workflows/build.yml` (torch 2.2
 is the last with Intel Mac wheels, and it needs NumPy 1).
