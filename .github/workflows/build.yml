@@ -134,9 +134,13 @@ jobs:
       - name: Build the bundle
         run: npm run tauri:build -- --verbose
 
-      # The bundler copies the sidecar again, and the AppImage step can rewrite
-      # its libraries, so test the copy that ships. Windows installs the same
-      # files tauri-build copies, with nothing rewritten.
+      - name: Add the sidecar to the AppImage
+        if: runner.os == 'Linux'
+        run: scripts/add_sidecar_to_appimage.sh src-tauri/target/release/bundle/appimage/*.AppImage
+
+      # The bundler copies the sidecar again, and the AppImage is repacked, so
+      # test the copy that ships. Windows installs the same files tauri-build
+      # copies.
       - name: Smoke-test the sidecar inside the bundle
         if: runner.os != 'Windows'
         shell: bash
