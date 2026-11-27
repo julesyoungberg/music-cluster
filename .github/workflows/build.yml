@@ -131,7 +131,14 @@ jobs:
 
       # Without --verbose a failing AppImage step only says "error running
       # appimage.sh", not which library it rejected.
+      #
+      # The AppImage tool resolves the dependencies of every library in the
+      # app, sidecar included. The sidecar's libraries have no search path of
+      # their own: its launcher points the loader at _internal/, so do the same
+      # here. Elsewhere the variable is unused.
       - name: Build the bundle
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/sidecar/_internal
         run: npm run tauri:build -- --verbose
 
       # The bundler copies the sidecar again, and the AppImage step can rewrite
