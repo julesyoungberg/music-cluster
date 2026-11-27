@@ -275,3 +275,16 @@ Log of the scheduled "Daily Project Work: Music Cluster" runs. Newest last.
   3. Idea, not requested: the onefile sidecar leaves a temp folder behind each time it is killed; a onedir build would fix it.
 - Budget: last 3 runs used about 30, 35 and 30 of 60; not all under half, so budget_minutes stays 60.
 - Questions for Jules: none new. Still open: deleting the merged branches (script in project files).
+
+### 2026-11-27
+
+- Minutes: ~10 of 60 active. Subagents: 0.
+- State: no open issues. Main is red on one job: the desktop build's linux-x86_64 AppImage step fails since PR #61 (the onedir sidecar). Draft PR #62 from another thread owns the fix (exclude numba's tbbpool); its Linux job was still failing on Nov 26, so it was left alone here. Other workflows on main are green.
+- Docs checked against #58 to #61 (README, INSTALL.md, docs/cli.md): no stale references to the old onefile sidecar or missing AST notes.
+- Nothing shipped: every open item needs the Mac or Jules.
+- Next (all need the Mac or Jules):
+  1. Land PR #62 so the Linux desktop build is green again.
+  2. Try AST on Jules's own crates (Mac via Remote Control): the eval number is FMA only.
+  3. Try the AST desktop build on Jules's Mac (size, startup time, Settings switch, no temp folders left behind).
+- Budget: last 3 runs used about 35, 30 and 10 of 60; not all under half, so budget_minutes stays 60.
+- Questions for Jules: none new. Still open: deleting the merged branches (script in project files).
