@@ -10,13 +10,16 @@
 //! and make sure it dies when the window closes.
 
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::Mutex;
 
 use tauri::api::process::{Command, CommandChild, CommandEvent};
 use tauri::{Manager, RunEvent, WindowBuilder, WindowUrl};
 
 /// The frozen API server, a folder that `scripts/build_sidecar.py` builds and
-/// tauri.conf.json bundles as a resource.
+/// tauri.conf.json bundles as a resource. Linux packages put it in
+/// `libexec/` instead (tauri.linux.conf.json): the AppImage tool rewrites every
+/// library under `lib/`, and the sidecar's libraries must stay as built.
 const SIDECAR: &str = if cfg!(windows) {
     "sidecar/music-cluster-api.exe"
 } else {
@@ -86,11 +89,20 @@ fn main() {
 
 /// Start the bundled API server on `port` and forward its output to our log.
 fn start_api(app: &tauri::App, port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    let program = app
-        .path_resolver()
-        .resolve_resource(SIDECAR)
-        .filter(|path| path.is_file())
-        .ok_or("could not find the bundled API server (sidecar/) in the app's resources")?;
+    let linux_package = std::env::current_exe()?
+        .parent()
+        .map(|bin| bin.join("../libexec/music-cluster").join(SIDECAR));
+    let dev_build =
+        cfg!(debug_assertions).then(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(SIDECAR));
+    let program = [
+        app.path_resolver().resolve_resource(SIDECAR),
+        linux_package,
+        dev_build,
+    ]
+    .into_iter()
+    .flatten()
+    .find(|path| path.is_file())
+    .ok_or("could not find the bundled API server (sidecar/)")?;
     let (mut rx, child) = Command::new(program.to_string_lossy())
         .args(["--host", "127.0.0.1", "--port", &port.to_string()])
         .spawn()?;
